@@ -45,7 +45,7 @@ export const TEXTURE_MAP = {
 };
 
 export const BLOOM_DEFAULTS = {
-  strength: 0.8,
-  radius: 0.3,
-  threshold: 0.85,
+  strength: 0.5,
+  radius: 0.2,
+  threshold: 0.9,
 };

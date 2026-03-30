@@ -34,8 +34,7 @@ export class SceneManager {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(COLOR_PALETTE.background, 1);
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.7;
+    this.renderer.toneMapping = THREE.NoToneMapping;
     document.body.appendChild(this.renderer.domElement);
   }
 
@@ -147,7 +146,36 @@ export class SceneManager {
     this._resetTarget = new THREE.Vector3(position.x, position.y, position.z);
     this._resetLookAt = new THREE.Vector3(0, 0, 0);
     this._isResetting = true;
+    this._isFocusing = false;
     this._resetProgress = 0;
+
+    // Restore default controls distance
+    const { minDistance, maxDistance } = CONTROLS_DEFAULTS;
+    this.controls.minDistance = minDistance;
+    this.controls.maxDistance = maxDistance;
+  }
+
+  /**
+   * Smoothly move camera to focus on a planet.
+   * @param {THREE.Vector3} targetPosition - The planet's current world position.
+   * @param {number} displayRadius - The planet's display radius for calculating view distance.
+   */
+  focusPlanet(targetPosition, displayRadius) {
+    this._focusTarget = targetPosition.clone();
+    const offset = new THREE.Vector3(displayRadius * 3, displayRadius * 2, displayRadius * 3);
+    this._focusCameraPos = targetPosition.clone().add(offset);
+    this._isFocusing = true;
+    this._isResetting = false;
+    this._focusProgress = 0;
+
+    // Adjust controls distance limits based on planet size
+    if (displayRadius <= 8) {
+      this.controls.minDistance = 5;
+      this.controls.maxDistance = 100;
+    } else {
+      this.controls.minDistance = 20;
+      this.controls.maxDistance = 300;
+    }
   }
 
   /**
@@ -176,6 +204,21 @@ export class SceneManager {
         if (t >= 1) {
           this._isResetting = false;
           this._resetProgress = 0;
+        }
+      }
+
+      // Handle smooth camera focus on planet
+      if (this._isFocusing && this._focusTarget) {
+        this._focusProgress += 0.03;
+        const t = Math.min(this._focusProgress, 1);
+        const ease = 1 - Math.pow(1 - t, 3);
+
+        this.camera.position.lerp(this._focusCameraPos, ease);
+        this.controls.target.lerp(this._focusTarget, ease);
+
+        if (t >= 1) {
+          this._isFocusing = false;
+          this._focusProgress = 0;
         }
       }
 

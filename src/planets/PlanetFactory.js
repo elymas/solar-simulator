@@ -116,11 +116,9 @@ export class PlanetFactory {
 
     const materialProps = {
       map: this._loadTexture(TEXTURE_MAP[key]),
-      roughness: 0.8,
-      metalness: 0.1,
     };
 
-    const material = new THREE.MeshStandardMaterial(materialProps);
+    const material = new THREE.MeshBasicMaterial(materialProps);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = key;
 
@@ -153,7 +151,7 @@ export class PlanetFactory {
    */
   _createEarthClouds(earthMesh, data) {
     const geometry = new THREE.SphereGeometry(data.displayRadius * 1.02, 64, 64);
-    const material = new THREE.MeshStandardMaterial({
+    const material = new THREE.MeshBasicMaterial({
       map: this._loadTexture(TEXTURE_MAP.earthClouds),
       transparent: true,
       opacity: 0.4,
@@ -171,10 +169,8 @@ export class PlanetFactory {
   _createMoon() {
     const moonData = MOON_DATA.moon;
     const geometry = new THREE.SphereGeometry(moonData.displayRadius, 32, 32);
-    const material = new THREE.MeshStandardMaterial({
+    const material = new THREE.MeshBasicMaterial({
       map: this._loadTexture(TEXTURE_MAP.moon),
-      roughness: 0.9,
-      metalness: 0.0,
     });
     const moonMesh = new THREE.Mesh(geometry, material);
     moonMesh.name = 'moon';
