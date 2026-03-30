@@ -1,4 +1,4 @@
-import { MOON_DATA } from '../planets/planetData.js';
+import { MOON_DATA, STAR_DATA } from '../planets/planetData.js';
 
 /**
  * InfoPanel displays detailed information about a selected celestial body
@@ -152,8 +152,26 @@ export class InfoPanel {
    * @param {string} planetKey - Key from planetFactory.planets
    * @param {Object} planetData - Planet data object from planetData.js
    */
+  /**
+   * Find moon data by key across all parent planets.
+   * @param {string} key - Moon key.
+   * @returns {Object|null} Moon data object or null.
+   */
+  _findMoonData(key) {
+    for (const moons of Object.values(MOON_DATA)) {
+      const found = moons.find((m) => m.key === key);
+      if (found) return found;
+    }
+    return null;
+  }
+
   show(planetKey, planetData) {
-    const data = planetKey === 'moon' ? MOON_DATA.moon : planetData;
+    // Resolve the correct data source with explicit type detection
+    const moonData = this._findMoonData(planetKey);
+    const starData = STAR_DATA[planetKey] || null;
+    const data = moonData || starData || planetData;
+    if (!data) return;
+
     const nameEl = this.el.querySelector('.planet-name');
     const nameKoEl = this.el.querySelector('.planet-name-ko');
     const gridEl = this.el.querySelector('.info-grid');
@@ -161,25 +179,35 @@ export class InfoPanel {
     nameEl.textContent = data.name || planetKey;
     nameKoEl.textContent = data.nameKo || '';
 
-    // Build info items based on planet type
     const items = [];
 
-    if (planetKey === 'sun') {
-      // Sun-specific data
+    if (starData) {
+      // Star-specific data
+      items.push({ label: 'Type', value: data.type });
+      items.push({ label: 'Radius', value: `${data.radiusSolar} R\u2609` });
+      items.push({ label: 'Distance', value: `${data.distance.toLocaleString()} ${data.distanceUnit}` });
+      items.push({ label: 'Mass', value: `${data.mass} ${data.massUnit}` });
+      items.push({ label: 'Luminosity', value: `${data.luminosity.toLocaleString()} ${data.luminosityUnit}` });
+      items.push({ label: 'Surface Temp', value: `${data.surfaceTemp.toLocaleString()} K` });
+      items.push({ label: 'Constellation', value: `${data.constellation} (${data.constellationKo})` });
+      items.push({ label: 'Apparent Mag', value: data.apparentMagnitude.toString() });
+      items.push({ label: 'Absolute Mag', value: data.absoluteMagnitude.toString() });
+    } else if (planetKey === 'sun') {
       items.push({ label: 'Diameter', value: `${(data.radius * 2).toLocaleString()} km` });
       items.push({ label: 'Surface Temp', value: '5,778 K' });
       items.push({ label: 'Rotation Period', value: this._formatRotationPeriod(data.rotationPeriod) });
       items.push({ label: 'Axial Tilt', value: `${data.axialTilt}\u00B0` });
-    } else if (planetKey === 'moon') {
-      // Moon-specific data
+    } else if (moonData) {
       items.push({ label: 'Diameter', value: `${(data.radius * 2).toLocaleString()} km` });
-      items.push({ label: 'Distance from Earth', value: `${data.distanceFromEarth?.toLocaleString() || '384,400'} km` });
-      items.push({ label: 'Orbital Period', value: this._formatOrbitalPeriod(data.orbitalPeriod) });
+      items.push({ label: 'Distance from Parent', value: `${data.distanceFromParent?.toLocaleString()} km` });
+      items.push({ label: 'Orbital Period', value: this._formatOrbitalPeriod(Math.abs(data.orbitalPeriod)) });
       items.push({ label: 'Rotation Period', value: this._formatRotationPeriod(data.rotationPeriod) });
       items.push({ label: 'Axial Tilt', value: `${data.axialTilt}\u00B0` });
       items.push({ label: 'Eccentricity', value: data.eccentricity?.toFixed(4) || 'N/A' });
+      if (data.retrograde) {
+        items.push({ label: 'Orbit', value: 'Retrograde' });
+      }
     } else {
-      // Regular planet data
       items.push({ label: 'Diameter', value: `${(data.radius * 2).toLocaleString()} km` });
       items.push({ label: 'Distance from Sun', value: `${data.distance} AU` });
       items.push({ label: 'Orbital Period', value: this._formatOrbitalPeriod(data.orbitalPeriod) });

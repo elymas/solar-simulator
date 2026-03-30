@@ -168,10 +168,13 @@ export class SceneManager {
     this._isResetting = false;
     this._focusProgress = 0;
 
-    // Adjust controls distance limits based on planet size
+    // Adjust controls distance limits based on object size
     if (displayRadius <= 8) {
       this.controls.minDistance = 5;
       this.controls.maxDistance = 100;
+    } else if (displayRadius >= 60) {
+      this.controls.minDistance = displayRadius * 1.5;
+      this.controls.maxDistance = displayRadius * 10;
     } else {
       this.controls.minDistance = 20;
       this.controls.maxDistance = 300;

@@ -107,6 +107,7 @@ export class TimeControls {
         <span class="play-icon">&#9654;</span>
         <span class="pause-icon">&#9646;&#9646;</span>
       </button>
+      <button id="reset-btn" class="control-btn" title="Reset to Start (Home)">&#8634;</button>
       <div class="speed-control">
         <label class="speed-label">Speed</label>
         <input type="range" id="speed-slider" min="-1" max="2.7" step="0.01" value="0" />
@@ -127,6 +128,7 @@ export class TimeControls {
 
     // Cache DOM references
     this.playPauseBtn = this.el.querySelector('#play-pause-btn');
+    this.resetBtn = this.el.querySelector('#reset-btn');
     this.speedSlider = this.el.querySelector('#speed-slider');
     this.speedValueEl = this.el.querySelector('#speed-value');
     this.dateEl = this.el.querySelector('#sim-date');
@@ -149,6 +151,14 @@ export class TimeControls {
       const speed = Math.pow(10, logValue);
       this.simApi.setTimeSpeed(speed);
       this._updateSpeedDisplay(speed);
+    });
+
+    this.resetBtn.addEventListener('click', () => {
+      this.speedSlider.value = 0;
+      this.simApi.setTimeSpeed(1);
+      this.simApi.setSimTime(0);
+      this._updateSpeedDisplay(1);
+      this.updateDate(0);
     });
   }
 

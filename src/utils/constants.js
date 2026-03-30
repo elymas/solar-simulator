@@ -10,7 +10,7 @@ export const COLOR_PALETTE = {
 export const CAMERA_DEFAULTS = {
   fov: 60,
   near: 0.1,
-  far: 50000,
+  far: 100000,
   position: { x: 300, y: 200, z: 400 },
 };
 
@@ -18,7 +18,7 @@ export const CONTROLS_DEFAULTS = {
   enableDamping: true,
   dampingFactor: 0.05,
   minDistance: 50,
-  maxDistance: 3000,
+  maxDistance: 5000,
 };
 
 export const SCALE = {

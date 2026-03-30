@@ -128,6 +128,13 @@ function initUI() {
     if (e.code === 'Escape') {
       deselectPlanet(infoPanel, planetList, interaction);
     }
+
+    // Home: reset simulation time to start
+    if (e.code === 'Home') {
+      e.preventDefault();
+      simulationTime = 0;
+      timeControls.updateDate(0);
+    }
   });
 
   // Store references for the animation loop
@@ -145,8 +152,8 @@ sceneManager.start((delta) => {
   if (focusedPlanetKey) {
     const planet = planetFactory.planets[focusedPlanetKey];
     if (planet) {
-      // For the moon, get world position since it is parented to a pivot
-      if (focusedPlanetKey === 'moon' && planet.pivot) {
+      // For satellites with pivots, get world position
+      if (planet.pivot) {
         const worldPos = new THREE.Vector3();
         planet.mesh.getWorldPosition(worldPos);
         sceneManager.controls.target.copy(worldPos);

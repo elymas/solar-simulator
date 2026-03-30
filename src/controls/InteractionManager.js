@@ -28,6 +28,7 @@ export class InteractionManager {
     this._collisionHelpers = [];
     this._meshToKeyMap = new Map();
     this._buildClickTargets();
+    this._createTooltip();
 
     // Bind event handlers
     this._onMouseMove = this._onMouseMove.bind(this);
@@ -68,6 +69,77 @@ export class InteractionManager {
         this._collisionHelpers.push(helper);
       }
     }
+  }
+
+  /**
+   * Create the hover tooltip DOM element.
+   */
+  _createTooltip() {
+    const style = document.createElement('style');
+    style.textContent = `
+      .planet-tooltip {
+        position: fixed;
+        pointer-events: none;
+        background: rgba(26, 26, 46, 0.9);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        border: 1px solid rgba(22, 199, 255, 0.3);
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-family: 'Inter', sans-serif;
+        font-size: 13px;
+        color: #e0e0e0;
+        white-space: nowrap;
+        z-index: 200;
+        opacity: 0;
+        transition: opacity 0.15s;
+        transform: translate(-50%, -100%);
+      }
+      .planet-tooltip.visible {
+        opacity: 1;
+      }
+      .planet-tooltip-name {
+        color: #16c7ff;
+        font-weight: 500;
+      }
+      .planet-tooltip-nameko {
+        color: #888;
+        font-size: 11px;
+        margin-left: 6px;
+      }
+    `;
+    document.head.appendChild(style);
+
+    this._tooltip = document.createElement('div');
+    this._tooltip.className = 'planet-tooltip';
+    document.body.appendChild(this._tooltip);
+  }
+
+  /**
+   * Show tooltip near the cursor for the hovered planet.
+   * @param {string} key - Planet/star key.
+   * @param {number} clientX - Mouse X position.
+   * @param {number} clientY - Mouse Y position.
+   */
+  _showTooltip(key, clientX, clientY) {
+    const planet = this.planetFactory.planets[key];
+    if (!planet) return;
+
+    const data = planet.data;
+    const name = data.name || key;
+    const nameKo = data.nameKo || '';
+
+    this._tooltip.innerHTML = `<span class="planet-tooltip-name">${name}</span>${nameKo ? `<span class="planet-tooltip-nameko">${nameKo}</span>` : ''}`;
+    this._tooltip.style.left = `${clientX}px`;
+    this._tooltip.style.top = `${clientY - 12}px`;
+    this._tooltip.classList.add('visible');
+  }
+
+  /**
+   * Hide the tooltip.
+   */
+  _hideTooltip() {
+    this._tooltip.classList.remove('visible');
   }
 
   /**
@@ -134,9 +206,11 @@ export class InteractionManager {
     if (key) {
       this.hoveredPlanet = key;
       this.renderer.domElement.style.cursor = 'pointer';
+      this._showTooltip(key, event.clientX, event.clientY);
     } else {
       this.hoveredPlanet = null;
       this.renderer.domElement.style.cursor = 'default';
+      this._hideTooltip();
     }
   }
 

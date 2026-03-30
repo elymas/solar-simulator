@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLANET_DATA, MOON_DATA } from './planetData.js';
+import { PLANET_DATA, MOON_DATA, STAR_DATA } from './planetData.js';
 import { TEXTURE_MAP } from '../utils/constants.js';
 import { OrbitalMechanics } from './OrbitalMechanics.js';
 
@@ -16,8 +16,9 @@ export class PlanetFactory {
     this.scene = scene;
     this.sceneManager = sceneManager;
     this.planets = {};
+    this.stars = {};
     this.orbitLines = [];
-    this.moonPivot = null;
+    this.moonPivots = {};
 
     // Loading callbacks (set by main.js before textures start loading)
     this.onLoadProgress = null;
@@ -38,6 +39,7 @@ export class PlanetFactory {
     this._createSun();
     this._createAllPlanets();
     this._createOrbitLines();
+    this._createStars();
   }
 
   /**
@@ -94,9 +96,13 @@ export class PlanetFactory {
       this._createPlanet(key, PLANET_DATA[key]);
     }
 
-    // Create Moon after Earth is created
-    if (this.planets.earth) {
-      this._createMoon();
+    // Create moons for all planets that have them
+    for (const [parentKey, moons] of Object.entries(MOON_DATA)) {
+      if (this.planets[parentKey]) {
+        for (const moonData of moons) {
+          this._createSatellite(parentKey, moonData);
+        }
+      }
     }
 
     // Create Saturn's rings
@@ -164,29 +170,39 @@ export class PlanetFactory {
   }
 
   /**
-   * Create the Moon orbiting Earth using a pivot group.
+   * Create a satellite (moon) orbiting a parent planet using a pivot group.
+   * @param {string} parentKey - Parent planet key (e.g., 'earth', 'mars').
+   * @param {Object} moonData - Moon data object.
    */
-  _createMoon() {
-    const moonData = MOON_DATA.moon;
-    const geometry = new THREE.SphereGeometry(moonData.displayRadius, 32, 32);
-    const material = new THREE.MeshBasicMaterial({
-      map: this._loadTexture(TEXTURE_MAP.moon),
-    });
-    const moonMesh = new THREE.Mesh(geometry, material);
-    moonMesh.name = 'moon';
-    moonMesh.position.set(moonData.distanceDisplay, 0, 0);
+  _createSatellite(parentKey, moonData) {
+    const geometry = new THREE.SphereGeometry(moonData.displayRadius, 16, 16);
 
-    // Pivot parented to Earth's position (not scene origin)
-    this.moonPivot = new THREE.Group();
-    this.moonPivot.name = 'moonPivot';
-    this.moonPivot.add(moonMesh);
+    let material;
+    if (moonData.key === 'moon' && TEXTURE_MAP.moon) {
+      material = new THREE.MeshBasicMaterial({
+        map: this._loadTexture(TEXTURE_MAP.moon),
+      });
+    } else {
+      material = new THREE.MeshBasicMaterial({ color: moonData.color });
+    }
 
-    this.scene.add(this.moonPivot);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = moonData.key;
+    mesh.position.set(moonData.distanceDisplay, 0, 0);
 
-    this.planets.moon = {
-      mesh: moonMesh,
+    const pivot = new THREE.Group();
+    pivot.name = `${moonData.key}Pivot`;
+    pivot.add(mesh);
+
+    this.scene.add(pivot);
+    this.moonPivots[moonData.key] = pivot;
+
+    this.planets[moonData.key] = {
+      mesh,
       data: moonData,
-      pivot: this.moonPivot,
+      pivot,
+      parentKey,
+      isSatellite: true,
     };
   }
 
@@ -247,6 +263,36 @@ export class PlanetFactory {
   }
 
   /**
+   * Create stars beyond the solar system as emissive spheres.
+   */
+  _createStars() {
+    for (const [key, data] of Object.entries(STAR_DATA)) {
+      const segments = data.displayRadius >= 40 ? 64 : 32;
+      const geometry = new THREE.SphereGeometry(data.displayRadius, segments, segments);
+      const material = new THREE.MeshBasicMaterial({
+        color: data.color,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = key;
+
+      // Position stars at large distances using azimuth and elevation
+      const dist = data.distanceDisplay;
+      const az = data.azimuth || 0;
+      const el = data.elevation || 0;
+      mesh.position.set(
+        dist * Math.cos(el) * Math.sin(az),
+        dist * Math.sin(el),
+        dist * Math.cos(el) * Math.cos(az)
+      );
+
+      this.scene.add(mesh);
+
+      this.stars[key] = { mesh, data };
+      this.planets[key] = { mesh, data, isStar: true, isSatellite: false };
+    }
+  }
+
+  /**
    * Update all celestial body positions and rotations.
    * @param {number} timeDays - Current simulation time in days.
    * @param {number} delta - Frame delta time in seconds.
@@ -275,8 +321,8 @@ export class PlanetFactory {
       }
     }
 
-    // Update Moon orbit around Earth
-    this._updateMoon(timeDays, delta);
+    // Update all satellite orbits
+    this._updateSatellites(timeDays);
 
     // Rotate Earth cloud layer slightly faster than Earth
     if (this.earthClouds) {
@@ -285,22 +331,26 @@ export class PlanetFactory {
   }
 
   /**
-   * Update Moon position to orbit around Earth.
+   * Update all satellite positions to orbit their parent planets.
    * @param {number} timeDays - Current simulation time in days.
-   * @param {number} _delta - Frame delta time in seconds (unused).
    */
-  _updateMoon(timeDays, _delta) {
-    if (!this.moonPivot || !this.planets.earth) return;
+  _updateSatellites(timeDays) {
+    for (const [parentKey, moons] of Object.entries(MOON_DATA)) {
+      const parent = this.planets[parentKey];
+      if (!parent) continue;
 
-    const earthMesh = this.planets.earth.mesh;
-    const moonData = MOON_DATA.moon;
+      for (const moonData of moons) {
+        const pivot = this.moonPivots[moonData.key];
+        if (!pivot) continue;
 
-    // Move pivot to Earth's current position
-    this.moonPivot.position.copy(earthMesh.position);
+        pivot.position.copy(parent.mesh.position);
 
-    // Rotate pivot for Moon's orbital motion
-    const moonAngle = ((2 * Math.PI) / moonData.orbitalPeriod) * timeDays;
-    this.moonPivot.rotation.y = moonAngle;
+        const period = Math.abs(moonData.orbitalPeriod);
+        const direction = moonData.retrograde === true ? -1 : 1;
+        const angle = direction * ((2 * Math.PI) / period) * timeDays;
+        pivot.rotation.y = angle;
+      }
+    }
   }
 
   /**
