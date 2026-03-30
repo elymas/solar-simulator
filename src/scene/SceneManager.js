@@ -35,7 +35,7 @@ export class SceneManager {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(COLOR_PALETTE.background, 1);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 0.7;
     document.body.appendChild(this.renderer.domElement);
   }
 
@@ -66,10 +66,10 @@ export class SceneManager {
    * Initialize scene lighting: ambient light and a point light at the origin (Sun).
    */
   _initLighting() {
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+    const ambientLight = new THREE.AmbientLight(0x606060, 0.8);
     this.scene.add(ambientLight);
 
-    const sunLight = new THREE.PointLight(0xffffff, 2, 0, 0.5);
+    const sunLight = new THREE.PointLight(0xffffff, 1.5, 0, 0.5);
     sunLight.position.set(0, 0, 0);
     this.scene.add(sunLight);
   }
@@ -118,8 +118,8 @@ export class SceneManager {
 
     if (isMobile || isLowEnd) {
       this.renderer.setPixelRatio(1);
-      this.bloomPass.strength = 0.8;
-      this.bloomPass.radius = 0.2;
+      this.bloomPass.strength = 0.4;
+      this.bloomPass.radius = 0.15;
     }
   }
 
