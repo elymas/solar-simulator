@@ -66,7 +66,7 @@ export class PlanetList {
         font-size: 18px;
         cursor: pointer;
         z-index: 101;
-        display: none;
+        display: flex;
         align-items: center;
         justify-content: center;
         transition: all 0.2s;
@@ -81,14 +81,6 @@ export class PlanetList {
           min-width: 140px;
           max-height: calc(100vh - 120px);
           font-size: 12px;
-        }
-        .planet-list.auto-hidden {
-          opacity: 0;
-          pointer-events: none;
-          transform: translateY(-50%) translateX(-20px);
-        }
-        .planet-list-toggle {
-          display: flex;
         }
       }
       .planet-list-title {
