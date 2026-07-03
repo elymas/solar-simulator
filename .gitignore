@@ -183,6 +183,13 @@ secret-*.*
 .moai/worktrees/
 
 # ===========================================
+# Evolution Telemetry (local-only usage data)
+# Learnings and new-skills are git-tracked for team sharing.
+# ===========================================
+.moai/evolution/telemetry/*.jsonl
+!.moai/evolution/telemetry/.gitkeep
+
+# ===========================================
 # Node.js (for docs/Nextra)
 # ===========================================
 node_modules/
@@ -190,11 +197,6 @@ node_modules/
 .tscache/
 .next/
 out/
-
-# ===========================================
-# Vite
-# ===========================================
-*.local
 
 # ===========================================
 # Build Tools & Frameworks
@@ -209,4 +211,7 @@ dist-ssr/
 .vercel/
 .netlify/
 .firebase/
+
+# User Custom Patterns (preserved by moai update)
+*.local
 .gstack/

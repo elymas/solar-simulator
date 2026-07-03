@@ -124,6 +124,18 @@ Pre-execution commands: git status, git diff, git branch, git log, find .moai/sp
 
 ### Phase 0: Pre-Sync Quality Gate
 
+<!-- moai:evolvable-start id="gate-sync-1" -->
+### HUMAN GATE: Pre-Sync Quality
+
+**Previous phase output:** Completed SPEC implementation
+**Approval question:** Is the project in a state where documentation can be synced?
+**Cannot proceed until:**
+- [ ] Working tree is clean or only expected changes present
+- [ ] All tests pass
+- [ ] MX tags validated
+- [ ] No HARD rule violations
+<!-- moai:evolvable-end -->
+
 Purpose: Run the gate workflow (workflows/gate.md) as a fast pre-check before the full deployment readiness verification. Catches lint/format/type errors early and auto-fixes them.
 
 #### Step 0.0.1: Gate Execution
@@ -136,6 +148,51 @@ Purpose: Run the gate workflow (workflows/gate.md) as a fast pre-check before th
   - Abort: Exit sync workflow
 
 Output: gate_report with pass/fail per check category.
+
+### Phase 0.08: DB Schema Doc Check (Conditional)
+
+Purpose: Refresh `.moai/project/db/` derived documents (schema.md, erd.mmd, migrations.md) when the sync scope includes migration file changes. Replaces the per-event PostToolUse hook with a batch refresh at milestone boundary — eliminates the ~30-60ms/edit overhead the hook used to incur.
+
+Source SPEC: SPEC-DB-SYNC-RELOC-001.
+
+#### Step 0.08.1: Activation Gate
+
+Evaluate all conditions in order; skip the phase if any fails:
+
+1. `.moai/config/sections/db.yaml` exists (project opted into DB doc management)
+2. `db.enabled: true` in that file
+3. `db.auto_sync: true` in that file
+
+If any condition is not met, skip Phase 0.08 silently and proceed to Phase 0.1.
+
+#### Step 0.08.2: Migration File Diff Detection
+
+Compute the list of migration files changed since the base branch:
+
+- Use `git diff --name-only <base-branch>..HEAD` to collect changed files
+- Filter by the glob patterns in `db.migration_patterns` (typically Prisma schema, Alembic versions, Rails migrations, raw SQL, Supabase, custom)
+- Further exclude paths matching `db.excluded_patterns` (defaults: `.moai/project/db/**`, `.moai/cache/**`, `.moai/logs/**`) to prevent recursion
+
+If the filtered list is empty, skip to Phase 0.1 with log line: "Phase 0.08: no migration files changed, skipping DB doc refresh".
+
+#### Step 0.08.3: Refresh Invocation
+
+Invoke the existing `moai-domain-db-docs` skill with `refresh` mode:
+
+- Input: filtered migration file list, project language, `db.yaml` config
+- Output: updated `.moai/project/db/schema.md`, `erd.mmd`, `migrations.md`; refresh report
+- Changes are staged for the sync commit — no separate commit is created
+
+On refresh failure (parser error, template conflict): log the error, include in sync report under "DB doc refresh warnings", and continue to Phase 0.1. Non-blocking by contract.
+
+#### Step 0.08.4: Advisory Path
+
+When migration files changed but `db.auto_sync: false`:
+
+- Emit one-line advisory to the sync report: "N migration files changed but db.auto_sync is disabled — run `/moai db refresh` manually to update derived docs"
+- Do not invoke refresh automatically — respect user opt-out
+
+Output: phase_result with one of `skipped | refreshed | advised | failed` and the migration file count.
 
 ### Phase 0.1: Deployment Readiness Check
 
@@ -465,8 +522,16 @@ Include in sync quality report:
 - Analyze Git changes: git status, git diff, categorize changed files
 - Read project configuration: git_strategy.mode, conversation_language, spec_git_workflow
 - Determine synchronization mode from $ARGUMENTS
-- Detect worktree context: Check if git directory contains worktrees/ component
 - Detect branch context: Check current branch name
+
+##### Worktree Context Detection
+
+Detect if the current session is running within a MoAI worktree:
+- Check if current git directory path contains `/.moai/worktrees/` component
+- OR check if `.moai/worktrees/registry.json` has an active entry for current SPEC-ID
+- Store result as `is_worktree_context` boolean for use in Phase 3.4
+
+This affects auto-merge behavior: worktree contexts default to auto-merge.
 
 #### Step 1.3: Project Status Verification
 
@@ -514,6 +579,17 @@ For each SPEC associated with the current sync:
   - Level 3 (spec-as-source): Flag discrepancies as warnings (implementation should match SPEC exactly)
 
 #### Step 1.6: User Approval
+
+<!-- moai:evolvable-start id="gate-sync-2" -->
+### HUMAN GATE: Documentation Scope
+
+**Previous phase output:** Divergence analysis showing doc/code drift
+**Approval question:** Which documents should be regenerated?
+**Cannot proceed until:**
+- [ ] User has reviewed divergence report
+- [ ] User has approved document regeneration scope
+- [ ] User has confirmed PR description draft
+<!-- moai:evolvable-end -->
 
 Tool: AskUserQuestion
 
@@ -719,38 +795,6 @@ Timestamp: ISO-8601 timestamp
 - Coverage Impact: [change or percentage]
 ```
 
-**Session Boundary Tag Creation:**
-
-After successful commit, create a session boundary tag to enable `/moai context` reconstruction:
-
-```
-git tag -a "moai/SPEC-{ID}/sync-complete" \
-  -m "Sync phase completed
-SPEC: SPEC-XXX
-Docs updated: N files
-Coverage verified: XX%
-Context embedded in: [commit hash]
-Next action: Feature complete or /moai plan for next SPEC"
-```
-
-Tag naming convention: `moai/SPEC-{ID}/sync-complete`
-
-**Context Memory Integration:**
-
-The embedded context enables:
-
-1. **Session Resumption**: When resuming development, `/moai context` retrieves this information automatically
-2. **Decision History**: Future SPECs build on documented decisions
-3. **Pattern Reuse**: Similar documentation patterns are recognized and applied
-4. **Cross-Session Continuity**: Context persists across individual AI sessions
-
-**Implementation Details:**
-
-- Commit message MUST include complete decision/pattern documentation
-- Session boundary tag MUST be created after successful push
-- Context metadata saved to `.moai/state/sync-context-{SPEC-ID}.json` for quick access
-- Tag message MUST reference the commit hash for traceability
-
 #### Step 3.1.5: Local CI Mirror Validation (Pre-PR Gate)
 
 Purpose: Replicate CI checks locally before pushing and creating a PR to catch failures fast, without waiting for slow remote CI. Windows-specific tests are skipped (cannot run locally).
@@ -954,27 +998,57 @@ This ensures the developer's working directory is on the base branch, ready for 
 
 Remote branch cleanup after merge is handled by the hosting platform's auto-delete setting (GitHub: "Automatically delete head branches", GitLab: "Delete source branch when merge request is accepted", Bitbucket: "Close source branch"). Local branch cleanup is left to the developer (`git branch -d <branch>`).
 
-#### Step 3.4: Auto-Merge (When --merge flag set)
+#### Step 3.4: Auto-Merge Behavior
 
 Only applies when a PR was created in Step 3.2.
 
-Execution conditions [HARD]:
-- Flag must be explicitly set: --merge
-- All CI/CD checks must pass
-- PR must have zero merge conflicts
-- Minimum reviewer approvals obtained (if Team mode)
+##### Auto-Merge Trigger Conditions
 
-Auto-merge execution:
+Auto-merge trigger conditions:
+- `is_worktree_context == true` AND `--no-merge` flag NOT set
+- OR `--merge` flag explicitly set (deprecated, logged as warning)
+
+When auto-merge is triggered:
+1. Verify all CI/CD checks pass (gh pr checks)
+2. Verify zero merge conflicts (gh pr view --json mergeable)
+3. If all checks pass: Execute `gh pr merge --squash --delete-branch`
+4. If checks fail: Report error with recovery command, do NOT merge
+
+##### Flag Behavior
+
+- `--no-merge`: Skip auto-merge even in worktree context. PR is created but not merged.
+- `--merge`: Deprecated. Logs warning: "The --merge flag is deprecated. Auto-merge is now the default for worktree contexts."
+
+##### Auto-Merge Execution
+
 1. Check CI/CD status via `gh pr checks --watch` (wait for completion)
 2. Check merge conflicts via `gh pr view --json mergeable`
 3. If passing and mergeable: Execute `gh pr merge --squash --delete-branch`
 4. Checkout target branch, fetch latest
 5. Verify local is synchronized with remote
 
-Auto-merge failures:
+##### Auto-Merge Failures
+
 - If CI/CD fails: Report failure, display error details, do NOT merge
 - If merge conflicts: Report conflicts, provide manual resolution guidance, do NOT merge
 - If approvals missing (Team mode): Report pending approvals, do NOT merge
+
+##### Post-Merge Automatic Cleanup
+
+Condition: Auto-merge succeeded AND `workflow.worktree.auto_cleanup == true`
+
+Steps:
+1. Detect worktree path for current SPEC-ID from registry
+2. Execute cleanup equivalent to `moai worktree done SPEC-{ID} --auto --delete-branch`:
+   - Remove worktree directory
+   - Remove feature branch (already deleted by --delete-branch in merge)
+   - Update worktree registry
+3. Log cleanup result
+
+Error handling:
+- Cleanup failure does NOT block or affect merge result
+- On failure: Log warning with manual cleanup command
+- Message: "Worktree cleanup warning: {error}. Manual: `moai worktree done SPEC-{ID}`"
 
 ### Phase 4: Completion and Next Steps
 
@@ -1078,6 +1152,6 @@ All of the following must be verified:
 
 ---
 
-Version: 3.6.0
+Version: 3.7.0
 Updated: 2026-03-30
 Changes: Added test scenarios.
