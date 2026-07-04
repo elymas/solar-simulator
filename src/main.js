@@ -64,6 +64,7 @@ function selectPlanet(key, infoPanel, planetList, interaction) {
   focusedPlanetKey = key;
 
   sceneManager.focusPlanet(planet.mesh.position, planet.data.displayRadius);
+  planetFactory.onFocus(key);
 }
 
 /**
@@ -78,6 +79,7 @@ function deselectPlanet(infoPanel, planetList, interaction) {
   interaction.selectedPlanet = null;
   focusedPlanetKey = null;
   sceneManager.resetCamera();
+  planetFactory.onDefocus();
 }
 
 /**

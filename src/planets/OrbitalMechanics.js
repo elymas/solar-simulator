@@ -16,6 +16,8 @@ export class OrbitalMechanics {
    * @param {number} timeDays - Current simulation time in days.
    * @returns {{ x: number, y: number, z: number }} Position in display coordinates.
    */
+  // @MX:ANCHOR: [AUTO] Every planet, dwarf, and satellite screen position routes through this — invariant orbital contract.
+  // @MX:REASON: [AUTO] fan_in >= 3 (PlanetFactory._createPlanet + update + generateOrbitPath callers). Longitude of ascending node (Ω) and argument of periapsis (ω) are intentionally omitted, so all orbits share a node at angle 0; high-inclination/high-eccentricity dwarfs (Pluto, Eris) therefore render schematically. Accepted limitation per SPEC-SIM-001, not a defect.
   static calculatePosition(planetData, timeDays) {
     const { distanceDisplay: a, orbitalPeriod, eccentricity: e, inclination } = planetData;
 

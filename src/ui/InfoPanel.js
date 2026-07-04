@@ -213,6 +213,20 @@ export class InfoPanel {
       if (data.retrograde) {
         items.push({ label: 'Orbit', value: 'Retrograde' });
       }
+    } else if (data.category === 'dwarf') {
+      items.push({ label: 'Classification', value: 'Dwarf Planet' });
+      items.push({ label: 'Diameter', value: `${(data.radius * 2).toLocaleString()} km` });
+      items.push({ label: 'Distance from Sun', value: `${data.distance} AU` });
+      items.push({ label: 'Orbital Period', value: this._formatOrbitalPeriod(data.orbitalPeriod) });
+      items.push({ label: 'Rotation Period', value: this._formatRotationPeriod(data.rotationPeriod) });
+      items.push({ label: 'Axial Tilt', value: `${data.axialTilt}°` });
+      items.push({ label: 'Eccentricity', value: data.eccentricity?.toFixed(4) || 'N/A' });
+      if (data.discoveryYear !== undefined) {
+        items.push({ label: 'Discovered', value: data.discoveryYear.toString() });
+      }
+      if (data.moons !== undefined) {
+        items.push({ label: 'Moons', value: data.moons.toString() });
+      }
     } else {
       items.push({ label: 'Diameter', value: `${(data.radius * 2).toLocaleString()} km` });
       items.push({ label: 'Distance from Sun', value: `${data.distance} AU` });

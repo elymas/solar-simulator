@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { PLANET_DATA, MOON_DATA, STAR_DATA } from './planetData.js';
-import { TEXTURE_MAP } from '../utils/constants.js';
+import { TEXTURE_MAP, TEXTURE_HIRES_MAP } from '../utils/constants.js';
 import { OrbitalMechanics } from './OrbitalMechanics.js';
+import { TextureTierManager } from './TextureTierManager.js';
 
 /**
  * PlanetFactory creates and manages all celestial bodies in the solar system.
@@ -19,6 +20,8 @@ export class PlanetFactory {
     this.stars = {};
     this.orbitLines = [];
     this.moonPivots = {};
+    this.tierManager = new TextureTierManager(TEXTURE_HIRES_MAP);
+    this._focusedLODKey = null;
 
     // Loading callbacks (set by main.js before textures start loading)
     this.onLoadProgress = null;
@@ -43,14 +46,52 @@ export class PlanetFactory {
   }
 
   /**
-   * Load a texture with sRGB color space applied.
+   * Load a texture with sRGB color space and max anisotropy applied.
    * @param {string} path - Relative path to texture file.
    * @returns {THREE.Texture}
    */
   _loadTexture(path) {
     const texture = this.textureLoader.load(path);
     texture.colorSpace = THREE.SRGBColorSpace;
+    const renderer = this.sceneManager?.renderer;
+    if (renderer) {
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    }
     return texture;
+  }
+
+  /**
+   * Apply a body texture to a material, degrading to a flat color when the file
+   * is absent. Keeps the scene renderable with zero art (F1 dwarfs) and picks up
+   * real textures automatically once dropped at the TEXTURE_MAP path.
+   * @param {THREE.Material} material - Target material (color used as fallback).
+   * @param {string} key - Body key indexing TEXTURE_MAP.
+   * @param {number} fallbackColor - Flat color to keep when the texture is missing.
+   */
+  _applyPlanetTexture(material, key, fallbackColor) {
+    const path = TEXTURE_MAP[key];
+    if (!path) {
+      if (fallbackColor != null) material.color.set(fallbackColor);
+      return;
+    }
+    this.textureLoader.load(
+      path,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const renderer = this.sceneManager?.renderer;
+        if (renderer) {
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        }
+        material.map = texture;
+        material.color.set(0xffffff);
+        material.needsUpdate = true;
+      },
+      undefined,
+      () => {
+        // ponytail: texture file absent -> keep flat MeshStandard color, no throw.
+        if (fallbackColor != null) material.color.set(fallbackColor);
+      }
+    );
   }
 
   /**
@@ -120,11 +161,15 @@ export class PlanetFactory {
     const segments = data.displayRadius >= 14 ? 64 : 32;
     const geometry = new THREE.SphereGeometry(data.displayRadius, segments, segments);
 
-    const materialProps = {
-      map: this._loadTexture(TEXTURE_MAP[key]),
-    };
-
-    const material = new THREE.MeshBasicMaterial(materialProps);
+    // MeshStandardMaterial makes planets respond to the Sun's light (day/night
+    // terminator). Texture loads asynchronously; missing files degrade to the
+    // body's flat color via _applyPlanetTexture (F1 dwarfs ship without art).
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 1,
+      metalness: 0,
+    });
+    this._applyPlanetTexture(material, key, data.color);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = key;
 
@@ -157,11 +202,13 @@ export class PlanetFactory {
    */
   _createEarthClouds(earthMesh, data) {
     const geometry = new THREE.SphereGeometry(data.displayRadius * 1.02, 64, 64);
-    const material = new THREE.MeshBasicMaterial({
+    const material = new THREE.MeshStandardMaterial({
       map: this._loadTexture(TEXTURE_MAP.earthClouds),
       transparent: true,
       opacity: 0.4,
       depthWrite: false,
+      roughness: 1,
+      metalness: 0,
     });
     const clouds = new THREE.Mesh(geometry, material);
     clouds.name = 'earthClouds';
@@ -179,11 +226,17 @@ export class PlanetFactory {
 
     let material;
     if (moonData.key === 'moon' && TEXTURE_MAP.moon) {
-      material = new THREE.MeshBasicMaterial({
+      material = new THREE.MeshStandardMaterial({
         map: this._loadTexture(TEXTURE_MAP.moon),
+        roughness: 1,
+        metalness: 0,
       });
     } else {
-      material = new THREE.MeshBasicMaterial({ color: moonData.color });
+      material = new THREE.MeshStandardMaterial({
+        color: moonData.color,
+        roughness: 1,
+        metalness: 0,
+      });
     }
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -351,6 +404,87 @@ export class PlanetFactory {
         pivot.rotation.y = angle;
       }
     }
+  }
+
+  /**
+   * React to a body gaining focus: lazy-load its hi-res texture tier (REQ-290)
+   * and raise its geometry LOD (REQ-220). Both are skipped on low-end or
+   * frame-budget-degraded devices; camera/picking are never affected.
+   * @param {string} key - Focused body key.
+   */
+  onFocus(key) {
+    this._upgradeTexture(key);
+    this._raiseLOD(key);
+  }
+
+  /**
+   * React to losing focus: restore the previously focused body's base geometry.
+   */
+  onDefocus() {
+    this._restoreLOD();
+  }
+
+  /**
+   * Lazy-load and swap in a body's hi-res texture, at most once per body.
+   * @param {string} key - Body key.
+   */
+  _upgradeTexture(key) {
+    if (this.sceneManager?.textureCapEnabled) return; // low-end texture cap (REQ-230)
+    const path = this.tierManager.requestUpgrade(key);
+    if (!path) return;
+    const planet = this.planets[key];
+    if (!planet) return;
+    this.textureLoader.load(path, (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const renderer = this.sceneManager?.renderer;
+      if (renderer) {
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      }
+      const material = planet.mesh.material;
+      if (material.map && material.map !== texture) material.map.dispose();
+      material.map = texture;
+      material.color.set(0xffffff);
+      material.needsUpdate = true;
+    });
+  }
+
+  /**
+   * Rebuild the focused body's sphere at a higher segment count. Only one body
+   * is high-LOD at a time; the original segment count is read back from the
+   * geometry so restore is exact regardless of the body's base tier.
+   * @param {string} key - Body key to raise.
+   */
+  _raiseLOD(key) {
+    if (this.sceneManager?.lodUpgradesDisabled || this.sceneManager?.lodBudgetDisabled) return;
+    const planet = this.planets[key];
+    if (!planet || planet.isStar || !planet.mesh.geometry?.parameters) return;
+    if (this._focusedLODKey === key) return;
+    this._restoreLOD();
+    planet._preLODSegments = planet.mesh.geometry.parameters.widthSegments ?? 32;
+    this._swapSegments(planet, 128);
+    this._focusedLODKey = key;
+  }
+
+  /**
+   * Restore the currently high-LOD body to its original segment count.
+   */
+  _restoreLOD() {
+    if (!this._focusedLODKey) return;
+    const planet = this.planets[this._focusedLODKey];
+    if (planet && planet._preLODSegments != null) {
+      this._swapSegments(planet, planet._preLODSegments);
+    }
+    this._focusedLODKey = null;
+  }
+
+  /**
+   * Replace a body's sphere geometry with one at the given segment count.
+   * @param {Object} planet - Planet entry from this.planets.
+   * @param {number} segments - New width/height segment count.
+   */
+  _swapSegments(planet, segments) {
+    planet.mesh.geometry.dispose();
+    planet.mesh.geometry = new THREE.SphereGeometry(planet.data.displayRadius, segments, segments);
   }
 
   /**

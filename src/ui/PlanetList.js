@@ -237,6 +237,25 @@ export class PlanetList {
       }
     }
 
+    // Dwarf planets section (the hardcoded planetOrder above excludes them, so
+    // an explicit divider + loop is required — mirrors the Stars section).
+    const dwarfKeys = Object.keys(PLANET_DATA).filter((k) => PLANET_DATA[k].category === 'dwarf');
+    if (dwarfKeys.length > 0) {
+      const dwarfDivider = document.createElement('div');
+      dwarfDivider.className = 'planet-list-divider';
+      dwarfDivider.textContent = 'Dwarf Planets';
+      itemsContainer.appendChild(dwarfDivider);
+
+      for (const key of dwarfKeys) {
+        this._addListItem(itemsContainer, key, PLANET_DATA[key], false);
+        if (MOON_DATA[key]) {
+          for (const moonData of MOON_DATA[key]) {
+            this._addListItem(itemsContainer, moonData.key, moonData, true);
+          }
+        }
+      }
+    }
+
     // Add stars divider and star items
     const divider = document.createElement('div');
     divider.className = 'planet-list-divider';

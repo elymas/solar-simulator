@@ -5,8 +5,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { COLOR_PALETTE, CAMERA_DEFAULTS, CONTROLS_DEFAULTS, BLOOM_DEFAULTS } from '../utils/constants.js';
-import { shouldDegrade } from '../utils/performance.js';
+import { COLOR_PALETTE, CAMERA_DEFAULTS, CONTROLS_DEFAULTS, BLOOM_DEFAULTS, LIGHTING_DEFAULTS } from '../utils/constants.js';
+import { shouldDegrade, FrameBudgetDegrader } from '../utils/performance.js';
 
 /**
  * SceneManager handles the Three.js scene, renderer, camera, controls,
@@ -36,7 +36,10 @@ export class SceneManager {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(COLOR_PALETTE.background, 1);
-    this.renderer.toneMapping = THREE.NoToneMapping;
+    // ACES filmic tone mapping compresses the HDR bloom + lit surfaces into a
+    // filmic response (REQ-285). OutputPass already consumes renderer.toneMapping.
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0; // calibration knob for overall brightness
     document.body.appendChild(this.renderer.domElement);
   }
 
@@ -67,10 +70,16 @@ export class SceneManager {
    * Initialize scene lighting: ambient light and a point light at the origin (Sun).
    */
   _initLighting() {
-    const ambientLight = new THREE.AmbientLight(0x606060, 0.8);
+    const L = LIGHTING_DEFAULTS;
+    const ambientLight = new THREE.AmbientLight(L.ambientColor, L.ambientIntensity);
     this.scene.add(ambientLight);
 
-    const sunLight = new THREE.PointLight(0xffffff, 1.5, 0, 0.5);
+    // @MX:WARN: [AUTO] decay:0 (no distance falloff) is deliberate; physical
+    // inverse-square decay would leave every planet past Mercury near-black on
+    // this symbolic 80..3500-unit scale. Tune sunIntensity/ambientIntensity, not decay.
+    // @MX:REASON: [AUTO] After relight (MeshBasic->MeshStandard) every planet/moon
+    // depends on this light, so wrong decay/intensity darkens the entire scene.
+    const sunLight = new THREE.PointLight(L.sunColor, L.sunIntensity, L.sunDistance, L.sunDecay);
     sunLight.position.set(0, 0, 0);
     this.scene.add(sunLight);
   }
@@ -80,9 +89,18 @@ export class SceneManager {
    */
   _initPostProcessing() {
     const { strength, radius, threshold } = BLOOM_DEFAULTS;
-    const size = new THREE.Vector2(window.innerWidth, window.innerHeight);
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const size = new THREE.Vector2(width, height);
 
-    this.composer = new EffectComposer(this.renderer);
+    // @MX:NOTE: [AUTO] The default EffectComposer target has samples:0, so the
+    // renderer's antialias:true never reached the screen (every frame goes
+    // through composer.render). A multisampled target revives MSAA (REQ-270).
+    const renderTarget = new THREE.WebGLRenderTarget(width, height, {
+      type: THREE.HalfFloatType,
+      samples: 4,
+    });
+    this.composer = new EffectComposer(this.renderer, renderTarget);
 
     const renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(renderPass);
@@ -101,6 +119,10 @@ export class SceneManager {
 
     const outputPass = new OutputPass();
     this.composer.addPass(outputPass);
+
+    // Normalize internal buffer sizes to devicePixelRatio; also sizes the
+    // multisampled target and its ping-pong clone. Resize handler reuses setSize.
+    this.composer.setSize(width, height);
   }
 
   /**
@@ -135,9 +157,17 @@ export class SceneManager {
   _detectPerformance() {
     this.isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const isLowEnd = navigator.hardwareConcurrency <= 4;
+    this.lowEnd = this.isMobile || isLowEnd;
 
-    if (this.isMobile || isLowEnd) {
+    // REQ-230: low-end devices cap texture resolution (skip the hi-res tier) and
+    // disable geometry LOD upgrades. PlanetFactory reads these flags on focus.
+    this.textureCapEnabled = this.lowEnd;
+    this.lodUpgradesDisabled = this.lowEnd;
+    this.lodBudgetDisabled = false;
+
+    if (this.lowEnd) {
       this.renderer.setPixelRatio(1);
+      this.composer.setPixelRatio(1);
       this.bloomPass.strength = 0.4;
       this.bloomPass.radius = 0.15;
     }
@@ -147,6 +177,43 @@ export class SceneManager {
     this._degraded = false;
     this._perfWindow = 90;
     this._perfThresholdFps = 30;
+
+    // Frame-budget priority degradation (REQ-240): bloom -> LOD -> pixel ratio.
+    this._budgetDegrader = new FrameBudgetDegrader({ budgetMs: this.isMobile ? 1000 / 30 : 1000 / 60 });
+    this._baseBloomRadius = this.bloomPass.radius;
+    this._basePixelRatio = this.renderer.getPixelRatio();
+  }
+
+  /**
+   * Apply the frame-budget priority degradation ladder (REQ-240). Shed one
+   * non-essential effect per step (bloom radius -> LOD upgrades -> pixel ratio),
+   * and restore in reverse when frame times recover. Camera controls and
+   * click/hover picking are never touched.
+   * @param {number} frameMs - Last frame duration in milliseconds.
+   */
+  _applyBudgetDegradation(frameMs) {
+    switch (this._budgetDegrader.record(frameMs)) {
+      case 'bloom':
+        this.bloomPass.radius = 0;
+        break;
+      case 'lod':
+        this.lodBudgetDisabled = true;
+        break;
+      case 'pixelRatio':
+        this.composer.setPixelRatio(Math.max(1, this._basePixelRatio * 0.75));
+        break;
+      case 'restore:pixelRatio':
+        this.composer.setPixelRatio(this._basePixelRatio);
+        break;
+      case 'restore:lod':
+        this.lodBudgetDisabled = false;
+        break;
+      case 'restore:bloom':
+        this.bloomPass.radius = this._baseBloomRadius;
+        break;
+      default:
+        break;
+    }
   }
 
   /**
@@ -288,6 +355,11 @@ export class SceneManager {
       }
 
       this._monitorPerformance(delta);
+      if (!this._degraded) {
+        // REQ-240 priority ladder runs on the composer path; the REQ-018 mobile
+        // fallback above takes over (renderer.render) once fully degraded.
+        this._applyBudgetDegradation(delta * 1000);
+      }
 
       this.controls.update();
       if (this._degraded) {
