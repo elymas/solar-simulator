@@ -97,6 +97,35 @@ export const TEXTURE_HIRES_MAP = {
   moon: 'textures/2k_moon.jpg',
 };
 
+// Simulation epoch: sim time is measured in DAYS elapsed from this instant
+// (TimeControls maps _simTime days -> calendar date from the same anchor). The
+// F6 eclipse table converts real eclipse instants to sim-days against this epoch.
+export const SIM_EPOCH_ISO = '2026-03-30T00:00:00Z';
+export const SIM_EPOCH_MS = Date.parse(SIM_EPOCH_ISO);
+
+// F5 live-aircraft tuning. airplanes.live is a free, keyless, CORS-enabled
+// community ADS-B API (smoke-tested from the deploy origin). Poll conservatively
+// and cap both the query radius and the rendered instance count defensively.
+export const FLIGHT_DEFAULTS = {
+  baseUrl: 'https://api.airplanes.live/v2/point',
+  lat: 51.5, // London — a dense, always-populated region for a live demo
+  lon: -0.1,
+  radiusNm: 250,
+  pollIntervalMs: 12000, // within the SPEC's 10-15s window
+  backoffStartMs: 30000, // exponential backoff floor (REQ-470)
+  backoffMaxMs: 300000,
+  maxInstances: 500,
+  altitudeScale: 0.02, // baro-ft -> earth-local units above the surface
+};
+
+// F7 aurora tuning. Budget knobs: curtain count / segments / noise octaves.
+export const AURORA_DEFAULTS = {
+  polarLatitudeDeg: 67, // auroral oval sits ~67 deg, offset from the geographic pole
+  axialTiltDeg: 23.44, // matches EarthRig's tilt so the oval aligns with the lit hemisphere
+  curtainSegments: 96,
+  height: 22,
+};
+
 export const BLOOM_DEFAULTS = {
   strength: 0.5,
   radius: 0.2,

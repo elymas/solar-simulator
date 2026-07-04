@@ -1,8 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { EARTH_VIEW_DEFAULTS, EARTH_CONTROLS_DEFAULTS } from '../utils/constants.js';
+import { EARTH_VIEW_DEFAULTS, EARTH_CONTROLS_DEFAULTS, FLIGHT_DEFAULTS } from '../utils/constants.js';
 import { EarthRig } from './EarthRig.js';
 import { EarthHUD } from './EarthHUD.js';
+import { EclipseRig } from '../effects/EclipseRig.js';
+import { AuroraEffect, selectAuroraTier } from '../effects/AuroraEffect.js';
+import { AircraftLayer } from '../effects/AircraftLayer.js';
+import { FlightDataService, FLIGHT_STATE } from '../data/FlightDataService.js';
+import { detectEclipsesInRange, findNextEclipse } from '../utils/eclipseData.js';
 
 // Sun direction shared between the rig terminator and this view's key light so the
 // lit hemisphere and the day/night blend agree.
@@ -23,12 +28,41 @@ export class EarthView {
    * @param {Function} [opts.rigFactory] - () => EarthRig-like ({ group, update, dispose }).
    * @param {THREE.TextureLoader} [opts.textureLoader]
    * @param {Window} [opts.win]
+   * @param {Object} [opts.simApi] - Shared sim clock (get/setSimTime, get/setTimeSpeed,
+   *   isPlaying). EarthView reads AND advances it while active so both views share ONE
+   *   clock (SPEC-EARTH-002 TASK-F6-0) — never a second time system.
+   * @param {boolean} [opts.isLowEnd] - Low-end heuristic (SIM-001), selects aurora tier.
+   * @param {Function} [opts.eclipseRigFactory]
+   * @param {Function} [opts.auroraFactory]
+   * @param {Function} [opts.flightServiceFactory]
    */
-  constructor({ isMobile = false, controlsFactory, rigFactory, textureLoader, win } = {}) {
+  constructor({
+    isMobile = false,
+    isLowEnd = false,
+    controlsFactory,
+    rigFactory,
+    textureLoader,
+    win,
+    simApi,
+    eclipseRigFactory,
+    auroraFactory,
+    flightServiceFactory,
+  } = {}) {
     this.isMobile = isMobile;
+    this.isLowEnd = isLowEnd;
+    this._simApi = simApi || null;
     this._win = win || (typeof window !== 'undefined' ? window : undefined);
     this._controlsFactory = controlsFactory || ((camera, dom) => new OrbitControls(camera, dom));
     this._rigFactory = rigFactory || (() => new EarthRig({ textureLoader, renderer: this.renderer }));
+    this._eclipseRigFactory = eclipseRigFactory
+      || (() => new EclipseRig({ earthRadius: EARTH_VIEW_DEFAULTS.earthRadius }));
+    this._auroraFactory = auroraFactory
+      || (() => new AuroraEffect({
+        tier: selectAuroraTier({ isMobile, isLowEnd }),
+        earthRadius: EARTH_VIEW_DEFAULTS.earthRadius,
+        sunDirection: SUN_DIRECTION,
+      }));
+    this._flightServiceFactory = flightServiceFactory || (() => new FlightDataService({}));
 
     this.scene = new THREE.Scene();
     this._initCamera();
@@ -45,8 +79,17 @@ export class EarthView {
     this._rig = null;
     this._hud = null;
     this._onExitRequest = null;
-    this.onStopPolling = null; // SPEC-EARTH-002 F5 data service registers here.
+    this.onStopPolling = null; // external listeners may also hook exit-time poll stop.
     this._daysPerSecond = 1;
+
+    // F5/F6/F7 runtime (built lazily in _build).
+    this._aircraftLayer = null;
+    this._eclipseRig = null;
+    this._aurora = null;
+    this._flightService = null;
+    this._prevSimDay = 0;
+    this._auroraVisible = true;
+    this._auroraShed = false;
   }
 
   _initCamera() {
@@ -103,7 +146,92 @@ export class EarthView {
     this._hud = new EarthHUD();
     this._hud.onBack = () => this._onExitRequest && this._onExitRequest();
     this._hud.hide();
+
+    // F5 — aircraft: an InstancedMesh fed by the injected/real data service.
+    this._aircraftLayer = new AircraftLayer({
+      earthRadius: EARTH_VIEW_DEFAULTS.earthRadius,
+      maxInstances: FLIGHT_DEFAULTS.maxInstances,
+      altitudeScale: FLIGHT_DEFAULTS.altitudeScale,
+    });
+    this.aircraftLayer.add(this._aircraftLayer.object3d);
+    this._flightService = this._flightServiceFactory();
+    this._flightService.onState((state) => this._refreshFlightHud(state));
+
+    // F6 — eclipse shadow diorama.
+    this._eclipseRig = this._eclipseRigFactory();
+    this.eclipseLayer.add(this._eclipseRig.group);
+
+    // F7 — aurora curtain / billboard.
+    this._aurora = this._auroraFactory();
+    this.auroraLayer.add(this._aurora.group);
+    this._applyAuroraVisible();
+
+    this._wireHudControls();
+    this._prevSimDay = this._simApi ? this._simApi.getSimTime() : 0;
     this._built = true;
+  }
+
+  /**
+   * Wire the SPEC-EARTH-002 HUD controls to their handlers.
+   */
+  _wireHudControls() {
+    this._hud.onToggleAircraft = () => this._toggleAircraft();
+    this._hud.onSelectEclipse = (eclipse) => this._jumpToEclipse(eclipse);
+    this._hud.onFindNextEclipse = () => this._findNextEclipse();
+    this._hud.onToggleAurora = () => this._toggleAurora();
+  }
+
+  /** Opt-in start / stop of the flight-data polling (REQ-410 opt-in). */
+  _toggleAircraft() {
+    if (!this._flightService) return;
+    if (this._flightService.state === FLIGHT_STATE.OFF) this._flightService.start();
+    else this._flightService.stop();
+  }
+
+  /** Jump the shared clock to a preset eclipse and render it (REQ-510). */
+  _jumpToEclipse(eclipse) {
+    if (!eclipse) return;
+    if (this._simApi) this._simApi.setSimTime(eclipse.simDay);
+    this._prevSimDay = eclipse.simDay;
+    if (this._eclipseRig) this._eclipseRig.show(eclipse);
+  }
+
+  /** Fast-forward to the next eclipse within the bounded window (REQ-540). */
+  _findNextEclipse() {
+    if (!this._simApi) return;
+    const next = findNextEclipse(this._simApi.getSimTime());
+    if (next) this._jumpToEclipse(next);
+  }
+
+  _toggleAurora() {
+    this._auroraVisible = !this._auroraVisible;
+    this._applyAuroraVisible();
+    if (this._hud) this._hud.setAuroraEnabled(this._auroraVisible);
+  }
+
+  _applyAuroraVisible() {
+    if (this._aurora) this._aurora.setVisible(this._auroraVisible && !this._auroraShed);
+  }
+
+  /**
+   * Shed/restore the aurora under frame-budget pressure (REQ-650). Called by the
+   * degradation ladder before bloom while the Earth view is active.
+   * @param {boolean} shed
+   */
+  setAuroraShed(shed) {
+    this._auroraShed = shed;
+    this._applyAuroraVisible();
+  }
+
+  /**
+   * Push flight-service status into the HUD's aria-live region.
+   * @param {string} [state]
+   */
+  _refreshFlightHud(state) {
+    if (!this._hud || !this._flightService) return;
+    const s = state || this._flightService.state;
+    const agoMs = this._flightService.lastUpdatedAt ? Date.now() - this._flightService.lastUpdatedAt : 0;
+    this._hud.setFlightStatus(s, { count: this._flightService.count, updatedAgoSec: agoMs / 1000 });
   }
 
   /**
@@ -127,8 +255,49 @@ export class EarthView {
    * @param {number} delta - Frame delta in seconds.
    */
   update(delta) {
-    if (this._rig) this._rig.update(delta, this._daysPerSecond);
+    // Effective sim-days-per-second: read from the shared clock (0 while paused)
+    // so the rig's spin/Moon phase track the real timeline; legacy fixed rate when
+    // no clock is injected (TASK-F6-0).
+    const speed = this._simApi
+      ? (this._simApi.isPlaying() ? this._simApi.getTimeSpeed() : 0)
+      : this._daysPerSecond;
+
+    if (this._simApi && speed !== 0) {
+      // Advance the ONE shared clock while Earth is the active view (solar's
+      // integrator is idle here); this is the same _simTime, not a second clock.
+      this._simApi.setSimTime(this._simApi.getSimTime() + delta * speed);
+    }
+
+    if (this._rig) this._rig.update(delta, speed);
+    this._detectEclipses();
+    this._updateAircraft(delta);
+    if (this._aurora) this._aurora.update(delta);
+    if (this._eclipseRig) this._eclipseRig.update(delta);
     if (this.controls) this.controls.update();
+  }
+
+  /**
+   * Range-test the sim-time span this frame covered against the real eclipse table —
+   * immune to frame step size, so a 500x leap never skips an event (REQ-530/550).
+   */
+  _detectEclipses() {
+    if (!this._simApi || !this._eclipseRig) return;
+    const curr = this._simApi.getSimTime();
+    if (curr === this._prevSimDay) return;
+    const hits = detectEclipsesInRange(this._prevSimDay, curr);
+    if (hits.length) this._eclipseRig.show(hits[hits.length - 1]);
+    this._prevSimDay = curr;
+  }
+
+  /**
+   * Dead-reckon + repaint aircraft instances, and refresh the "updated Xs ago" readout.
+   * @param {number} delta
+   */
+  _updateAircraft(delta) {
+    if (!this._flightService) return;
+    this._flightService.tick(delta);
+    if (this._aircraftLayer) this._aircraftLayer.update(this._flightService.getAircraft());
+    if (this._flightService.state === FLIGHT_STATE.LIVE) this._refreshFlightHud();
   }
 
   /**
@@ -163,6 +332,11 @@ export class EarthView {
    */
   stopPolling() {
     this._pollStopped = true;
+    // @MX:WARN: [AUTO] MUST stop the flight service on every exit or its polling timer
+    // leaks — keeps hitting the shared community API after the view is gone (REQ-355).
+    // @MX:REASON: [AUTO] Exit can happen mid-flight; FlightDataService.stop() clears the
+    // pending timer and invalidates any in-flight poll's continuation.
+    if (this._flightService) this._flightService.stop();
     if (this.onStopPolling) this.onStopPolling();
   }
 
@@ -174,9 +348,26 @@ export class EarthView {
       this.scene.remove(this._rig.group);
       this._rig.dispose();
     }
+    if (this._flightService) this._flightService.stop();
+    if (this._aircraftLayer) {
+      this.aircraftLayer.remove(this._aircraftLayer.object3d);
+      this._aircraftLayer.dispose();
+    }
+    if (this._eclipseRig) {
+      this.eclipseLayer.remove(this._eclipseRig.group);
+      this._eclipseRig.dispose();
+    }
+    if (this._aurora) {
+      this.auroraLayer.remove(this._aurora.group);
+      this._aurora.dispose();
+    }
     if (this._hud) this._hud.dispose();
     this._rig = null;
     this._hud = null;
+    this._aircraftLayer = null;
+    this._eclipseRig = null;
+    this._aurora = null;
+    this._flightService = null;
     this._built = false;
   }
 

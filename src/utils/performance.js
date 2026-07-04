@@ -33,6 +33,12 @@ export function shouldDegrade({ deltas, windowSize, thresholdFps, isMobile }) {
 // at every degradation level.
 export const DEGRADE_STEPS = ['bloom', 'lod', 'pixelRatio'];
 
+// @MX:NOTE: [AUTO] Earth-view ladder (SPEC-EARTH-002 REQ-650): the decorative aurora
+// sheds FIRST, before the SIM-001 bloom/lod/pixelRatio order. Only active while the
+// Earth view is the active view (ViewManager swaps the degrader's steps on enter/exit),
+// so the solar view keeps DEGRADE_STEPS unchanged.
+export const EARTH_DEGRADE_STEPS = ['aurora', 'bloom', 'lod', 'pixelRatio'];
+
 /**
  * Frame-budget priority degrader (REQ-240). Pure state machine: feed it a frame
  * time each frame and it decides when to shed a non-essential effect. It steps
@@ -46,10 +52,24 @@ export class FrameBudgetDegrader {
    * @param {number} [opts.overBudgetFrames] - Consecutive over-budget frames before degrading.
    * @param {number} [opts.recoverFrames] - Consecutive good frames before recovering a level.
    */
-  constructor({ budgetMs = 1000 / 60, overBudgetFrames = 30, recoverFrames = 60 } = {}) {
+  constructor({ budgetMs = 1000 / 60, overBudgetFrames = 30, recoverFrames = 60, steps = DEGRADE_STEPS } = {}) {
     this.budgetMs = budgetMs;
     this.overBudgetFrames = overBudgetFrames;
     this.recoverFrames = recoverFrames;
+    this.steps = steps;
+    this.level = 0;
+    this._over = 0;
+    this._under = 0;
+  }
+
+  /**
+   * Swap the degradation ladder at runtime (e.g. ViewManager entering/leaving the
+   * Earth view, which prepends 'aurora'). Resets the level and streak counters so the
+   * new ladder starts clean.
+   * @param {string[]} steps
+   */
+  setSteps(steps) {
+    this.steps = steps;
     this.level = 0;
     this._over = 0;
     this._under = 0;
@@ -65,10 +85,10 @@ export class FrameBudgetDegrader {
     if (frameMs > this.budgetMs) {
       this._under = 0;
       this._over += 1;
-      if (this._over >= this.overBudgetFrames && this.level < DEGRADE_STEPS.length) {
+      if (this._over >= this.overBudgetFrames && this.level < this.steps.length) {
         this._over = 0;
         this.level += 1;
-        return DEGRADE_STEPS[this.level - 1];
+        return this.steps[this.level - 1];
       }
       return null;
     }
@@ -77,7 +97,7 @@ export class FrameBudgetDegrader {
     this._under += 1;
     if (this._under >= this.recoverFrames && this.level > 0) {
       this._under = 0;
-      const restored = DEGRADE_STEPS[this.level - 1];
+      const restored = this.steps[this.level - 1];
       this.level -= 1;
       return `restore:${restored}`;
     }
@@ -89,6 +109,6 @@ export class FrameBudgetDegrader {
    * @returns {string[]}
    */
   get activeSteps() {
-    return DEGRADE_STEPS.slice(0, this.level);
+    return this.steps.slice(0, this.level);
   }
 }

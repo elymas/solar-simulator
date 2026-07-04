@@ -38,6 +38,11 @@ export class SceneManager {
     // filmic response (REQ-285). OutputPass already consumes renderer.toneMapping.
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0; // calibration knob for overall brightness
+    // @MX:NOTE: [AUTO] Shadow maps enabled for the F6 eclipse diorama (SPEC-EARTH-002).
+    // Harmless to the solar view — no light there casts shadows, so it costs nothing
+    // until EarthView's EclipseRig marks a caster/receiver.
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(this.renderer.domElement);
   }
 
@@ -181,6 +186,19 @@ export class SceneManager {
     this._budgetDegrader = new FrameBudgetDegrader({ budgetMs: this.isMobile ? 1000 / 30 : 1000 / 60 });
     this._baseBloomRadius = this.bloomPass.radius;
     this._basePixelRatio = this.renderer.getPixelRatio();
+
+    // Set by ViewManager while the Earth view is active so the aurora sheds first
+    // (SPEC-EARTH-002 REQ-650). Null in the solar view.
+    this.onAuroraShed = null;
+  }
+
+  /**
+   * Swap the frame-budget degradation ladder (ViewManager enters/leaves the Earth
+   * view, which prepends the 'aurora' shed step). Resets the degrader's level.
+   * @param {string[]} steps
+   */
+  setDegradeSteps(steps) {
+    this._budgetDegrader.setSteps(steps);
   }
 
   /**
@@ -192,6 +210,14 @@ export class SceneManager {
    */
   _applyBudgetDegradation(frameMs) {
     switch (this._budgetDegrader.record(frameMs)) {
+      case 'aurora':
+        // Earth-view-only step: aurora sheds first (REQ-650). SceneManager stays
+        // agnostic — EarthView owns the effect and registers this callback.
+        if (this.onAuroraShed) this.onAuroraShed(true);
+        break;
+      case 'restore:aurora':
+        if (this.onAuroraShed) this.onAuroraShed(false);
+        break;
       case 'bloom':
         this.bloomPass.radius = 0;
         break;

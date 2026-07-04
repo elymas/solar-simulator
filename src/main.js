@@ -15,7 +15,13 @@ const solarView = new SolarSystemView({ sceneManager });
 solarView.onLoadProgress = (loaded, total) => loadingScreen.updateProgress(loaded, total);
 solarView.onLoadComplete = () => loadingScreen.hide();
 
-const earthView = new EarthView({ isMobile: sceneManager.isMobile });
+// Share the ONE sim clock: EarthView reads + advances solarView.simApi while
+// active, keeping both views on a single timeline (SPEC-EARTH-002 F6).
+const earthView = new EarthView({
+  isMobile: sceneManager.isMobile,
+  isLowEnd: sceneManager.lowEnd,
+  simApi: solarView.simApi,
+});
 
 // ViewManager replaces main.js's old god-loop: it drives the single rAF loop, the
 // SOLAR/EARTH state machine, hash routing, transitions, and context-loss handling.

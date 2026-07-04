@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DEGRADE_STEPS, EARTH_DEGRADE_STEPS } from '../utils/performance.js';
 
 /**
  * The four states of the app's view machine. TO_EARTH / TO_SOLAR are the
@@ -201,6 +202,11 @@ export class ViewManager {
         this.solarView.onExit();
         this.activeView = this.earthView;
         this.earthView.onEnter(VIEW_STATES.SOLAR); // lazily builds the rig on first entry
+        // Aurora sheds first under budget pressure while Earth is active (REQ-650).
+        if (this.renderCore.setDegradeSteps) this.renderCore.setDegradeSteps(EARTH_DEGRADE_STEPS);
+        this.renderCore.onAuroraShed = (shed) => {
+          if (this.earthView.setAuroraShed) this.earthView.setAuroraShed(shed);
+        };
         this._setHash('#/earth');
       },
       finalState: VIEW_STATES.EARTH,
@@ -219,6 +225,9 @@ export class ViewManager {
         this.earthView.onExit();
         this.activeView = this.solarView;
         this.solarView.onEnter(VIEW_STATES.EARTH);
+        // Restore the solar ladder (no aurora) and drop the Earth aurora hook.
+        if (this.renderCore.setDegradeSteps) this.renderCore.setDegradeSteps(DEGRADE_STEPS);
+        this.renderCore.onAuroraShed = null;
         this._setHash('#/');
       },
       finalState: VIEW_STATES.SOLAR,
