@@ -3,8 +3,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { COLOR_PALETTE, CAMERA_DEFAULTS, CONTROLS_DEFAULTS, BLOOM_DEFAULTS } from '../utils/constants.js';
+import { shouldDegrade } from '../utils/performance.js';
 
 /**
  * SceneManager handles the Three.js scene, renderer, camera, controls,
@@ -88,8 +90,27 @@ export class SceneManager {
     this.bloomPass = new UnrealBloomPass(size, strength, radius, threshold);
     this.composer.addPass(this.bloomPass);
 
+    // Hover highlight (REQ-006). Placed after bloom so the outline stays crisp.
+    this.outlinePass = new OutlinePass(size, this.scene, this.camera);
+    this.outlinePass.edgeStrength = 3;
+    this.outlinePass.edgeGlow = 0.3;
+    this.outlinePass.edgeThickness = 1.5;
+    this.outlinePass.visibleEdgeColor.set(COLOR_PALETTE.accent);
+    this.outlinePass.hiddenEdgeColor.set(COLOR_PALETTE.accent);
+    this.composer.addPass(this.outlinePass);
+
     const outputPass = new OutputPass();
     this.composer.addPass(outputPass);
+  }
+
+  /**
+   * Set the mesh to outline on hover, or clear it when null (REQ-006).
+   * @param {THREE.Object3D|null} mesh
+   */
+  setHoveredObject(mesh) {
+    if (this.outlinePass) {
+      this.outlinePass.selectedObjects = mesh ? [mesh] : [];
+    }
   }
 
   /**
@@ -112,14 +133,55 @@ export class SceneManager {
    * to maintain acceptable frame rates.
    */
   _detectPerformance() {
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    this.isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const isLowEnd = navigator.hardwareConcurrency <= 4;
 
-    if (isMobile || isLowEnd) {
+    if (this.isMobile || isLowEnd) {
       this.renderer.setPixelRatio(1);
       this.bloomPass.strength = 0.4;
       this.bloomPass.radius = 0.15;
     }
+
+    // Live degradation (REQ-018): sustained sub-30fps on mobile drops post-processing.
+    this._fpsSamples = [];
+    this._degraded = false;
+    this._perfWindow = 90;
+    this._perfThresholdFps = 30;
+  }
+
+  /**
+   * Sample the frame rate and apply degradation once mobile fps stays too low.
+   * @param {number} delta - Frame delta time in seconds.
+   */
+  _monitorPerformance(delta) {
+    if (this._degraded || !this.isMobile) return;
+
+    this._fpsSamples.push(delta);
+    if (this._fpsSamples.length > this._perfWindow) {
+      this._fpsSamples.shift();
+    }
+
+    if (
+      shouldDegrade({
+        deltas: this._fpsSamples,
+        windowSize: this._perfWindow,
+        thresholdFps: this._perfThresholdFps,
+        isMobile: this.isMobile,
+      })
+    ) {
+      this._applyDegradation();
+    }
+  }
+
+  /**
+   * Disable post-processing and lower render resolution to keep core rendering
+   * interactive (REQ-018). The plain WebGLRenderer path is used from here on.
+   */
+  _applyDegradation() {
+    this._degraded = true;
+    // ponytail: no low-res texture assets exist, so lower render resolution instead of swapping textures.
+    this.renderer.setPixelRatio(0.75);
+    if (this.outlinePass) this.outlinePass.selectedObjects = [];
   }
 
   /**
@@ -225,8 +287,14 @@ export class SceneManager {
         }
       }
 
+      this._monitorPerformance(delta);
+
       this.controls.update();
-      this.composer.render();
+      if (this._degraded) {
+        this.renderer.render(this.scene, this.camera);
+      } else {
+        this.composer.render();
+      }
     };
 
     animate();

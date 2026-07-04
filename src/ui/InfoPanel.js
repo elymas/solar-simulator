@@ -7,6 +7,7 @@ import { MOON_DATA, STAR_DATA } from '../planets/planetData.js';
 export class InfoPanel {
   constructor() {
     this.isOpen = false;
+    this.onClose = null;
     this._injectStyles();
     this._createDOM();
   }
@@ -109,9 +110,14 @@ export class InfoPanel {
     this.el.addEventListener('mousedown', (e) => e.stopPropagation());
     this.el.addEventListener('touchstart', (e) => e.stopPropagation());
 
-    // Close button
+    // Close button: route through onClose so it matches Escape/R (camera reset),
+    // falling back to a plain hide when no handler is wired.
     this.el.querySelector('.info-panel-close').addEventListener('click', () => {
-      this.hide();
+      if (this.onClose) {
+        this.onClose();
+      } else {
+        this.hide();
+      }
     });
 
     document.body.appendChild(this.el);

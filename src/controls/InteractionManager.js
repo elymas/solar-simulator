@@ -207,10 +207,12 @@ export class InteractionManager {
       this.hoveredPlanet = key;
       this.renderer.domElement.style.cursor = 'pointer';
       this._showTooltip(key, event.clientX, event.clientY);
+      this.planetFactory.sceneManager.setHoveredObject(this.planetFactory.planets[key]?.mesh || null);
     } else {
       this.hoveredPlanet = null;
       this.renderer.domElement.style.cursor = 'default';
       this._hideTooltip();
+      this.planetFactory.sceneManager.setHoveredObject(null);
     }
   }
 

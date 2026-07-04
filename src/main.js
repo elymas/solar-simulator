@@ -110,6 +110,11 @@ function initUI() {
     deselectPlanet(infoPanel, planetList, interaction);
   };
 
+  // Panel X button mirrors Escape/deselect: close panel and reset the camera
+  infoPanel.onClose = () => {
+    deselectPlanet(infoPanel, planetList, interaction);
+  };
+
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     // Space: toggle play/pause
