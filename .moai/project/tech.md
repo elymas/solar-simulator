@@ -121,3 +121,22 @@
 - Planet sphere segment count scales with display radius (32 for small bodies, 64 for large ones) to balance quality vs. triangle count
 - `OrbitControls` uses `enableDamping` for smooth, frame-rate-independent rotation
 - Post-processing composer is used for every frame; there is no fallback path that bypasses bloom
+
+---
+
+## 테스트 스택 (SPEC-SIM-001에서 신규 도입, 2026-07-05)
+
+### Vitest + jsdom
+
+- **역할**: 프로젝트 최초의 테스트 스위트. 그 이전에는 테스트가 전혀 없었다.
+- **위치**: `test/` 디렉터리와 일부 `src/**/*.test.js` 콜로케이션(`InfoPanel.test.js`, `performance.test.js`).
+- **범위**: WebGL 렌더링이 필요 없는 순수 로직(궤도 계산, 뷰 라우팅, 상태 기계, 항공기 폴링/백오프, 일식 검출 등)을 의존성 주입으로 분리해 유닛 테스트한다. 실제 3D 시각적 외관과 실기기 프레임률은 여전히 수동/육안 검증 대상이다.
+- **실행**: `npm test` (`vitest run`).
+
+## 외부 네트워크 의존성 (SPEC-EARTH-002에서 신규 도입)
+
+### api.airplanes.live
+
+- **역할**: 지구 뷰의 실시간 항공기 위치 오버레이(F5)를 위한 무료·키리스·CORS 검증 완료 ADS-B API.
+- **중요성**: 이것이 앱이 런타임에 수행하는 **유일한 외부 네트워크 호출**이다. SPEC-UI-001이 확립한 "초기 로드 후 완전 오프라인 동작" 설계 원칙(REQ-020)과 공존하도록, 이 기능은 완전히 선택적(옵트인)이며 API가 도달 불가능해도 우아하게 저하되어 다른 모든 기능에 영향을 주지 않는다.
+- **채택 경위**: 원래 후보였던 adsb.lol/adsb.fi 대신, 배포 origin에서의 라이브 브라우저 CORS 스모크 테스트를 통과한 airplanes.live가 채택되었다.

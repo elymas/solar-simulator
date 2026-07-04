@@ -1,9 +1,9 @@
 ---
 id: SPEC-EARTH-002
 version: "0.1.1"
-status: draft
+status: implemented
 created: "2026-07-03"
-updated: "2026-07-03"
+updated: "2026-07-05"
 author: limbowl
 priority: medium
 issue_number: 3
@@ -49,7 +49,7 @@ Three.js r175 유지. 신규: 로컬 일식 리그(DirectionalLight + `PCFSoftSh
 
 - 일식/월식 그림자는 `MeshStandardMaterial` relight(SPEC-SIM-001) + 셰도우맵 활성(`SceneManager.js` 셰도우맵 enable)이 선행되어야 함. 무광 재질에서는 불가.
 - 스케일이 상징적(Fact C)이므로 기하학적 umbra 원뿔 수학은 태양계 좌표계에서 성립 불가 → F6는 EarthView 내 **로컬·상대 스케일 리그**로 렌더.
-- `OrbitalMechanics.calculatePosition`(`OrbitalMechanics.js:19`)이 이미 궤도 위치를 구동 → F6 정렬 검출은 동일 Keplerian 데이터를 읽는다(별도 ephemeris 없음).
+- **[CORRECTED 2026-07-05]** `OrbitalMechanics.calculatePosition`(`OrbitalMechanics.js:19`)은 승교점 경도(Ω)를 생략한다(SPEC-SIM-001 §1.4 기지 한계) — 이는 F6가 원안대로 "동일 Keplerian 위치 데이터로부터 정렬을 검출"할 수 없음을 의미한다. Ω 없는 궤도 모델로 진짜 node-crossing 정렬을 계산하면 결과가 조작(fabricated)될 수밖에 없으며, 이는 REQ-550("진짜 기하 정렬에 대응하지 않는 일식 조작 금지")을 그 자체로 위반한다. 실제 구현은 **실제 카탈로그 일식 테이블**(NASA Five Millennium Canon of Solar/Lunar Eclipses, Espenak & Meeus)을 소스 오브 트루스로 사용해 시뮬레이션 시각을 실제 일식 순간과 범위 검사(range-test)한다 — 상세 §4.2, `src/utils/eclipseData.js`의 `@MX:NOTE` 참조. 이 설계 치환은 quality-earth-002 및 evaluator-earth-002가 각각 독립적으로 검토하여 타당하다고 확인했다(REQ-550 위반을 피하기 위한 근거 있는 대체이며, 조용한 변경이 아니다).
 - WebGL 트러스트 경계: 항공기 좌표는 외부 신뢰불가 입력 → 인스턴스 행렬 생성 전 검증/클램프 필수.
 
 ---
@@ -92,13 +92,13 @@ Three.js r175 유지. 신규: 로컬 일식 리그(DirectionalLight + `PCFSoftSh
 ### 3.2 F6 — 일식/월식 (Hybrid: 프리셋 + Keplerian 검출)
 
 **Ubiquitous (필수)**
-- **REQ-510**: 시스템은 **항상** 하이브리드 일식 시스템을 제공해야 한다: (a) 실제 역사적/예정 일식 날짜 프리셋 목록의 원클릭 시간 점프, **그리고** (b) 궤도 애니메이션을 이미 구동하는 동일 Keplerian 위치 데이터로부터 Sun-Earth-Moon 정렬을 검출(별도 일식 전용 ephemeris 없음).
+- **REQ-510**: 시스템은 **항상** 하이브리드 일식 시스템을 제공해야 한다: (a) 실제 역사적/예정 일식 날짜 프리셋 목록의 원클릭 시간 점프, **그리고** (b) 동일 프리셋 목록(실제 카탈로그 일식 테이블)을 소스로 시뮬레이션 시각을 범위 검사(range-test)하여 Sun-Earth-Moon 정렬 이벤트를 검출(별도 일식 전용 ephemeris 도입 없음). **[CORRECTED 2026-07-05]** 원안의 "Keplerian 위치 데이터로부터 정렬 검출"은 `OrbitalMechanics`의 Ω(승교점) 생략으로 인해 실현 불가능하며(§1.4), 실제 구현은 §4.2에 기술된 테이블 기반 검출로 대체되었다 — REQ-550 준수는 동일하게 유지된다.
 
 **Event-Driven (이벤트 기반)**
 - **REQ-520**: **WHEN** 프리셋이 선택되거나 계산된 Sun-Earth-Moon 정렬이 일식 임계값 내에 들면 **THEN** 시스템은 EarthView 내 로컬 그림자 리그로 대응 시각을 렌더해야 한다(일식 = 지구 표면 그림자 오버레이, 월식 = 달 붉은-틴트 umbra).
 
 **State-Driven (상태 기반)**
-- **REQ-530**: **WHILE** 시뮬레이션이 고 시간 가속(기존 0.1x–500x 범위)으로 실행되는 동안, 시스템은 큰 프레임 당 시간 스텝으로 인해 정렬 교차를 건너뛰지 않고 검출해야 한다 — 정렬은 렌더 프레임률과 독립적인 시간 해상도(고정 서브스텝 샘플링)로 샘플링되어야 한다.
+- **REQ-530**: **WHILE** 시뮬레이션이 고 시간 가속(기존 0.1x–500x 범위)으로 실행되는 동안, 시스템은 큰 프레임 당 시간 스텝으로 인해 정렬 교차를 건너뛰지 않고 검출해야 한다. **[CORRECTED 2026-07-05]** 원안은 "고정 서브스텝 샘플링"을 전제했으나, 실제 구현(테이블 기반 검출, §4.2)은 반개구간 `(prevDay, currDay]` 범위 검사로 프레임 스텝 크기와 무관하게 그 구간에 속한 모든 카탈로그 일식을 포착한다 — 별도의 서브스텝 샘플링 루프가 필요 없다(500x에서 한 프레임이 여러 해를 건너뛰어도 동일하게 안전).
 
 **Optional (선택적)**
 - **REQ-540**: **Where** "다음 일식 찾기(find next eclipse)" 컨트롤이 포함되는 경우, 시스템은 이를 제공해야 하며, 활성화 시 경계 검색 창(다음 5 시뮬레이션 연도 이내) 내 다음 일식 발생으로 시뮬레이션 시계를 빨리 감아**야 한다**. 내부 검색은 1 시뮬레이션 시간(hour) 이하 증분으로 스텝**해야 한다**.
@@ -144,9 +144,9 @@ Three.js r175 유지. 신규: 로컬 일식 리그(DirectionalLight + `PCFSoftSh
   - **일식**: Moon `castShadow`, Earth `receiveShadow` → 달 그림자가 지구 표면에 낙하, umbral spot 추적. soft shadow radius로 penumbra 자연 falloff.
   - **월식**: Earth `castShadow`, Moon `receiveShadow` → 지구 그림자가 달을 삼킴, umbral core를 붉게 틴트(blood moon, Rayleigh 굴절광).
   - umbra/penumbra: `PCFSoftShadowMap` + 튜닝된 `light.shadow.radius`(단일 soft falloff) + 선택적 수신면 방사 그라디언트 데칼(불투명 core → 그라데이션 ring → clear). 모바일은 평 soft shadow 또는 flat 어둡기 디스크로 우아 저하.
-- **하이브리드 컨트롤**: 프리셋 목록(실제 일식 날짜 원클릭 점프) + Keplerian 정렬 검출(자유 재생) + "다음 일식 찾기" 검색(REQ-540).
-- **시간 스텝 독립 샘플링**(REQ-530): 정렬을 렌더 프레임률과 독립된 고정 서브스텝으로 샘플 → 500x에서도 이벤트 미스킵.
-- **스케일 정직성**: UI에 일식 기하가 예시적(비 스케일)임을 표기 — 전체 앱이 비 스케일(Fact C).
+- **하이브리드 컨트롤 [CORRECTED 2026-07-05, as-built]**: `[NEW]` `src/utils/eclipseData.js` — 실제 카탈로그 일식 테이블(NASA Five Millennium Canon of Solar/Lunar Eclipses, Espenak & Meeus; 10건, 2026–2030)을 소스 오브 트루스로 사용. 프리셋 목록(원클릭 시간 점프) + 자유 재생 중 `detectEclipsesInRange(prevDay, currDay)` 범위 검사(별도 Keplerian 정렬 계산 없음) + "다음 일식 찾기" 검색(`findNextEclipse`, REQ-540). 원안이 전제한 "궤도 위치 데이터 기반 Sun-Earth-Moon 정렬 검출"은 `OrbitalMechanics`의 Ω 생략으로 실현 불가능해 채택하지 않았다(근거: §1.4, REQ-510/530 정정).
+- **시간 스텝 독립성**(REQ-530, as-built): 원안의 "고정 서브스텝 샘플링" 대신, 반개구간 `(prevDay, currDay]` 범위 검사가 구조적으로 프레임 스텝 크기에 면역이다 — 한 프레임이 몇 년을 건너뛰어도 그 구간의 모든 테이블 엔트리를 포착하므로 500x에서도 미스킵 없음. 별도 서브스텝 루프 불필요.
+- **스케일 정직성**: UI에 일식 기하가 예시적(비 스케일)임을 표기 — 전체 앱이 비 스케일(Fact C). `EclipseRig`는 실제 궤도 위치를 참조하지 않는 고정 배치 diorama(`@MX:NOTE` 참조)이며, 검출 결과(REQ-550 준수, 실제 일식에만 대응)에 의해서만 트리거된다.
 
 ### 4.3 F7 — 오로라 효과
 
@@ -206,3 +206,17 @@ Three.js r175 유지. 신규: 로컬 일식 리그(DirectionalLight + `PCFSoftSh
 | Frontend 3D | expert-frontend | 셰도우맵 일식 리그, 오로라 셰이더, InstancedMesh 항공기 |
 | Backend / Data | expert-backend | FlightDataService 폴링·백오프·상태 기계, CORS 스모크 테스트 설계 |
 | Security | expert-security | 외부 항공기 입력 트러스트 경계, 좌표 검증/클램프, 키리스 준수 |
+
+---
+
+## 9. Implementation Notes (2026-07-05)
+
+TASK-F6-0~F7-3 (10개 태스크) 전부 GREEN. 총 160 tests 통과(97 baseline + 신규 63), 회귀 0건. `npm run build` 정상(40 modules).
+
+- **F5 항공기**: A-403의 후보(adsb.lol/adsb.fi)와 달리 **`api.airplanes.live`**로 CORS 라이브 스모크 테스트를 통과하여 채택(키리스, 무료, `src/data/FlightDataService.js`). 상태 기계(OFF/LOADING/LIVE/RATE_LIMITED/OFFLINE) + 30초 시작 지수 백오프 + dead-reckoning + 좌표 클램프 구현.
+- **F6 일식/월식**: 위 CORRECTED 정정 참조 — 원안의 Keplerian 정렬 검출을 실제 카탈로그 테이블 range-test로 대체(`src/utils/eclipseData.js`). `EclipseRig`는 궤도 위치를 참조하지 않는 고정 배치 diorama.
+- **F7 오로라**: 커스텀 정점-노이즈 셰이더(데스크탑) + 빌보드/스프라이트 폴백(모바일), 야간면 한정, REQ-240 저하 순서에서 오로라 우선 저하.
+- 계획대로 신규: `src/utils/eclipseData.js`, `src/effects/EclipseRig.js`, `src/effects/AuroraEffect.js`, `src/effects/AircraftLayer.js`, `src/data/FlightDataService.js`.
+- 계획대로 수정: `EarthView.js`, `EarthHUD.js`, `SceneManager.js`(셰도우맵), `performance.js`(EARTH_DEGRADE_STEPS), `ViewManager.js`(저하 스텝/오로라 셰드 콜백), `constants.js`(SIM_EPOCH_MS 등), `main.js`.
+- src 스코프 드리프트 0% — 계획된 파일만 수정, 신규 디렉터리 `src/effects/`, `src/data/`만 추가.
+- 검증 수준: AC-FLIGHT-02(백오프/오프라인/클램프), AC-ECLIPSE-02(500x 미스킵+find-next), REQ-550(조작 없음), AC-AURORA-02 순서(오로라 우선 저하), 야간면/극지 배치 수학, 모바일 티어 선택 등은 순수 로직으로 코드 검증됨. CORS 스모크(이미 airplanes.live로 확인 완료), 항공기 InstancedMesh 렌더, 일식 그림자/umbra 비주얼, 오로라 외관, 실기기 fps는 수동/실사용 네트워크 검증 대상.

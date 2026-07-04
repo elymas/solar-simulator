@@ -2,9 +2,9 @@
 id: SPEC-SIM-001
 document: acceptance
 version: "0.1.0"
-status: draft
+status: implemented
 created: "2026-07-03"
-updated: "2026-07-03"
+updated: "2026-07-05"
 author: limbowl
 tags: [three.js, solar-system, dwarf-planets, moons, rendering-quality, brownfield]
 ---

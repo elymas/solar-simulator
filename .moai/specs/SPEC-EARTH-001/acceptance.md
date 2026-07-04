@@ -2,9 +2,9 @@
 id: SPEC-EARTH-001
 document: acceptance
 version: "0.1.1"
-status: draft
+status: implemented
 created: "2026-07-03"
-updated: "2026-07-03"
+updated: "2026-07-05"
 author: limbowl
 tags: [three.js, earth-view, view-manager, state-machine, hash-routing, brownfield]
 depends_on: [SPEC-SIM-001]

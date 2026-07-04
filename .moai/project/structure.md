@@ -147,3 +147,29 @@ Animation loop (SceneManager.start callback):
 **LoadingManager drives the loading screen.** Texture load progress is passed through callbacks rather than polling, keeping `LoadingScreen` decoupled from `PlanetFactory` internals.
 
 **Post-processing via EffectComposer.** The render loop calls `composer.render()` rather than `renderer.render()` so the bloom pass always applies.
+
+---
+
+## 확장 아키텍처 (SPEC-SIM-001 / SPEC-EARTH-001 / SPEC-EARTH-002, 2026-07-05)
+
+브라운필드 확장으로 다음 디렉터리/모듈이 추가되었다.
+
+```
+src/
+├── core/                ViewManager.js — 뷰 상태 기계 + 공유 렌더 루프
+├── views/                SolarSystemView.js — 기존 앱을 View 인터페이스로 래핑
+├── earth/                EarthView.js, EarthRig.js, EarthHUD.js — 지구 상세 뷰
+├── effects/              EclipseRig.js, AuroraEffect.js, AircraftLayer.js
+├── data/                 FlightDataService.js — 항공기 폴링/상태 기계
+├── planets/              TextureTierManager.js — 초점 시 지연 고해상도 텍스처 티어(신규)
+└── utils/                eclipseData.js — 실제 카탈로그 일식 테이블 + 순수 검출 함수
+test/                     프로젝트 최초 테스트 스위트 (Vitest + jsdom)
+```
+
+**핵심 아키텍처 패턴 — 단일 렌더러, 다중 뷰**: 렌더러/`EffectComposer`는 오직 하나만 존재한다(`SolarSystemView`가 소유하는 `SceneManager` 내부에 생성됨). `ViewManager`가 유일한 rAF 루프를 구동하며, 활성 뷰(`SolarSystemView` 또는 `EarthView`)에 따라 composer의 렌더 패스를 재타깃(retarget)한다 — 뷰마다 별도의 `WebGLRenderer`를 만드는 방식이 아니다. 각 뷰는 `mount/unmount/onEnter/onExit/update/getScenePass`로 이루어진 동결된 View 인터페이스를 구현한다.
+
+**`ViewManager`의 상태 기계**: `SOLAR` ⇄ `TO_EARTH`(전환 중, 400ms DOM 크로스페이드) ⇄ `EARTH` ⇄ `TO_SOLAR`. hash 라우팅(`#/`, `#/earth`)과 브라우저 뒤로가기가 동일한 전환을 구동한다.
+
+**`EarthView`의 하위 시뮬레이션 마운트**: `EclipseRig`(일식/월식 diorama), `AuroraEffect`(오로라 커튼), `AircraftLayer`(항공기 `InstancedMesh`)는 모두 EarthView 활성 중에만 마운트되는 가산 레이어다. `EclipseRig`는 실제 궤도 위치를 참조하지 않는 고정 배치 diorama이며, `eclipseData.js`의 실제 일식 테이블 range-test 결과로만 트리거된다.
+
+**테스트 인프라**: 이 확장에서 프로젝트 최초로 Vitest + jsdom 기반 유닛 테스트가 도입되었다(`test/`, 일부 `src/**/*.test.js` 콜로케이션). WebGL 렌더링이 필요한 부분은 의존성 주입으로 순수 로직을 분리해 유닛 테스트하고, 실제 시각적 외관·실기기 성능은 수동 검증으로 남겨둔다.

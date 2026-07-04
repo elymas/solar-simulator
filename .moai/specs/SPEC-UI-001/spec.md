@@ -171,3 +171,15 @@ GitHub Pages에 호스팅되는 3D 태양계 시뮬레이션 웹사이트. Three
 | REQ-013 ~ REQ-017 | Phase 2-4 | Secondary Goal |
 | REQ-018 ~ REQ-019 | Phase 4: Polish | Secondary Goal |
 | REQ-020 ~ REQ-022 | 전체 Phase | Primary Goal (제약사항) |
+
+---
+
+## 5. Implementation Notes (Addendum, 2026-07-05)
+
+최초 구현 이후 커밋 `1a94afc`(`fix(ui): reset camera on info panel close, add hover outline, live FPS degradation`)에서 3건의 갭픽스를 추가 적용:
+
+- 정보 패널을 닫으면 카메라가 개요 위치로 복귀(AC-002 "Closing the information panel" 완전 충족).
+- `OutlinePass` 기반 호버 하이라이트 추가(REQ-006/AC-002 호버 시나리오 충족).
+- 실시간 FPS 측정 기반 저하 로직(`src/utils/performance.js`)으로 REQ-018 모바일 성능 저하를 정적 휴리스틱에서 라이브 측정으로 강화.
+
+**미해결 비차단 코스메틱 항목(carried forward)**: Mercury/Venus/Mars의 `OutlinePass` 호버 헤일로가 보이지 않는 히트-헬퍼(hit-helper) 반경 때문에 실제 행성 표면보다 다소 크게 표시됨. 클릭/호버 기능에는 영향 없음 — 시각적 다듬기로만 남겨둠.

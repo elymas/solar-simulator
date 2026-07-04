@@ -1,9 +1,9 @@
 ---
 id: SPEC-EARTH-001
 version: "0.1.1"
-status: draft
+status: implemented
 created: "2026-07-03"
-updated: "2026-07-03"
+updated: "2026-07-05"
 author: limbowl
 priority: high
 issue_number: 2
@@ -189,3 +189,16 @@ States: SOLAR, TO_EARTH(전환중), EARTH, TO_SOLAR(전환중)
 |--------|---------|------|
 | Frontend 3D | expert-frontend | ViewManager 상태 기계, 렌더러 공유, 지구 리그 셰이딩, hash 라우팅, WebGL 컨텍스트 로스 |
 | Performance | expert-performance | 모바일 dispose 라이프사이클, VRAM 회수, 전환 프레임 예산 |
+
+---
+
+## 9. Implementation Notes (2026-07-05)
+
+TDD 9개 태스크(E1~E9) 전부 GREEN. `npm test` 97 tests / 14 files 통과(SIM-001에서 상속된 46 + 신규 51), `npm run build` 정상(597 kB / 149 kB gz).
+
+- 신규 파일 계획대로 생성: `src/core/ViewManager.js`, `src/views/SolarSystemView.js`, `src/earth/EarthView.js`, `src/earth/EarthRig.js`, `src/earth/EarthHUD.js`.
+- 계획대로 수정: `src/main.js`(god-loop + `__solarSim` 제거 → ViewManager 부트스트랩), `src/scene/SceneManager.js`(자체 루프 무력화 → `stepCamera`/`render`, resize를 ViewManager로 중앙화), `src/utils/constants.js`(EARTH_VIEW/EARTH_CONTROLS/EARTH_RIG), `src/controls/InteractionManager.js`(`enabled` 피킹 게이트).
+- 미수정(불필요 확인): `PlanetList.js`, `InfoPanel.js`, `TimeControls.js` — UI 소유권 이전은 기존 `.el`/`_toggleBtn` 표시 토글로 달성, 위젯 자체 편집 없음(TimeControls의 stale `__solarSim` JSDoc 참조만 1줄 수정).
+- **아키텍처 이탈(승인, flagged)**: Phase-1 문구는 "ViewManager가 유일한 renderer/composer를 소유"였으나, 실제로는 단일 `WebGLRenderer`+`EffectComposer`가 `SolarSystemView`의 `SceneManager` 내부에 그대로 유지되고, `ViewManager`가 루프를 구동하며 활성 뷰에 따라 composer pass를 재타깃한다. REQ-385("단일 렌더러 유지")는 "정확히 하나씩만 생성됨"을 검증하는 정적 가드 테스트로 충족되며, 물리적 재배치는 SIM-001의 `FrameBudgetDegrader`/모바일 하드-폴백 공존 로직에 불필요한 변경 리스크를 줄이기 위해 보류됨. 더 엄격한 물리적 소유권이 필요해지면 동일 View 인터페이스 뒤에서 추후 추출 가능.
+- 의도적 이연(Deferred): rim-glow/야간 도시 불빛(REQ-370, nice-to-have), 지구 4K/8K 지연 티어(기존 2K 자산 재사용), dolly-zoom 전환 업그레이드(DOM 크로스페이드만 구현).
+- 검증 수준: AC-EARTH-01/02/04/05/06은 코드로 완전 검증(상태 기계, 단일 컨텍스트 정적 가드, hash 라우팅, Escape/back 종료, View 인터페이스 동결, 지오로케이션 미사용 가드 전부 유닛 테스트). AC-EARTH-03은 터미네이터 GLSL 블렌드·구름·달 비주얼이 수동 검증 대상이며, **EarthHUD의 sub-solar/터미네이터 시각 표시는 현재 실제 천문 데이터에 연결되지 않은 placeholder 문자열**로 남아 있음(후속 작업으로 이월). NFR 프레임 p95, 실제 모바일 VRAM 회수, 실기기 컨텍스트 로스는 측정 전용으로 미검증.

@@ -2,9 +2,9 @@
 id: SPEC-EARTH-002
 document: spec-compact
 version: "0.1.1"
-status: draft
+status: implemented
 created: "2026-07-03"
-updated: "2026-07-03"
+updated: "2026-07-05"
 author: limbowl
 tags: [three.js, earth-view, flight-data, adsb, eclipse, aurora, brownfield]
 depends_on: [SPEC-EARTH-001, SPEC-SIM-001]
@@ -28,9 +28,9 @@ priority: medium · depends_on: SPEC-EARTH-001 (+SPEC-SIM-001 전이) · modules
 - REQ-470 (Un): 지수 백오프(30초 시작)보다 자주 재시도 금지.
 
 ### F6 — 일식/월식 (Hybrid)
-- REQ-510 (U): 하이브리드 — (a) 실제 일식 날짜 프리셋 원클릭 점프 + (b) 동일 Keplerian 데이터 정렬 검출.
+- REQ-510 (U): 하이브리드 — (a) 실제 일식 날짜 프리셋 원클릭 점프 + (b) 동일 프리셋 테이블 범위 검사로 정렬 검출(별도 ephemeris 없음). **[CORRECTED 2026-07-05]** 원안 "Keplerian 데이터 정렬 검출"은 Ω 생략으로 실현 불가 → 실제 카탈로그 테이블 range-test로 대체(as-built: `src/utils/eclipseData.js`, spec.md §1.4/§4.2).
 - REQ-520 (E): WHEN 프리셋 선택 OR 정렬 임계값 내 THEN EarthView 로컬 리그 렌더(일식=지표 그림자, 월식=붉은 umbra).
-- REQ-530 (S): WHILE 고 시간가속(0.1x-500x) 동안 프레임률 독립 고정 서브스텝 샘플링으로 미스킵 없이 검출.
+- REQ-530 (S): WHILE 고 시간가속(0.1x-500x) 동안 미스킵 없이 검출. **[CORRECTED]** 반개구간 `(prevDay, currDay]` range-test가 구조적으로 프레임률 독립 — 서브스텝 샘플링 불필요(as-built).
 - REQ-540 (O): Where "다음 일식 찾기" 포함 시 제공해야 하며, 경계 창(5 시뮬레이션 연도) 내 다음 일식으로 빨리 감아야 함, 내부 검색 1 시뮬레이션 시간 이하 증분.
 - REQ-550 (Un): 진짜 기하 정렬에 대응하지 않는 일식 조작 금지.
 
@@ -53,12 +53,13 @@ priority: medium · depends_on: SPEC-EARTH-001 (+SPEC-SIM-001 전이) · modules
 
 ## Files to Modify
 - `[NEW]` src/data/FlightDataService.js — 폴링/백오프/상태 기계/좌표 검증/dead-reckoning
-- `[NEW]` src/effects/EclipseRig.js — 로컬 셰도우 리그, 프리셋+검출, 붉은 umbra, 서브스텝 샘플링
+- `[NEW]` src/utils/eclipseData.js — **[CORRECTED, as-built]** 실제 카탈로그 일식 테이블 + `detectEclipsesInRange`/`findNextEclipse` 순수 검출 로직(Keplerian 정렬 계산 대체)
+- `[NEW]` src/effects/EclipseRig.js — 로컬 셰도우 diorama(고정 배치, 궤도 위치 비참조), 프리셋+테이블 검출 트리거, 붉은 umbra
 - `[NEW]` src/effects/AuroraEffect.js — 노이즈 커튼 셰이더, 야간면, 모바일 폴백
 - `[MODIFY]` src/earth/EarthView.js — 항공기/오로라 마운트, 모바일 티어
 - `[MODIFY]` src/earth/EarthHUD.js — 항공기 상태/선택, 일식 피커+"find next", 오로라 토글, aria-live
 - `[MODIFY]` src/scene/SceneManager.js — 셰도우맵 활성(일식)
-- `[EXISTING/read]` src/planets/OrbitalMechanics.js — 정렬 검출 입력(별도 ephemeris 없음)
+- `[EXISTING/read, unused for F6]` src/planets/OrbitalMechanics.js — 원안은 정렬 검출 입력으로 계획했으나 as-built는 eclipseData.js 테이블만 사용(Ω 생략으로 미사용, 위 정정 참조)
 
 ## Exclusions (What NOT to Build)
 - 라이브 우주기상 API 없음(오로라 장식용, F5와 별개 두 번째 외부 의존 회피, REQ-620).

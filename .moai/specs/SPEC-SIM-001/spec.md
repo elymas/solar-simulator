@@ -1,9 +1,9 @@
 ---
 id: SPEC-SIM-001
 version: "0.1.1"
-status: draft
+status: implemented
 created: "2026-07-03"
-updated: "2026-07-03"
+updated: "2026-07-05"
 author: limbowl
 priority: high
 issue_number: 1
@@ -231,3 +231,15 @@ SPEC-EARTH-002 (F5+F6+F7)  ── SPEC-EARTH-001(+ SPEC-SIM-001 전이) 에 의�
 |--------|---------|------|
 | Frontend 3D | expert-frontend | `MeshStandard` relight, composer MSAA/SMAA, LOD, 텍스처 티어 로더 |
 | Performance | expert-performance | 프레임 예산 회귀 검증, 동적 픽셀 비율, VRAM 실링 |
+
+---
+
+## 9. Implementation Notes (2026-07-05)
+
+TDD 10개 태스크(TASK-001~010) 전부 GREEN. `npm test` 46 tests / 8 files 통과, `npm run build` 정상(581 kB / 145 kB gz, 대부분 three.js).
+
+- 계획대로 수정: `planetData.js`, `constants.js`, `PlanetFactory.js`, `OrbitalMechanics.js`, `PlanetList.js`, `InfoPanel.js`, `SceneManager.js`.
+- 미수정(불필요 확인): `InteractionManager.js` — 기존 `_buildClickTargets` 루프가 왜소행성/신규 위성 히트 타깃을 자동 등록; `public/textures/` — 아트 자산 없이 flat-color 폴백으로 승인됨.
+- 계획 외 추가(승인된 단순화): `main.js`(onFocus/onDefocus 2줄 배선), `src/utils/performance.js`(+`FrameBudgetDegrader`, SPEC-UI-001 모바일 저하기와 공존), `src/planets/TextureTierManager.js`(REQ-290 캐싱용 순수 유닛), `test/*` + `vitest.config.js`(테스트 인프라 신규 부트스트랩).
+- 의도적 이연(Deferred): SMAAPass(MSAA만 출하, TASK-007), KTX2/Basis 압축(REQ-250, 에셋 미확보로 보류), Ω/ω 궤도 요소(도식적 고경사 궤도로 의도적 생략, `OrbitalMechanics.js` `@MX:ANCHOR`로 문서화), `CONTROLS_DEFAULTS.maxDistance` 5000 유지(TNO+별 커버).
+- 검증 수준: AC-SIM-01/02/03은 코드로 완전 검증. AC-SIM-04/05/06은 코드 사실은 유닛 테스트로 검증되었으나(samples:4, ACES 설정, LOD 스왑/지연 티어 로직, 저하 순서), 실제 시각적 외관(MSAA/relight 룩, pop-in 체감)과 런타임 성능(p95 프레임 타임, 모바일 저하)은 수동/육안 검증 대상으로 남아 있음.

@@ -2,9 +2,9 @@
 id: SPEC-EARTH-002
 document: acceptance
 version: "0.1.1"
-status: draft
+status: implemented
 created: "2026-07-03"
-updated: "2026-07-03"
+updated: "2026-07-05"
 author: limbowl
 tags: [three.js, earth-view, flight-data, adsb, eclipse, aurora, brownfield]
 depends_on: [SPEC-EARTH-001, SPEC-SIM-001]
@@ -86,10 +86,10 @@ Scenario: 프리셋 일식 날짜로 원클릭 점프한다
 ```gherkin
 Scenario: 진짜 정렬에만 일식이 렌더된다
   Given 시뮬레이션이 재생 중
-  When 달의 그림자 원뿔이 기하학적으로 지구와 교차함(Keplerian 검출)
+  When 시뮬레이션 시각이 실제 카탈로그 일식 테이블의 순간과 범위 검사로 일치함(as-built 검출 방식 — spec.md §1.4/§4.2 CORRECTED 참조; 원안의 "Keplerian 그림자 원뿔 교차"는 궤도 모델의 Ω 생략으로 대체됨)
   Then 일식 그림자 오버레이가 렌더되어야 한다
   And 다른 어떤 시각에도 일식이 렌더되지 않아야 한다
-  And 진짜 정렬에 대응하지 않는 일식은 조작되지 않아야 한다 (REQ-550)
+  And 진짜 정렬에 대응하지 않는 일식은 조작되지 않아야 한다 (REQ-550, 실제 카탈로그 테이블이 진위 근거)
 ```
 
 ```gherkin
@@ -106,10 +106,10 @@ Scenario: 월식이 붉은 umbra로 렌더된다
 ```gherkin
 Scenario: 고 시간가속에서 일식 검출이 유지된다
   Given 시뮬레이션이 500x 속도로 재생 중
-  When 진짜 Sun-Earth-Moon 정렬이 그 재생 중 발생함
+  When 실제 카탈로그 일식 순간이 그 재생 중 경과함
   Then 일식이 여전히 검출되고 렌더되어야 한다
   And 큰 프레임 당 시간 스텝으로 인해 조용히 건너뛰어지지 않아야 한다
-  And 정렬은 렌더 프레임률 독립 고정 서브스텝으로 샘플되어야 한다
+  And 검출은 반개구간 (prevDay, currDay] range-test로 프레임률과 무관하게 이루어져야 한다(as-built — 별도 고정 서브스텝 샘플링 불필요, spec.md REQ-530 CORRECTED 참조)
 ```
 
 ```gherkin
