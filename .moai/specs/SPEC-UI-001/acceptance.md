@@ -2,9 +2,9 @@
 id: SPEC-UI-001
 document: acceptance
 version: "1.0.0"
-status: draft
+status: implemented
 created: "2026-03-30"
-updated: "2026-03-30"
+updated: "2026-07-05"
 author: limbowl
 tags: [three.js, solar-system, 3d-simulation, github-pages]
 ---

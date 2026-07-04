@@ -1,9 +1,9 @@
 ---
 id: SPEC-UI-001
 version: "1.0.0"
-status: draft
+status: implemented
 created: "2026-03-30"
-updated: "2026-03-30"
+updated: "2026-07-05"
 author: limbowl
 priority: high
 issue_number: 0
