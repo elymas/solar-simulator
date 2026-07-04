@@ -15,13 +15,11 @@ import { shouldDegrade, FrameBudgetDegrader } from '../utils/performance.js';
 export class SceneManager {
   constructor() {
     this.scene = new THREE.Scene();
-    this.clock = new THREE.Clock();
     this._initRenderer();
     this._initCamera();
     this._initControls();
     this._initLighting();
     this._initPostProcessing();
-    this._initResizeHandler();
     this._detectPerformance();
   }
 
@@ -102,8 +100,11 @@ export class SceneManager {
     });
     this.composer = new EffectComposer(this.renderer, renderTarget);
 
-    const renderPass = new RenderPass(this.scene, this.camera);
-    this.composer.addPass(renderPass);
+    // @MX:NOTE: [AUTO] renderPass is stored so ViewManager can retarget its
+    // .scene/.camera to whichever View is active each frame (single shared
+    // composer, one pass pipeline — REQ-385). outlinePass is retargeted the same way.
+    this.renderPass = new RenderPass(this.scene, this.camera);
+    this.composer.addPass(this.renderPass);
 
     this.bloomPass = new UnrealBloomPass(size, strength, radius, threshold);
     this.composer.addPass(this.bloomPass);
@@ -136,18 +137,16 @@ export class SceneManager {
   }
 
   /**
-   * Handle window resize to maintain correct aspect ratio.
+   * Resize the shared renderer + composer and this view's camera aspect.
+   * Called by ViewManager, which owns the single window resize listener.
+   * @param {number} width
+   * @param {number} height
    */
-  _initResizeHandler() {
-    this._onResize = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      this.camera.aspect = width / height;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(width, height);
-      this.composer.setSize(width, height);
-    };
-    window.addEventListener('resize', this._onResize);
+  resize(width, height) {
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(width, height);
+    this.composer.setSize(width, height);
   }
 
   /**
@@ -311,72 +310,64 @@ export class SceneManager {
   }
 
   /**
-   * Start the animation loop using the post-processing composer.
-   * @param {Function} onUpdate - Callback invoked each frame with delta time.
+   * Advance the smooth camera reset/focus animations by one frame. Extracted
+   * from the old self-driven loop; ViewManager now owns the single rAF loop and
+   * calls this from SolarSystemView.update(). Renderer/perf/render are ViewManager's.
+   * @param {number} delta - Frame delta in seconds (accepted for parity; the
+   *   ease uses a fixed per-frame step to match the pre-refactor feel).
    */
-  start(onUpdate) {
-    const animate = () => {
-      requestAnimationFrame(animate);
-      const delta = this.clock.getDelta();
+  stepCamera(delta) {
+    // Handle smooth camera reset
+    if (this._isResetting && this._resetTarget) {
+      this._resetProgress += 0.03;
+      const t = Math.min(this._resetProgress, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
 
-      if (onUpdate) {
-        onUpdate(delta);
+      this.camera.position.lerp(this._resetTarget, ease);
+      this.controls.target.lerp(this._resetLookAt, ease);
+
+      if (t >= 1) {
+        this._isResetting = false;
+        this._resetProgress = 0;
       }
+    }
 
-      // Handle smooth camera reset
-      if (this._isResetting && this._resetTarget) {
-        this._resetProgress += 0.03;
-        const t = Math.min(this._resetProgress, 1);
-        // Ease-out cubic
-        const ease = 1 - Math.pow(1 - t, 3);
+    // Handle smooth camera focus on planet
+    if (this._isFocusing && this._focusTarget) {
+      this._focusProgress += 0.03;
+      const t = Math.min(this._focusProgress, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
 
-        this.camera.position.lerp(this._resetTarget, ease);
-        this.controls.target.lerp(this._resetLookAt, ease);
+      this.camera.position.lerp(this._focusCameraPos, ease);
+      this.controls.target.lerp(this._focusTarget, ease);
 
-        if (t >= 1) {
-          this._isResetting = false;
-          this._resetProgress = 0;
-        }
+      if (t >= 1) {
+        this._isFocusing = false;
+        this._focusProgress = 0;
       }
-
-      // Handle smooth camera focus on planet
-      if (this._isFocusing && this._focusTarget) {
-        this._focusProgress += 0.03;
-        const t = Math.min(this._focusProgress, 1);
-        const ease = 1 - Math.pow(1 - t, 3);
-
-        this.camera.position.lerp(this._focusCameraPos, ease);
-        this.controls.target.lerp(this._focusTarget, ease);
-
-        if (t >= 1) {
-          this._isFocusing = false;
-          this._focusProgress = 0;
-        }
-      }
-
-      this._monitorPerformance(delta);
-      if (!this._degraded) {
-        // REQ-240 priority ladder runs on the composer path; the REQ-018 mobile
-        // fallback above takes over (renderer.render) once fully degraded.
-        this._applyBudgetDegradation(delta * 1000);
-      }
-
-      this.controls.update();
-      if (this._degraded) {
-        this.renderer.render(this.scene, this.camera);
-      } else {
-        this.composer.render();
-      }
-    };
-
-    animate();
+    }
   }
 
   /**
-   * Clean up resources and event listeners.
+   * Render the given scene/camera through the shared pipeline. Uses the plain
+   * renderer once mobile-degraded (REQ-018), otherwise the multisampled composer
+   * (whose renderPass/outlinePass ViewManager has already retargeted).
+   * @param {THREE.Scene} scene
+   * @param {THREE.Camera} camera
+   */
+  render(scene, camera) {
+    if (this._degraded) {
+      this.renderer.render(scene, camera);
+    } else {
+      this.composer.render();
+    }
+  }
+
+  /**
+   * Clean up renderer/composer/controls. The window resize listener lives on
+   * ViewManager now, so nothing to unbind here.
    */
   dispose() {
-    window.removeEventListener('resize', this._onResize);
     this.controls.dispose();
     this.renderer.dispose();
     this.composer.dispose();

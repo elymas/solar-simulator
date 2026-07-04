@@ -4,7 +4,8 @@
  */
 export class TimeControls {
   /**
-   * @param {Object} simApi - The window.__solarSim API object.
+   * @param {Object} simApi - Simulation control API (SolarSystemView.simApi):
+   *   getSimTime/setSimTime/setTimeSpeed/getTimeSpeed/togglePlay/isPlaying.
    */
   constructor(simApi) {
     this.simApi = simApi;

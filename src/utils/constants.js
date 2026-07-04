@@ -27,6 +27,38 @@ export const SCALE = {
   timeScale: 1,
 };
 
+// @MX:NOTE: [AUTO] EarthView runs a private earth-local scale, decoupled from the
+// solar system's symbolic ~80..3500-unit scale. near/far are tuned to frame a
+// single planet up close (not the whole system), so the camera's far plane is far
+// smaller than CAMERA_DEFAULTS.far (100000). earthRadius is the reference unit the
+// rig + moon distance derive from.
+export const EARTH_VIEW_DEFAULTS = {
+  fov: 50,
+  near: 0.5,
+  far: 60000,
+  position: { x: 0, y: 120, z: 340 },
+  earthRadius: 100,
+};
+
+export const EARTH_CONTROLS_DEFAULTS = {
+  enableDamping: true,
+  dampingFactor: 0.05,
+  minDistance: 130,
+  maxDistance: 8000,
+};
+
+// Earth rig calibration knobs. Moon distance/radius are schematic (a physical
+// 60-earth-radii moon would sit off-screen); the orbital period and inclination
+// are the real IAU values, verified to tolerance in test/earthRig.test.js.
+export const EARTH_RIG = {
+  cloudScale: 1.02,
+  moonRadius: 27,
+  moonDistance: 900,
+  moonOrbitalPeriodDays: 27.32,
+  moonInclinationDeg: 5.14,
+  earthRotationPeriodHours: 23.934,
+};
+
 export const TEXTURE_MAP = {
   sun: 'textures/2k_sun.jpg',
   mercury: 'textures/2k_mercury.jpg',

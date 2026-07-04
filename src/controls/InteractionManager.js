@@ -23,6 +23,9 @@ export class InteractionManager {
     this.selectedPlanet = null;
     this.onSelect = null;
     this.onDeselect = null;
+    // Picking is gated so SolarSystemView can silence it while the Earth view
+    // owns the shared canvas — otherwise both views' listeners fire on one canvas.
+    this.enabled = true;
 
     // Build clickable mesh list with collision helpers
     this._collisionHelpers = [];
@@ -200,6 +203,7 @@ export class InteractionManager {
    * @param {MouseEvent} event
    */
   _onMouseMove(event) {
+    if (!this.enabled) return;
     this._normalizeCoords(event.clientX, event.clientY);
     const key = this._raycastPlanet();
 
@@ -221,6 +225,7 @@ export class InteractionManager {
    * @param {MouseEvent} event
    */
   _onClick(event) {
+    if (!this.enabled) return;
     // Ignore clicks on UI elements
     if (event.target !== this.renderer.domElement) return;
 
@@ -247,6 +252,7 @@ export class InteractionManager {
    * @param {TouchEvent} event
    */
   _onTouchStart(event) {
+    if (!this.enabled) return;
     if (event.target !== this.renderer.domElement) return;
     if (event.touches.length !== 1) return;
 
