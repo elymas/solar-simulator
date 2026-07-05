@@ -35,12 +35,12 @@ afterEach(() => {
 });
 
 describe('EarthView shared sim clock (TASK-F6-0, REQ-510/530)', () => {
-  it('advances the ONE shared clock while active and playing', () => {
+  it('advances the ONE shared clock while active and playing, at its own independent 0.3 rate (ignoring the mock speed)', () => {
     const simApi = makeSimApi({ time: 100, speed: 10, playing: true });
     const { view } = makeView({ simApi });
     view.onEnter(null);
-    view.update(0.5); // 0.5s * 10x = 5 sim-days
-    expect(simApi.getSimTime()).toBeCloseTo(105, 6);
+    view.update(1); // 1s * 0.3 days/s = 0.3 sim-days, regardless of speed:10
+    expect(simApi.getSimTime()).toBeCloseTo(100.3, 6);
   });
 
   it('does not advance the clock while paused, and drives the rig at 0 days/s', () => {
@@ -52,18 +52,18 @@ describe('EarthView shared sim clock (TASK-F6-0, REQ-510/530)', () => {
     expect(rig.update).toHaveBeenLastCalledWith(0.5, 0);
   });
 
-  it('drives the rig with the real time speed (not a hardcoded constant)', () => {
+  it("drives the rig at its own independent default rate, ignoring the main page's time speed", () => {
     const simApi = makeSimApi({ time: 0, speed: 42, playing: true });
     const { view, rig } = makeView({ simApi });
     view.onEnter(null);
     view.update(1);
-    expect(rig.update).toHaveBeenLastCalledWith(1, 42);
+    expect(rig.update).toHaveBeenLastCalledWith(1, 0.3);
   });
 
-  it('falls back to the legacy constant rate when no simApi is injected', () => {
+  it('drives the rig at the default rate even with no simApi injected', () => {
     const { view, rig } = makeView({});
     view.onEnter(null);
     expect(() => view.update(0.5)).not.toThrow();
-    expect(rig.update).toHaveBeenLastCalledWith(0.5, 1);
+    expect(rig.update).toHaveBeenLastCalledWith(0.5, 0.3);
   });
 });

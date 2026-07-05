@@ -92,3 +92,48 @@ describe('EarthHUD aurora toggle (F7, REQ-610)', () => {
     expect(cb).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('EarthHUD collapsible panel (mirrors PlanetList toggle)', () => {
+  it('has a toggle button and is not collapsed by default on a desktop-width window', () => {
+    const hud = new EarthHUD();
+    expect(hud._toggleBtn).toBeTruthy();
+    expect(document.body.contains(hud._toggleBtn)).toBe(true);
+    expect(hud.el.classList.contains('collapsed')).toBe(false);
+  });
+
+  it('clicking the toggle button adds/removes the collapsed class', () => {
+    const hud = new EarthHUD();
+    hud._toggleBtn.click();
+    expect(hud.el.classList.contains('collapsed')).toBe(true);
+    hud._toggleBtn.click();
+    expect(hud.el.classList.contains('collapsed')).toBe(false);
+  });
+
+  it('auto-collapses on resize to <=768px (matches PlanetList\'s one-way threshold)', () => {
+    const hud = new EarthHUD();
+    expect(hud.el.classList.contains('collapsed')).toBe(false);
+    window.innerWidth = 500;
+    window.dispatchEvent(new Event('resize'));
+    expect(hud.el.classList.contains('collapsed')).toBe(true);
+    window.innerWidth = 1024;
+  });
+
+  it('dispose() removes both the panel and the toggle button, and removes the resize listener', () => {
+    const hud = new EarthHUD();
+    const toggleBtn = hud._toggleBtn;
+    const panel = hud.el;
+    hud.dispose();
+    expect(document.body.contains(panel)).toBe(false);
+    expect(document.body.contains(toggleBtn)).toBe(false);
+    // resize listener must be removed — triggering resize after dispose should be a no-op, not throw
+    expect(() => window.dispatchEvent(new Event('resize'))).not.toThrow();
+  });
+
+  it('show()/hide() also control the toggle button visibility', () => {
+    const hud = new EarthHUD();
+    hud.hide();
+    expect(hud._toggleBtn.style.display).toBe('none');
+    hud.show();
+    expect(hud._toggleBtn.style.display).toBe('');
+  });
+});

@@ -14,8 +14,12 @@ export class EarthHUD {
     this.onSelectEclipse = null;
     this.onFindNextEclipse = null;
     this.onToggleAurora = null;
+    this._collapsed = false;
     this._injectStyles();
     this._createDOM();
+    this._checkAutoCollapse();
+    this._resizeHandler = () => this._checkAutoCollapse();
+    window.addEventListener('resize', this._resizeHandler);
   }
 
   /**
@@ -29,7 +33,7 @@ export class EarthHUD {
     style.textContent = `
       .earth-hud {
         position: fixed;
-        top: 16px;
+        top: 64px;
         right: 16px;
         background: rgba(26, 26, 46, 0.9);
         backdrop-filter: blur(10px);
@@ -41,6 +45,35 @@ export class EarthHUD {
         font-family: 'Inter', sans-serif;
         color: #e0e0e0;
         min-width: 240px;
+        transition: opacity 0.3s, transform 0.3s;
+      }
+      .earth-hud.collapsed {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateX(20px);
+      }
+      .earth-hud-toggle-btn {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        background: rgba(26, 26, 46, 0.85);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(22, 199, 255, 0.15);
+        border-radius: 8px;
+        color: #16c7ff;
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+        cursor: pointer;
+        z-index: 121;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+      .earth-hud-toggle-btn:hover {
+        background: rgba(22, 199, 255, 0.25);
       }
       .earth-hud-title {
         font-size: 20px;
@@ -173,6 +206,44 @@ export class EarthHUD {
     });
 
     document.body.appendChild(this.el);
+
+    // Toggle button (mirrors PlanetList's toggle for the sidebar).
+    this._toggleBtn = document.createElement('button');
+    this._toggleBtn.className = 'earth-hud-toggle-btn';
+    this._toggleBtn.innerHTML = '&#9776;';
+    this._toggleBtn.title = 'Toggle Earth HUD';
+    this._toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._toggleCollapse();
+    });
+    this._toggleBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    this._toggleBtn.addEventListener('touchstart', (e) => e.stopPropagation());
+    document.body.appendChild(this._toggleBtn);
+  }
+
+  /**
+   * Toggle panel collapse state (manual, via the toggle button).
+   */
+  _toggleCollapse() {
+    this._collapsed = !this._collapsed;
+    if (this._collapsed) {
+      this.el.classList.add('collapsed');
+    } else {
+      this.el.classList.remove('collapsed');
+    }
+  }
+
+  /**
+   * Auto-collapse on narrow screens by default. One-way: only ever collapses
+   * once, never auto-restores (mirrors PlanetList's _checkAutoHide).
+   */
+  _checkAutoCollapse() {
+    if (window.innerWidth <= 768) {
+      if (!this._collapsed) {
+        this.el.classList.add('collapsed');
+        this._collapsed = true;
+      }
+    }
   }
 
   /**
@@ -226,10 +297,12 @@ export class EarthHUD {
 
   show() {
     this.el.style.display = '';
+    if (this._toggleBtn) this._toggleBtn.style.display = '';
   }
 
   hide() {
     this.el.style.display = 'none';
+    if (this._toggleBtn) this._toggleBtn.style.display = 'none';
   }
 
   /**
@@ -237,5 +310,7 @@ export class EarthHUD {
    */
   dispose() {
     if (this.el && this.el.parentNode) this.el.parentNode.removeChild(this.el);
+    if (this._toggleBtn && this._toggleBtn.parentNode) this._toggleBtn.parentNode.removeChild(this._toggleBtn);
+    window.removeEventListener('resize', this._resizeHandler);
   }
 }

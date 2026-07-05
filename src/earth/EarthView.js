@@ -80,7 +80,7 @@ export class EarthView {
     this._hud = null;
     this._onExitRequest = null;
     this.onStopPolling = null; // external listeners may also hook exit-time poll stop.
-    this._daysPerSecond = 1;
+    this._daysPerSecond = EARTH_VIEW_DEFAULTS.rotationSpeedDefault;
 
     // F5/F6/F7 runtime (built lazily in _build).
     this._aircraftLayer = null;
@@ -255,12 +255,12 @@ export class EarthView {
    * @param {number} delta - Frame delta in seconds.
    */
   update(delta) {
-    // Effective sim-days-per-second: read from the shared clock (0 while paused)
-    // so the rig's spin/Moon phase track the real timeline; legacy fixed rate when
-    // no clock is injected (TASK-F6-0).
-    const speed = this._simApi
-      ? (this._simApi.isPlaying() ? this._simApi.getTimeSpeed() : 0)
-      : this._daysPerSecond;
+    // Earth view always drives its own clock/rig at its own local default rate
+    // (EARTH_VIEW_DEFAULTS.rotationSpeedDefault), gated only by the shared play/pause
+    // flag — deliberately decoupled from the solar view's own speed slider (confirmed
+    // product decision, TASK-F6-0). Play/pause still gates it to 0 when paused; the
+    // speed magnitude itself never reads simApi.getTimeSpeed().
+    const speed = (!this._simApi || this._simApi.isPlaying()) ? this._daysPerSecond : 0;
 
     if (this._simApi && speed !== 0) {
       // Advance the ONE shared clock while Earth is the active view (solar's

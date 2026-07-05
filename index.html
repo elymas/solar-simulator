@@ -88,6 +88,32 @@
         display: none !important;
       }
     }
+
+    /* Responsive: Earth HUD. The auto-collapse toggle (EarthHUD._checkAutoCollapse)
+       already hides the panel by default under 768px — this sizing is for when a
+       mobile user deliberately reopens it via the toggle button, not the primary
+       mobile-fit mechanism. */
+    @media (max-width: 768px) {
+      .earth-hud {
+        min-width: 200px !important;
+        max-width: calc(100vw - 32px) !important;
+        padding: 12px 14px !important;
+        font-size: 12px !important;
+      }
+      .earth-hud-title { font-size: 16px !important; }
+    }
+    @media (max-width: 480px) {
+      .earth-hud {
+        right: 8px !important;
+        min-width: 180px !important;
+        padding: 10px 12px !important;
+      }
+      .earth-hud-toggle-btn {
+        top: 8px !important;
+        right: 8px !important;
+      }
+      .earth-hud { top: 52px !important; }
+    }
   </style>
 </head>
 <body>

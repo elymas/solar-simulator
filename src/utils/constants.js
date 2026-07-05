@@ -31,13 +31,17 @@ export const SCALE = {
 // solar system's symbolic ~80..3500-unit scale. near/far are tuned to frame a
 // single planet up close (not the whole system), so the camera's far plane is far
 // smaller than CAMERA_DEFAULTS.far (100000). earthRadius is the reference unit the
-// rig + moon distance derive from.
+// rig + moon distance derive from. rotationSpeedDefault is the Earth view's own
+// independent playback rate (days/sec) for both the rig spin/Moon orbit and the
+// shared sim clock while this view is active — deliberately decoupled from the
+// solar view's own speed slider (confirmed product decision).
 export const EARTH_VIEW_DEFAULTS = {
   fov: 50,
   near: 0.5,
   far: 60000,
   position: { x: 0, y: 120, z: 340 },
   earthRadius: 100,
+  rotationSpeedDefault: 0.3,
 };
 
 export const EARTH_CONTROLS_DEFAULTS = {
