@@ -66,4 +66,14 @@ describe('EarthView shared sim clock (TASK-F6-0, REQ-510/530)', () => {
     expect(() => view.update(0.5)).not.toThrow();
     expect(rig.update).toHaveBeenLastCalledWith(0.5, 0.3);
   });
+
+  it("HUD's onSpeedChange reaches this._daysPerSecond and drives the rig/clock at the new rate", () => {
+    const simApi = makeSimApi({ time: 0, speed: 1, playing: true });
+    const { view, rig } = makeView({ simApi });
+    view.onEnter(null);
+    view._hud.onSpeedChange(1.5);
+    view.update(1);
+    expect(rig.update).toHaveBeenLastCalledWith(1, 1.5);
+    expect(simApi.getSimTime()).toBeCloseTo(1.5, 6);
+  });
 });

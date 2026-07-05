@@ -1,4 +1,5 @@
 import { ECLIPSE_TABLE } from '../utils/eclipseData.js';
+import { EARTH_VIEW_DEFAULTS } from '../utils/constants.js';
 
 /**
  * EarthHUD is the Earth view's overlay: a richer info readout than the solar
@@ -14,6 +15,7 @@ export class EarthHUD {
     this.onSelectEclipse = null;
     this.onFindNextEclipse = null;
     this.onToggleAurora = null;
+    this.onSpeedChange = null;
     this._collapsed = false;
     this._injectStyles();
     this._createDOM();
@@ -143,6 +145,22 @@ export class EarthHUD {
         font-size: 12px;
       }
       .earth-hud-note { font-size: 11px; color: #888; font-style: italic; }
+      .earth-hud-speed-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .earth-hud-speed-slider {
+        flex: 1;
+        accent-color: #16c7ff;
+      }
+      .earth-hud-speed-value {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        color: #e0e0e0;
+        min-width: 56px;
+        text-align: right;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -158,6 +176,13 @@ export class EarthHUD {
       <h2 class="earth-hud-title">Earth</h2>
       <div class="earth-hud-row"><span class="earth-hud-label">Sub-solar point</span><span class="earth-hud-value" data-field="subsolar">—</span></div>
       <div class="earth-hud-row"><span class="earth-hud-label">Terminator</span><span class="earth-hud-value" data-field="terminator">—</span></div>
+      <div class="earth-hud-section">
+        <span class="earth-hud-label">Rotation Speed</span>
+        <div class="earth-hud-speed-row">
+          <input class="earth-hud-speed-slider" type="range" data-field="speed-slider" min="0.05" max="3" step="0.05" value="${EARTH_VIEW_DEFAULTS.rotationSpeedDefault}" aria-label="Rotation speed" />
+          <span class="earth-hud-speed-value" data-field="speed-value">${EARTH_VIEW_DEFAULTS.rotationSpeedDefault.toFixed(2)} d/s</span>
+        </div>
+      </div>
       <div class="earth-hud-section">
         <button class="earth-hud-toggle" type="button" data-toggle="aircraft">Live aircraft: off</button>
         <div class="earth-hud-flight-status" data-field="flight-status" role="status" aria-live="polite" data-state="OFF">off</div>
@@ -184,6 +209,8 @@ export class EarthHUD {
     this._aircraftToggle = this.el.querySelector('[data-toggle="aircraft"]');
     this._eclipseSelect = this.el.querySelector('[data-field="eclipse-preset"]');
     this._auroraToggle = this.el.querySelector('[data-toggle="aurora"]');
+    this._speedSlider = this.el.querySelector('[data-field="speed-slider"]');
+    this._speedValueEl = this.el.querySelector('[data-field="speed-value"]');
 
     this.backButton = this.el.querySelector('.earth-hud-back');
     this.backButton.addEventListener('click', () => {
@@ -203,6 +230,11 @@ export class EarthHUD {
     });
     this._auroraToggle.addEventListener('click', () => {
       if (this.onToggleAurora) this.onToggleAurora();
+    });
+    this._speedSlider.addEventListener('input', () => {
+      const speed = parseFloat(this._speedSlider.value);
+      this.setSpeedDisplay(speed);
+      if (this.onSpeedChange) this.onSpeedChange(speed);
     });
 
     document.body.appendChild(this.el);
@@ -282,6 +314,15 @@ export class EarthHUD {
   /** @param {boolean} on */
   setAuroraEnabled(on) {
     if (this._auroraToggle) this._auroraToggle.textContent = `Aurora: ${on ? 'on' : 'off'}`;
+  }
+
+  /**
+   * Reflect a (possibly externally-set) rotation speed in the slider + value display.
+   * @param {number} speed - Days per second.
+   */
+  setSpeedDisplay(speed) {
+    if (this._speedSlider) this._speedSlider.value = speed;
+    if (this._speedValueEl) this._speedValueEl.textContent = `${speed.toFixed(2)} d/s`;
   }
 
   /**

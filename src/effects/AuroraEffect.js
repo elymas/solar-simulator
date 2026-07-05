@@ -98,18 +98,76 @@ export class AuroraEffect {
   }
 
   _build() {
-    const colatitude = 90 - AURORA_DEFAULTS.polarLatitudeDeg; // ring sits this far from the pole
+    const colatitudeDeg = 90 - AURORA_DEFAULTS.polarLatitudeDeg; // ring sits this far from the pole
+    const colatRad = THREE.MathUtils.degToRad(colatitudeDeg);
     for (const north of [true, false]) {
-      const mesh = this.tier === 'shader' ? this._buildCurtain() : this._buildBillboard();
-      this._orient(mesh, north, colatitude);
+      const mesh = this.tier === 'shader' ? this._buildCurtain(colatRad) : this._buildBillboard();
+      this._orient(mesh, north, colatitudeDeg);
       this.group.add(mesh);
     }
   }
 
-  _buildCurtain() {
+  /**
+   * Builds the curtain as a radially-extruded spherical band (a cone-frustum
+   * shell), not a cylinder. A cylinder has a constant radius from a straight
+   * axis, so it only touches Earth's sphere at one height; everywhere else it
+   * either clips inside the globe or floats away from it. Here every vertex
+   * sits along its own base-ring direction `dir`, at distance
+   * `earthRadius + t * height` from Earth's center, so the foot ring
+   * (t=0) is always exactly flush with the sphere's surface and the curtain
+   * flares straight outward from there.
+   * @param {number} colatRad - colatitude (angle from the pole axis) in radians.
+   */
+  _buildCurtain(colatRad) {
     const r = this._earthRadius;
-    const ringRadius = r * Math.sin(THREE.MathUtils.degToRad(90 - AURORA_DEFAULTS.polarLatitudeDeg));
-    const geo = new THREE.CylinderGeometry(ringRadius, ringRadius, AURORA_DEFAULTS.height, AURORA_DEFAULTS.curtainSegments, 8, true);
+    const segments = AURORA_DEFAULTS.curtainSegments;
+    const heightSegments = 8;
+    const height = AURORA_DEFAULTS.height;
+    const cols = segments + 1; // +1 to duplicate the seam vertex for clean UV wrap
+    const rows = heightSegments + 1;
+
+    const positions = new Float32Array(rows * cols * 3);
+    const uvs = new Float32Array(rows * cols * 2);
+    const indices = [];
+
+    const sinColat = Math.sin(colatRad);
+    const cosColat = Math.cos(colatRad);
+
+    for (let j = 0; j < rows; j++) {
+      const t = j / heightSegments;
+      const radius = r + t * height;
+      for (let i = 0; i < cols; i++) {
+        const phi = (i / segments) * Math.PI * 2;
+        const dirX = sinColat * Math.cos(phi);
+        const dirY = cosColat;
+        const dirZ = sinColat * Math.sin(phi);
+        const vi = j * cols + i;
+        positions[vi * 3] = dirX * radius;
+        positions[vi * 3 + 1] = dirY * radius;
+        positions[vi * 3 + 2] = dirZ * radius;
+        uvs[vi * 2] = i / segments;
+        uvs[vi * 2 + 1] = t;
+      }
+    }
+
+    // Two triangles per grid quad, wound so the computed normal faces outward
+    // (away from Earth's center) rather than into the globe.
+    for (let j = 0; j < heightSegments; j++) {
+      for (let i = 0; i < segments; i++) {
+        const a = j * cols + i;
+        const b = j * cols + i + 1;
+        const c = (j + 1) * cols + i;
+        const d = (j + 1) * cols + i + 1;
+        indices.push(a, c, b, b, d, c);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+
     const mat = new THREE.ShaderMaterial({
       uniforms: this._uniforms,
       vertexShader: VERT,
@@ -155,14 +213,17 @@ export class AuroraEffect {
   }
 
   _orient(mesh, north, colatitudeDeg) {
-    const r = this._earthRadius;
     const axis = poleAxis(AURORA_DEFAULTS.axialTiltDeg, north);
-    // Ring center sits a bit above the pole cap along the tilted axis.
-    const centerDist = r * Math.cos(THREE.MathUtils.degToRad(colatitudeDeg));
-    mesh.position.copy(axis.clone().multiplyScalar(centerDist));
     if (mesh.isMesh) {
-      // Cylinder's +Y aligns to the tilted pole axis.
+      // Curtain vertices already encode their full position relative to
+      // Earth's center (see _buildCurtain), since this.group sits at Earth's
+      // own center. Only the rotation aligning local +Y (the untilted pole
+      // axis the geometry was built in) to the real tilted axis is needed.
       mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
+    } else {
+      // Billboard sprite: flat, always camera-facing, offset above the pole cap.
+      const centerDist = this._earthRadius * Math.cos(THREE.MathUtils.degToRad(colatitudeDeg));
+      mesh.position.copy(axis.multiplyScalar(centerDist));
     }
   }
 

@@ -216,6 +216,25 @@ describe('ViewManager hashchange dispatch + echo suppression (E2, REQ-325)', () 
   });
 });
 
+describe('ViewManager resize propagates to both views (REQ-315 dormant-camera fix)', () => {
+  it('calls onResize on both the active AND inactive view, not just the active one', () => {
+    const { vm, solarView, earthView, renderCore, win } = makeManager();
+    vm.start();
+
+    // solarView is active (default boot state); earthView is dormant but owns
+    // its own camera, which must stay in sync even while not displayed.
+    expect(vm.activeView).toBe(solarView);
+
+    win.innerWidth = 1280;
+    win.innerHeight = 720;
+    win._emit('resize');
+
+    expect(renderCore.resize).toHaveBeenCalledWith(1280, 720);
+    expect(solarView.onResize).toHaveBeenCalledWith(1280, 720);
+    expect(earthView.onResize).toHaveBeenCalledWith(1280, 720); // the regression guard
+  });
+});
+
 describe('single WebGL context static guard (REQ-385)', () => {
   const srcFiles = [];
   (function walk(dir) {

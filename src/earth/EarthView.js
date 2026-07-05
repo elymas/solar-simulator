@@ -167,6 +167,7 @@ export class EarthView {
     this._applyAuroraVisible();
 
     this._wireHudControls();
+    this._hud.setSpeedDisplay(this._daysPerSecond);
     this._prevSimDay = this._simApi ? this._simApi.getSimTime() : 0;
     this._built = true;
   }
@@ -179,6 +180,7 @@ export class EarthView {
     this._hud.onSelectEclipse = (eclipse) => this._jumpToEclipse(eclipse);
     this._hud.onFindNextEclipse = () => this._findNextEclipse();
     this._hud.onToggleAurora = () => this._toggleAurora();
+    this._hud.onSpeedChange = (v) => { this._daysPerSecond = v; };
   }
 
   /** Opt-in start / stop of the flight-data polling (REQ-410 opt-in). */

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { EarthHUD } from '../src/earth/EarthHUD.js';
 import { ECLIPSE_TABLE } from '../src/utils/eclipseData.js';
+import { EARTH_VIEW_DEFAULTS } from '../src/utils/constants.js';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -90,6 +91,39 @@ describe('EarthHUD aurora toggle (F7, REQ-610)', () => {
     hud.onToggleAurora = cb;
     hud.el.querySelector('[data-toggle="aurora"]').click();
     expect(cb).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('EarthHUD rotation-speed slider', () => {
+  it('renders a slider with the correct min/max/step/default attributes', () => {
+    const hud = new EarthHUD();
+    const slider = hud.el.querySelector('[data-field="speed-slider"]');
+    expect(slider).not.toBeNull();
+    expect(slider.min).toBe('0.05');
+    expect(slider.max).toBe('3');
+    expect(slider.step).toBe('0.05');
+    expect(slider.value).toBe(String(EARTH_VIEW_DEFAULTS.rotationSpeedDefault));
+  });
+
+  it('moving the slider invokes onSpeedChange with a numeric value', () => {
+    const hud = new EarthHUD();
+    const cb = vi.fn();
+    hud.onSpeedChange = cb;
+    const slider = hud.el.querySelector('[data-field="speed-slider"]');
+    slider.value = '1.5';
+    slider.dispatchEvent(new Event('input'));
+    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledWith(1.5);
+    expect(typeof cb.mock.calls[0][0]).toBe('number');
+  });
+
+  it('setSpeedDisplay(v) updates the value-display text to "X.XX d/s"', () => {
+    const hud = new EarthHUD();
+    hud.setSpeedDisplay(1.5);
+    const valueEl = hud.el.querySelector('[data-field="speed-value"]');
+    expect(valueEl.textContent).toBe('1.50 d/s');
+    hud.setSpeedDisplay(0.3);
+    expect(valueEl.textContent).toBe('0.30 d/s');
   });
 });
 

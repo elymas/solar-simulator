@@ -284,13 +284,18 @@ export class ViewManager {
   }
 
   /**
-   * Resize the shared renderer/composer and the active view's camera.
+   * Resize the shared renderer/composer and BOTH views' cameras, regardless of
+   * which is currently active. EarthView owns its own camera (distinct from the
+   * shared renderCore camera SolarSystemView uses), constructed once at its own
+   * aspect ratio; a dormant view's camera must still track the real window size
+   * or it goes stale and renders squished/stretched once that view is entered.
    */
   _onResize() {
     const w = this._win.innerWidth;
     const h = this._win.innerHeight;
     if (this.renderCore.resize) this.renderCore.resize(w, h);
-    if (this.activeView.onResize) this.activeView.onResize(w, h);
+    if (this.solarView.onResize) this.solarView.onResize(w, h);
+    if (this.earthView.onResize) this.earthView.onResize(w, h);
   }
 
   /**
