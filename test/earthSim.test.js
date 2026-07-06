@@ -35,12 +35,12 @@ afterEach(() => {
 });
 
 describe('EarthView shared sim clock (TASK-F6-0, REQ-510/530)', () => {
-  it('advances the ONE shared clock while active and playing, at its own independent 0.3 rate (ignoring the mock speed)', () => {
+  it('advances the ONE shared clock while active and playing, at its own independent 0.05 rate (ignoring the mock speed)', () => {
     const simApi = makeSimApi({ time: 100, speed: 10, playing: true });
     const { view } = makeView({ simApi });
     view.onEnter(null);
-    view.update(1); // 1s * 0.3 days/s = 0.3 sim-days, regardless of speed:10
-    expect(simApi.getSimTime()).toBeCloseTo(100.3, 6);
+    view.update(1); // 1s * 0.05 days/s = 0.05 sim-days, regardless of speed:10
+    expect(simApi.getSimTime()).toBeCloseTo(100.05, 6);
   });
 
   it('does not advance the clock while paused, and drives the rig at 0 days/s', () => {
@@ -57,14 +57,14 @@ describe('EarthView shared sim clock (TASK-F6-0, REQ-510/530)', () => {
     const { view, rig } = makeView({ simApi });
     view.onEnter(null);
     view.update(1);
-    expect(rig.update).toHaveBeenLastCalledWith(1, 0.3);
+    expect(rig.update).toHaveBeenLastCalledWith(1, 0.05);
   });
 
   it('drives the rig at the default rate even with no simApi injected', () => {
     const { view, rig } = makeView({});
     view.onEnter(null);
     expect(() => view.update(0.5)).not.toThrow();
-    expect(rig.update).toHaveBeenLastCalledWith(0.5, 0.3);
+    expect(rig.update).toHaveBeenLastCalledWith(0.5, 0.05);
   });
 
   it("HUD's onSpeedChange reaches this._daysPerSecond and drives the rig/clock at the new rate", () => {

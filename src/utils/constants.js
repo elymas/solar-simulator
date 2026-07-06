@@ -41,7 +41,7 @@ export const EARTH_VIEW_DEFAULTS = {
   far: 60000,
   position: { x: 0, y: 120, z: 340 },
   earthRadius: 100,
-  rotationSpeedDefault: 0.3,
+  rotationSpeedDefault: 0.05,
 };
 
 export const EARTH_CONTROLS_DEFAULTS = {

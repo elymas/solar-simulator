@@ -61,18 +61,18 @@ describe('EarthView F6 eclipse detection over the shared clock (REQ-520/530, AC-
     const eclipseRig = makeEclipseRig();
     const { view } = makeView({ simApi, eclipseRig, aurora: makeAurora(), flightService: makeFlightService() });
     view.onEnter(null);
-    view.update(1); // advances 0.3 sim-day (fixed rate), still crossing the 0.001-day-away instant
+    view.update(1); // advances 0.05 sim-day (fixed rate), still crossing the 0.001-day-away instant
     expect(eclipseRig.show).toHaveBeenCalledWith(target);
   });
 
   it('does NOT miss an eclipse under a huge-delta leap spanning years (frame-step independent)', () => {
-    // speed is now ignored (EarthView drives its own fixed 0.3 days/s rate) — force the
-    // giant multi-year jump via a large delta instead: 10000 * 0.3 = 3000 sim-days (~8.2y).
+    // speed is now ignored (EarthView drives its own fixed 0.05 days/s rate) — force the
+    // giant multi-year jump via a large delta instead: 60000 * 0.05 = 3000 sim-days (~8.2y).
     const simApi = makeSimApi({ time: ECLIPSE_TABLE[0].simDay - 1, playing: true });
     const eclipseRig = makeEclipseRig();
     const { view } = makeView({ simApi, eclipseRig, aurora: makeAurora(), flightService: makeFlightService() });
     view.onEnter(null);
-    view.update(10000); // one giant frame leaping past many eclipses
+    view.update(60000); // one giant frame leaping past many eclipses
     expect(eclipseRig.show).toHaveBeenCalled();
   });
 
