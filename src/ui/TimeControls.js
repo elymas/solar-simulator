@@ -111,7 +111,7 @@ export class TimeControls {
       <button id="reset-btn" class="control-btn" title="Reset to Start (Home)">&#8634;</button>
       <div class="speed-control">
         <label class="speed-label">Speed</label>
-        <input type="range" id="speed-slider" min="-1" max="2.7" step="0.01" value="0" />
+        <input type="range" id="speed-slider" min="-2" max="2.7" step="0.01" value="0" />
         <span id="speed-value" class="speed-value">1x</span>
       </div>
       <div class="date-display">
@@ -169,7 +169,8 @@ export class TimeControls {
    */
   _updateSpeedDisplay(speed) {
     if (speed < 1) {
-      this.speedValueEl.textContent = `${speed.toFixed(1)}x`;
+      // 2 decimals: the slider now reaches 0.01x, which toFixed(1) would round to "0.0x".
+      this.speedValueEl.textContent = `${speed.toFixed(2)}x`;
     } else if (speed < 10) {
       this.speedValueEl.textContent = `${speed.toFixed(1)}x`;
     } else {
