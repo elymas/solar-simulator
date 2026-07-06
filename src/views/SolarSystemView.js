@@ -103,7 +103,17 @@ export class SolarSystemView {
 
     this._ui = { infoPanel, planetList, timeControls, interaction };
     this._bindKeys();
-    if (!this._active) this._setUiVisible(false);
+    if (!this._active) {
+      // A #/earth deep-link builds this UI (textures finish loading) while
+      // EarthView is the active view. Hiding the DOM panels isn't enough —
+      // the freshly constructed InteractionManager/OrbitControls both default
+      // to enabled, so without this they keep raycasting/orbiting the dormant
+      // solar camera on every pointer move over the shared canvas, surfacing
+      // tooltips (Sun, background stars, ...) for a scene the user can't see.
+      this._setUiVisible(false);
+      interaction.enabled = false;
+      if (this.sceneManager.controls) this.sceneManager.controls.enabled = false;
+    }
   }
 
   /**

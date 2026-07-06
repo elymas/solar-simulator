@@ -107,6 +107,13 @@ describe('SolarSystemView deep-link safety (REQ-325)', () => {
     expect(s.infoPanel.el.style.display).toBe('none');
     expect(s.planetList.el.style.display).toBe('none');
     expect(s.timeControls.el.style.display).toBe('none');
+    // Hiding the DOM panels isn't enough: the freshly built InteractionManager
+    // and OrbitControls both default to enabled, so without disabling them here
+    // they'd keep raycasting/orbiting the dormant solar camera on every pointer
+    // move over the shared canvas — surfacing tooltips for a scene the user is
+    // not looking at (regression: Sun/star tooltips while EarthView is active).
+    expect(s.interaction.enabled).toBe(false);
+    expect(s.sceneManager.controls.enabled).toBe(false);
   });
 });
 
