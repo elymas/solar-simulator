@@ -1,4 +1,24 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/**
+ * Build a small low-poly airplane silhouette (fuselage + main wings + tail
+ * wings), nose pointing +Z, so instances read as "aircraft" rather than a
+ * bare cone/triangle even when many overlap at low zoom.
+ * @returns {THREE.BufferGeometry}
+ */
+function buildAircraftGeometry() {
+  const fuselage = new THREE.ConeGeometry(0.5, 5, 8);
+  fuselage.rotateX(Math.PI / 2); // apex (nose) points +Z instead of +Y
+
+  const wings = new THREE.BoxGeometry(6, 0.15, 1.1);
+  wings.translate(0, 0, -0.3);
+
+  const tail = new THREE.BoxGeometry(2.2, 0.15, 0.8);
+  tail.translate(0, 0, -2);
+
+  return mergeGeometries([fuselage, wings, tail]);
+}
 
 /**
  * Map geographic lat/lon (degrees) + altitude offset to an earth-local position on a
@@ -38,8 +58,7 @@ export class AircraftLayer {
     this._earthRadius = earthRadius;
     this._altScale = altitudeScale;
 
-    const geo = new THREE.ConeGeometry(1.4, 5, 6);
-    geo.rotateX(Math.PI / 2); // cone tip points +Z (heading forward) instead of +Y
+    const geo = buildAircraftGeometry();
     const mat = new THREE.MeshBasicMaterial({ color: 0xffd166 });
     this.mesh = new THREE.InstancedMesh(geo, mat, maxInstances);
     this.mesh.name = 'aircraftInstances';

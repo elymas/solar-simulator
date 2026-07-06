@@ -296,6 +296,12 @@ export class EarthView {
    * @param {number} delta
    */
   _updateAircraft(delta) {
+    // Aircraft positions are computed in the Earth's body-fixed (un-rotated) frame
+    // (REQ-420 geoToLocal), but this.aircraftLayer sits in scene space, a sibling
+    // of the rig — not a child of the spinning earth mesh. Without this sync the
+    // globe rotates under a frozen aircraft layer. Match the earth mesh's current
+    // orientation (axial tilt + spin) every frame so markers track the surface.
+    if (this._rig && this._rig.earth) this.aircraftLayer.quaternion.copy(this._rig.earth.quaternion);
     if (!this._flightService) return;
     this._flightService.tick(delta);
     if (this._aircraftLayer) this._aircraftLayer.update(this._flightService.getAircraft());
