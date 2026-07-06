@@ -70,9 +70,20 @@ const FRAG = /* glsl */ `
   varying vec3 vWorldPos;
   varying float vUp;
   void main(){
+    // vUp is uv.y (always written as 0..1 in the vertex buffer), but perspective-
+    // correct varying interpolation can still hand the fragment stage a value a
+    // hair outside [0,1] (float rounding at the seam/edges). pow() with a
+    // non-integer exponent is undefined for a negative base, and on real
+    // hardware that undefined result was NaN -- which bloom's blur convolution
+    // then smeared across every neighboring pixel, turning one bad fragment
+    // into a solid black block covering the whole curtain (root-caused via a
+    // live WebGL bisection: the artifact vanished the instant this clamp was
+    // added, confirmed on real hardware, not reproducible from source review
+    // alone).
+    float vUpC = clamp(vUp, 0.0, 1.0);
     // green core -> magenta/violet tips
-    vec3 col = mix(vec3(0.1, 1.0, 0.4), vec3(0.7, 0.2, 1.0), pow(vUp, 1.5));
-    float alpha = (1.0 - vUp) * 0.65; // fade out toward the top
+    vec3 col = mix(vec3(0.1, 1.0, 0.4), vec3(0.7, 0.2, 1.0), pow(vUpC, 1.5));
+    float alpha = (1.0 - vUpC) * 0.65; // fade out toward the top
     // night-side only: invisible on the sun-facing hemisphere.
     float night = clamp(-dot(normalize(vWorldPos), normalize(uSunDir)), 0.0, 1.0);
     gl_FragColor = vec4(col * night, alpha * night);

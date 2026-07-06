@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { selectAuroraTier, nightSideVisibility, poleAxis, AuroraEffect } from '../src/effects/AuroraEffect.js';
 import { AURORA_DEFAULTS } from '../src/utils/constants.js';
+
+// vitest's CWD is the project root, so this resolves the same way regardless
+// of import.meta.url's scheme (which vitest's module transform can rewrite).
+const AURORA_SOURCE = readFileSync('src/effects/AuroraEffect.js', 'utf-8');
 
 describe('selectAuroraTier — exactly two tiers (REQ-630/645)', () => {
   it('uses the custom shader on capable desktop', () => {
@@ -97,5 +102,23 @@ describe('AuroraEffect curtain geometry — follows Earth surface curvature (bug
       expect(index.getX(k)).toBeGreaterThanOrEqual(0);
       expect(index.getX(k)).toBeLessThan(rows * cols);
     }
+  });
+});
+
+describe('AuroraEffect fragment shader — vUp clamp (black-box render bug fix)', () => {
+  // Root-caused on real WebGL hardware, not reproducible in jsdom (no real GPU
+  // rasterizer): perspective-correct interpolation of the vUp varying can hand
+  // the fragment stage a value a hair outside [0,1] (float rounding at the
+  // seam/edges). pow() with a non-integer exponent is undefined for a negative
+  // base -- the undefined result was NaN, and bloom's blur convolution smeared
+  // that NaN across every neighboring pixel, rendering the whole curtain as a
+  // solid black block. This is a static-source guard (the only kind vitest/jsdom
+  // can run) that the clamp isn't accidentally removed later; the actual visual
+  // regression was verified by hand in a live browser, not by this test.
+  it('clamps vUp to [0,1] before it reaches pow() in the fragment shader', () => {
+    const fragBlock = AURORA_SOURCE.slice(AURORA_SOURCE.indexOf('const FRAG'));
+    expect(fragBlock).toMatch(/clamp\(\s*vUp\s*,\s*0\.0\s*,\s*1\.0\s*\)/);
+    // The clamped variable, not raw vUp, must be what feeds pow().
+    expect(fragBlock).toMatch(/pow\(\s*vUpC\s*,/);
   });
 });
