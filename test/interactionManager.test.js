@@ -28,3 +28,41 @@ describe('InteractionManager star hitbox (bug: hover near Earth shows Stephenson
     expect(clickable).not.toContain(factory.planets.stephenson2_18.mesh);
   });
 });
+
+describe('InteractionManager drag-vs-click (bug: orbit-drag snapped camera back to the Sun)', () => {
+  it('ignores a click that lands far from where the pointer went down (an orbit drag)', () => {
+    const factory = new PlanetFactory(new THREE.Scene(), stubSceneManager());
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100000);
+    const renderer = stubRenderer();
+    const interaction = new InteractionManager(camera, factory.scene, renderer, factory);
+
+    let deselected = false;
+    interaction.onDeselect = () => { deselected = true; };
+    interaction.selectedPlanet = 'earth'; // simulates a body already focused
+
+    interaction._onPointerDown({ clientX: 100, clientY: 100 });
+    // Mouseup 80px away from mousedown: an orbit drag, not a click — the
+    // resulting native 'click' event must not deselect/reset the camera.
+    interaction._onClick({ clientX: 180, clientY: 100, target: renderer.domElement });
+
+    expect(deselected).toBe(false);
+    expect(interaction.selectedPlanet).toBe('earth');
+  });
+
+  it('still deselects on a genuine click (pointer barely moved) that misses every body', () => {
+    const factory = new PlanetFactory(new THREE.Scene(), stubSceneManager());
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100000);
+    const renderer = stubRenderer();
+    const interaction = new InteractionManager(camera, factory.scene, renderer, factory);
+
+    let deselected = false;
+    interaction.onDeselect = () => { deselected = true; };
+    interaction.selectedPlanet = 'earth';
+
+    interaction._onPointerDown({ clientX: 100, clientY: 100 });
+    interaction._onClick({ clientX: 102, clientY: 101, target: renderer.domElement });
+
+    expect(deselected).toBe(true);
+    expect(interaction.selectedPlanet).toBeNull();
+  });
+});

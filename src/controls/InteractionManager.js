@@ -33,13 +33,22 @@ export class InteractionManager {
     this._buildClickTargets();
     this._createTooltip();
 
+    // A drag-to-orbit gesture (OrbitControls) still ends in a native 'click' on
+    // mouseup, at whatever screen position the drag left the cursor at. Track
+    // where the mouse went down so _onClick can tell "orbited the camera" apart
+    // from "clicked/tapped a body" instead of misreading every orbit as a
+    // deselect that snaps the camera back to the default Sun-facing view.
+    this._pointerDownPos = null;
+
     // Bind event handlers
     this._onMouseMove = this._onMouseMove.bind(this);
+    this._onPointerDown = this._onPointerDown.bind(this);
     this._onClick = this._onClick.bind(this);
     this._onTouchStart = this._onTouchStart.bind(this);
 
     const canvas = this.renderer.domElement;
     canvas.addEventListener('mousemove', this._onMouseMove);
+    canvas.addEventListener('pointerdown', this._onPointerDown);
     canvas.addEventListener('click', this._onClick);
     canvas.addEventListener('touchstart', this._onTouchStart, { passive: false });
   }
@@ -225,6 +234,14 @@ export class InteractionManager {
   }
 
   /**
+   * Record where the mouse went down, to distinguish an orbit-drag from a click.
+   * @param {PointerEvent} event
+   */
+  _onPointerDown(event) {
+    this._pointerDownPos = { x: event.clientX, y: event.clientY };
+  }
+
+  /**
    * Handle click to select or deselect a planet.
    * @param {MouseEvent} event
    */
@@ -232,6 +249,16 @@ export class InteractionManager {
     if (!this.enabled) return;
     // Ignore clicks on UI elements
     if (event.target !== this.renderer.domElement) return;
+
+    // Camera-orbit drags fire a native 'click' on release too; only treat this
+    // as a real click if the cursor barely moved since mousedown.
+    if (this._pointerDownPos) {
+      const dx = event.clientX - this._pointerDownPos.x;
+      const dy = event.clientY - this._pointerDownPos.y;
+      const dragDistance = Math.hypot(dx, dy);
+      this._pointerDownPos = null;
+      if (dragDistance > 5) return;
+    }
 
     this._normalizeCoords(event.clientX, event.clientY);
     const key = this._raycastPlanet();
@@ -278,6 +305,7 @@ export class InteractionManager {
   dispose() {
     const canvas = this.renderer.domElement;
     canvas.removeEventListener('mousemove', this._onMouseMove);
+    canvas.removeEventListener('pointerdown', this._onPointerDown);
     canvas.removeEventListener('click', this._onClick);
     canvas.removeEventListener('touchstart', this._onTouchStart);
   }
