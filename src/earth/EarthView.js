@@ -96,6 +96,7 @@ export class EarthView {
     this._prevSimDay = 0;
     this._auroraVisible = true;
     this._auroraShed = false;
+    this._eclipseEnabled = true;
   }
 
   _initCamera() {
@@ -174,6 +175,7 @@ export class EarthView {
 
     this._wireHudControls();
     this._hud.setSpeedDisplay(this._daysPerSecond);
+    this._hud.setEclipseEnabled(this._eclipseEnabled);
     this._prevSimDay = this._simApi ? this._simApi.getSimTime() : 0;
     this._built = true;
   }
@@ -185,6 +187,7 @@ export class EarthView {
     this._hud.onToggleAircraft = () => this._toggleAircraft();
     this._hud.onSelectEclipse = (eclipse) => this._jumpToEclipse(eclipse);
     this._hud.onFindNextEclipse = () => this._findNextEclipse();
+    this._hud.onToggleEclipse = () => this._toggleEclipse();
     this._hud.onToggleAurora = () => this._toggleAurora();
     this._hud.onSpeedChange = (v) => { this._daysPerSecond = v; };
   }
@@ -201,7 +204,7 @@ export class EarthView {
     if (!eclipse) return;
     if (this._simApi) this._simApi.setSimTime(eclipse.simDay);
     this._prevSimDay = eclipse.simDay;
-    if (this._eclipseRig) this._eclipseRig.show(eclipse);
+    this._showEclipse(eclipse);
   }
 
   /** Fast-forward to the next eclipse within the bounded window (REQ-540). */
@@ -209,6 +212,28 @@ export class EarthView {
     if (!this._simApi) return;
     const next = findNextEclipse(this._simApi.getSimTime());
     if (next) this._jumpToEclipse(next);
+  }
+
+  /**
+   * Show the diorama for an eclipse plus its HUD explanation — the single path
+   * both manual (select/find-next) and automatic (_detectEclipses) triggers
+   * route through, so the on/off toggle only has to be checked in one place.
+   * @param {{type: string, name: string, date: string}} eclipse
+   */
+  _showEclipse(eclipse) {
+    if (!this._eclipseEnabled) return;
+    if (this._eclipseRig) this._eclipseRig.show(eclipse);
+    if (this._hud) this._hud.setEclipseInfo(eclipse);
+  }
+
+  /** Toggle the eclipse diorama simulation on/off (leaves time navigation intact). */
+  _toggleEclipse() {
+    this._eclipseEnabled = !this._eclipseEnabled;
+    if (!this._eclipseEnabled) {
+      if (this._eclipseRig) this._eclipseRig.hide();
+      if (this._hud) this._hud.setEclipseInfo(null);
+    }
+    if (this._hud) this._hud.setEclipseEnabled(this._eclipseEnabled);
   }
 
   _toggleAurora() {
@@ -293,7 +318,7 @@ export class EarthView {
     const curr = this._simApi.getSimTime();
     if (curr === this._prevSimDay) return;
     const hits = detectEclipsesInRange(this._prevSimDay, curr);
-    if (hits.length) this._eclipseRig.show(hits[hits.length - 1]);
+    if (hits.length) this._showEclipse(hits[hits.length - 1]);
     this._prevSimDay = curr;
   }
 

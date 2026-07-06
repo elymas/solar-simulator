@@ -47,6 +47,46 @@ export function isTotalLunar(type) {
   return type === 'lunar-total';
 }
 
+// Human-readable label + plain-language explanation per cataloged eclipse type,
+// shown alongside the diorama so "what am I looking at" doesn't require prior
+// astronomy knowledge.
+const ECLIPSE_TYPE_INFO = {
+  'solar-total': {
+    label: 'Total Solar Eclipse',
+    description: "The Moon fully covers the Sun's disk as seen from within its umbra (shadow cone), turning day briefly into twilight along a narrow path on Earth.",
+  },
+  'solar-annular': {
+    label: 'Annular Solar Eclipse',
+    description: 'The Moon crosses the Sun while farther from Earth in its orbit, so it looks too small to fully cover the disk — leaving a bright ring ("ring of fire") around its silhouette.',
+  },
+  'solar-partial': {
+    label: 'Partial Solar Eclipse',
+    description: "The Moon covers only part of the Sun's disk, seen from the penumbra outside the path of totality or annularity.",
+  },
+  'lunar-total': {
+    label: 'Total Lunar Eclipse',
+    description: "The Moon passes fully into Earth's umbra. Sunlight bent through Earth's atmosphere reddens it — the \"Blood Moon\".",
+  },
+  'lunar-partial': {
+    label: 'Partial Lunar Eclipse',
+    description: "Only part of the Moon passes through Earth's umbra, so a portion of its disk visibly darkens.",
+  },
+};
+
+/**
+ * Look up the display label + plain-language explanation for a cataloged
+ * eclipse type. Falls back to the raw type string for anything unrecognized.
+ * @param {string} type
+ * @returns {{label: string, description: string}}
+ */
+export function getEclipseTypeInfo(type) {
+  return ECLIPSE_TYPE_INFO[type] || { label: type, description: '' };
+}
+
+// Default HUD copy shown before any eclipse has been jumped to / detected.
+export const ECLIPSE_DIAGRAM_INTRO =
+  "This diorama shows how the Sun, Earth, and Moon line up during an eclipse: solar eclipses cast the Moon's shadow onto Earth, lunar eclipses cast Earth's shadow onto the Moon. Illustrative diagram — not to scale.";
+
 // Table with sim-day precomputed, sorted ascending. Frozen provenance data.
 export const ECLIPSE_TABLE = ECLIPSES
   .map((e) => ({ ...e, simDay: toSimDay(e.date) }))

@@ -107,6 +107,58 @@ describe('EarthView F6 preset jump + find next (REQ-510/540)', () => {
   });
 });
 
+describe('EarthView F6 eclipse simulation on/off toggle', () => {
+  it('toggling off hides the current diorama and updates the HUD label', () => {
+    const simApi = makeSimApi({ time: 0 });
+    const eclipseRig = makeEclipseRig();
+    const { view } = makeView({ simApi, eclipseRig, aurora: makeAurora(), flightService: makeFlightService() });
+    view.onEnter(null);
+    view._hud.onSelectEclipse(ECLIPSE_TABLE[0]); // something is showing
+    expect(eclipseRig.show).toHaveBeenCalledTimes(1);
+
+    view._hud.onToggleEclipse();
+    expect(eclipseRig.hide).toHaveBeenCalledTimes(1);
+    expect(view._hud.el.querySelector('[data-toggle="eclipse"]').textContent).toBe('Eclipse: off');
+  });
+
+  it('while off, manual preset selection still moves the clock but does not show the rig', () => {
+    const simApi = makeSimApi({ time: 0 });
+    const eclipseRig = makeEclipseRig();
+    const { view } = makeView({ simApi, eclipseRig, aurora: makeAurora(), flightService: makeFlightService() });
+    view.onEnter(null);
+    view._hud.onToggleEclipse(); // off
+
+    view._hud.onSelectEclipse(ECLIPSE_TABLE[1]);
+    expect(simApi.getSimTime()).toBeCloseTo(ECLIPSE_TABLE[1].simDay, 6); // time nav still works
+    expect(eclipseRig.show).not.toHaveBeenCalled();
+  });
+
+  it('while off, an eclipse crossed during playback is not shown', () => {
+    const target = ECLIPSE_TABLE[0];
+    const simApi = makeSimApi({ time: target.simDay - 0.001, speed: 1, playing: true });
+    const eclipseRig = makeEclipseRig();
+    const { view } = makeView({ simApi, eclipseRig, aurora: makeAurora(), flightService: makeFlightService() });
+    view.onEnter(null);
+    view._hud.onToggleEclipse(); // off
+
+    view.update(1);
+    expect(eclipseRig.show).not.toHaveBeenCalled();
+  });
+
+  it('toggling back on restores normal show behavior', () => {
+    const simApi = makeSimApi({ time: 0 });
+    const eclipseRig = makeEclipseRig();
+    const { view } = makeView({ simApi, eclipseRig, aurora: makeAurora(), flightService: makeFlightService() });
+    view.onEnter(null);
+    view._hud.onToggleEclipse(); // off
+    view._hud.onToggleEclipse(); // back on
+
+    view._hud.onSelectEclipse(ECLIPSE_TABLE[0]);
+    expect(eclipseRig.show).toHaveBeenCalledWith(ECLIPSE_TABLE[0]);
+    expect(view._hud.el.querySelector('[data-toggle="eclipse"]').textContent).toBe('Eclipse: on');
+  });
+});
+
 describe('EarthView F5 aircraft lifecycle (REQ-420/430/355)', () => {
   it('opt-in toggle starts the flight service; exit stops it (no leak)', () => {
     const flightService = makeFlightService();

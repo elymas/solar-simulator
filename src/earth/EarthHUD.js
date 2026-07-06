@@ -1,4 +1,4 @@
-import { ECLIPSE_TABLE } from '../utils/eclipseData.js';
+import { ECLIPSE_TABLE, ECLIPSE_DIAGRAM_INTRO, getEclipseTypeInfo } from '../utils/eclipseData.js';
 import { EARTH_VIEW_DEFAULTS } from '../utils/constants.js';
 
 /**
@@ -14,6 +14,7 @@ export class EarthHUD {
     this.onToggleAircraft = null;
     this.onSelectEclipse = null;
     this.onFindNextEclipse = null;
+    this.onToggleEclipse = null;
     this.onToggleAurora = null;
     this.onSpeedChange = null;
     this._collapsed = false;
@@ -47,6 +48,7 @@ export class EarthHUD {
         font-family: 'Inter', sans-serif;
         color: #e0e0e0;
         min-width: 240px;
+        max-width: 320px;
         transition: opacity 0.3s, transform 0.3s;
       }
       .earth-hud.collapsed {
@@ -193,7 +195,8 @@ export class EarthHUD {
           ${eclipseOptions}
         </select>
         <button class="earth-hud-toggle" type="button" data-action="find-eclipse">Find next eclipse</button>
-        <div class="earth-hud-note">Illustrative diagram — not to scale</div>
+        <button class="earth-hud-toggle" type="button" data-toggle="eclipse">Eclipse: on</button>
+        <div class="earth-hud-note" data-field="eclipse-detail">${ECLIPSE_DIAGRAM_INTRO}</div>
       </div>
       <div class="earth-hud-section">
         <button class="earth-hud-toggle" type="button" data-toggle="aurora">Aurora: on</button>
@@ -208,6 +211,8 @@ export class EarthHUD {
     this._flightStatusEl = this.el.querySelector('[data-field="flight-status"]');
     this._aircraftToggle = this.el.querySelector('[data-toggle="aircraft"]');
     this._eclipseSelect = this.el.querySelector('[data-field="eclipse-preset"]');
+    this._eclipseToggle = this.el.querySelector('[data-toggle="eclipse"]');
+    this._eclipseDetailEl = this.el.querySelector('[data-field="eclipse-detail"]');
     this._auroraToggle = this.el.querySelector('[data-toggle="aurora"]');
     this._speedSlider = this.el.querySelector('[data-field="speed-slider"]');
     this._speedValueEl = this.el.querySelector('[data-field="speed-value"]');
@@ -227,6 +232,9 @@ export class EarthHUD {
     });
     this.el.querySelector('[data-action="find-eclipse"]').addEventListener('click', () => {
       if (this.onFindNextEclipse) this.onFindNextEclipse();
+    });
+    this._eclipseToggle.addEventListener('click', () => {
+      if (this.onToggleEclipse) this.onToggleEclipse();
     });
     this._auroraToggle.addEventListener('click', () => {
       if (this.onToggleAurora) this.onToggleAurora();
@@ -314,6 +322,28 @@ export class EarthHUD {
   /** @param {boolean} on */
   setAuroraEnabled(on) {
     if (this._auroraToggle) this._auroraToggle.textContent = `Aurora: ${on ? 'on' : 'off'}`;
+  }
+
+  /** @param {boolean} on */
+  setEclipseEnabled(on) {
+    if (this._eclipseToggle) this._eclipseToggle.textContent = `Eclipse: ${on ? 'on' : 'off'}`;
+  }
+
+  /**
+   * Describe the eclipse currently shown by the diorama, or fall back to the
+   * generic explanation when none is active (e.g. simulation just toggled off,
+   * or no eclipse has been reached yet).
+   * @param {{type: string, name: string, date: string}|null} [eclipse]
+   */
+  setEclipseInfo(eclipse) {
+    if (!this._eclipseDetailEl) return;
+    if (!eclipse) {
+      this._eclipseDetailEl.textContent = ECLIPSE_DIAGRAM_INTRO;
+      return;
+    }
+    const { label, description } = getEclipseTypeInfo(eclipse.type);
+    const when = eclipse.date.slice(0, 10);
+    this._eclipseDetailEl.textContent = `${label} — ${eclipse.name} (${when}). ${description} Illustrative diagram — not to scale.`;
   }
 
   /**

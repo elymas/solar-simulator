@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { EarthHUD } from '../src/earth/EarthHUD.js';
-import { ECLIPSE_TABLE } from '../src/utils/eclipseData.js';
+import { ECLIPSE_TABLE, ECLIPSE_DIAGRAM_INTRO, getEclipseTypeInfo } from '../src/utils/eclipseData.js';
 import { EARTH_VIEW_DEFAULTS } from '../src/utils/constants.js';
 
 afterEach(() => {
@@ -81,6 +81,43 @@ describe('EarthHUD eclipse controls (F6-3, REQ-510/540)', () => {
   it('shows an "illustrative / not to scale" label', () => {
     const hud = new EarthHUD();
     expect(hud.el.textContent.toLowerCase()).toContain('illustrative');
+  });
+
+  it('defaults the detail text to the generic diagram explanation', () => {
+    const hud = new EarthHUD();
+    expect(hud.el.querySelector('[data-field="eclipse-detail"]').textContent).toBe(ECLIPSE_DIAGRAM_INTRO);
+  });
+
+  it('routes the eclipse simulation toggle through onToggleEclipse', () => {
+    const hud = new EarthHUD();
+    const cb = vi.fn();
+    hud.onToggleEclipse = cb;
+    hud.el.querySelector('[data-toggle="eclipse"]').click();
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it('setEclipseEnabled flips the toggle label', () => {
+    const hud = new EarthHUD();
+    const btn = hud.el.querySelector('[data-toggle="eclipse"]');
+    hud.setEclipseEnabled(false);
+    expect(btn.textContent).toBe('Eclipse: off');
+    hud.setEclipseEnabled(true);
+    expect(btn.textContent).toBe('Eclipse: on');
+  });
+
+  it('setEclipseInfo describes the active eclipse by type, and reverts to the intro on null', () => {
+    const hud = new EarthHUD();
+    const detail = hud.el.querySelector('[data-field="eclipse-detail"]');
+    const eclipse = ECLIPSE_TABLE[0];
+    const { label, description } = getEclipseTypeInfo(eclipse.type);
+
+    hud.setEclipseInfo(eclipse);
+    expect(detail.textContent).toContain(label);
+    expect(detail.textContent).toContain(eclipse.name);
+    expect(detail.textContent).toContain(description);
+
+    hud.setEclipseInfo(null);
+    expect(detail.textContent).toBe(ECLIPSE_DIAGRAM_INTRO);
   });
 });
 

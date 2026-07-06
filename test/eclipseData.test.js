@@ -7,6 +7,7 @@ import {
   findNextEclipse,
   isSolar,
   isLunar,
+  getEclipseTypeInfo,
 } from '../src/utils/eclipseData.js';
 
 const DAY_MS = 86400000;
@@ -26,6 +27,23 @@ describe('eclipse table provenance (REQ-510/550: real events only)', () => {
   it('maps a real date to sim-days from the shared epoch', () => {
     const d = new Date(SIM_EPOCH_MS + 10 * DAY_MS).toISOString();
     expect(toSimDay(d)).toBeCloseTo(10, 6);
+  });
+});
+
+describe('getEclipseTypeInfo (HUD detail text)', () => {
+  it('returns a non-empty label + description for every type actually in the table', () => {
+    const types = new Set(ECLIPSE_TABLE.map((e) => e.type));
+    for (const type of types) {
+      const info = getEclipseTypeInfo(type);
+      expect(info.label, type).toBeTruthy();
+      expect(info.description, type).toBeTruthy();
+    }
+  });
+
+  it('falls back to the raw type string for an unrecognized type', () => {
+    const info = getEclipseTypeInfo('made-up-type');
+    expect(info.label).toBe('made-up-type');
+    expect(info.description).toBe('');
   });
 });
 
