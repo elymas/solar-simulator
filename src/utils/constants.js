@@ -119,7 +119,7 @@ export const FLIGHT_DEFAULTS = {
   backoffStartMs: 30000, // exponential backoff floor (REQ-470)
   backoffMaxMs: 300000,
   maxInstances: 500,
-  altitudeScale: 0.02, // baro-ft -> earth-local units above the surface
+  altitudeScale: 0.0001, // baro-ft -> earth-local units above the surface (~3-4.5 units at 30-45k ft cruise)
 };
 
 // F7 aurora tuning. Budget knobs: curtain count / segments / noise octaves.
