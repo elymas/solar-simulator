@@ -126,6 +126,19 @@ export class PlanetList {
         font-size: 12px;
         color: #999;
       }
+      .planet-list-caret {
+        flex-shrink: 0;
+        width: 14px;
+        text-align: center;
+        color: #666;
+        transition: transform 0.15s;
+      }
+      .planet-list-caret.expanded {
+        transform: rotate(90deg);
+      }
+      .moon-group.collapsed {
+        display: none;
+      }
       .planet-list-divider {
         font-size: 10px;
         font-weight: 500;
@@ -201,6 +214,54 @@ export class PlanetList {
   }
 
   /**
+   * Add a planet (or dwarf planet) row, plus a collapsible group for its
+   * moons if it has any. Moon groups start collapsed (REQ: default hidden).
+   * @param {HTMLElement} container - The items container.
+   * @param {string} key - Planet identifier.
+   * @param {Object} data - Planet data.
+   */
+  _addBodyWithMoons(container, key, data) {
+    this._addListItem(container, key, data, false);
+
+    const moons = MOON_DATA[key];
+    if (!moons || moons.length === 0) return;
+
+    const moonGroup = document.createElement('div');
+    moonGroup.className = 'moon-group collapsed';
+
+    const caret = document.createElement('span');
+    caret.className = 'planet-list-caret';
+    caret.innerHTML = '&#9656;';
+    caret.title = 'Toggle moons';
+    caret.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._setMoonGroupExpanded(key, moonGroup.classList.contains('collapsed'));
+    });
+
+    const btn = this._buttons[key];
+    btn.insertBefore(caret, btn.firstChild);
+
+    for (const moonData of moons) {
+      this._addListItem(moonGroup, moonData.key, moonData, true);
+      this._moonToParent[moonData.key] = key;
+    }
+    container.appendChild(moonGroup);
+    this._moonGroups[key] = { group: moonGroup, caret };
+  }
+
+  /**
+   * Expand or collapse a planet's moon group.
+   * @param {string} planetKey - Parent planet key.
+   * @param {boolean} expanded - Target state.
+   */
+  _setMoonGroupExpanded(planetKey, expanded) {
+    const entry = this._moonGroups[planetKey];
+    if (!entry) return;
+    entry.group.classList.toggle('collapsed', !expanded);
+    entry.caret.classList.toggle('expanded', expanded);
+  }
+
+  /**
    * Create the DOM structure for the planet list sidebar.
    */
   _createDOM() {
@@ -224,17 +285,11 @@ export class PlanetList {
     const planetOrder = ['sun', 'mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
 
     this._buttons = {};
+    this._moonGroups = {};
+    this._moonToParent = {};
 
     for (const planetKey of planetOrder) {
-      const data = PLANET_DATA[planetKey];
-      this._addListItem(itemsContainer, planetKey, data, false);
-
-      // Add moons for this planet
-      if (MOON_DATA[planetKey]) {
-        for (const moonData of MOON_DATA[planetKey]) {
-          this._addListItem(itemsContainer, moonData.key, moonData, true);
-        }
-      }
+      this._addBodyWithMoons(itemsContainer, planetKey, PLANET_DATA[planetKey]);
     }
 
     // Dwarf planets section (the hardcoded planetOrder above excludes them, so
@@ -247,12 +302,7 @@ export class PlanetList {
       itemsContainer.appendChild(dwarfDivider);
 
       for (const key of dwarfKeys) {
-        this._addListItem(itemsContainer, key, PLANET_DATA[key], false);
-        if (MOON_DATA[key]) {
-          for (const moonData of MOON_DATA[key]) {
-            this._addListItem(itemsContainer, moonData.key, moonData, true);
-          }
-        }
+        this._addBodyWithMoons(itemsContainer, key, PLANET_DATA[key]);
       }
     }
 
@@ -321,6 +371,12 @@ export class PlanetList {
     this._activeKey = key;
     if (this._buttons[key]) {
       this._buttons[key].classList.add('active');
+    }
+    // A moon selected via the 3D view (not the caret) must not stay hidden
+    // inside a still-collapsed group.
+    const parentKey = this._moonToParent[key];
+    if (parentKey) {
+      this._setMoonGroupExpanded(parentKey, true);
     }
   }
 

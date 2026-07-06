@@ -28,6 +28,42 @@ describe('PlanetList dwarf section (REQ-010 UI, TASK-004)', () => {
   });
 });
 
+describe('PlanetList moon group collapse/expand (default collapsed)', () => {
+  let list;
+  beforeEach(() => {
+    list = new PlanetList();
+  });
+
+  it('starts every moon group collapsed and hides the moon buttons', () => {
+    expect(list._moonGroups.earth.group.classList.contains('collapsed')).toBe(true);
+    expect(list._buttons.moon.closest('.moon-group')).toBe(list._moonGroups.earth.group);
+  });
+
+  it('caret click expands the group and toggles it back on a second click', () => {
+    const { group, caret } = list._moonGroups.mars;
+    caret.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(group.classList.contains('collapsed')).toBe(false);
+    expect(caret.classList.contains('expanded')).toBe(true);
+
+    caret.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(group.classList.contains('collapsed')).toBe(true);
+  });
+
+  it('caret click does not select/focus the planet (event does not bubble to the row)', () => {
+    let selected = null;
+    list.onSelect = (key) => { selected = key; };
+    list._moonGroups.mars.caret.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(selected).toBeNull();
+  });
+
+  it('setActive on a moon auto-expands its still-collapsed parent group', () => {
+    expect(list._moonGroups.jupiter.group.classList.contains('collapsed')).toBe(true);
+    list.setActive('io');
+    expect(list._moonGroups.jupiter.group.classList.contains('collapsed')).toBe(false);
+    expect(list._buttons.io.classList.contains('active')).toBe(true);
+  });
+});
+
 describe('InfoPanel dwarf branch (REQ-030, TASK-004)', () => {
   let panel;
   beforeEach(() => {
