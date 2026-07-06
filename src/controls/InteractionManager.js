@@ -52,11 +52,15 @@ export class InteractionManager {
     const MIN_HIT_RADIUS = 8;
 
     for (const [key, planet] of Object.entries(this.planetFactory.planets)) {
-      const { mesh, data } = planet;
+      const { mesh, data, isStar } = planet;
 
       this._meshToKeyMap.set(mesh.uuid, key);
 
-      if (data.displayRadius < MIN_HIT_RADIUS) {
+      // ponytail: background stars use an artistically oversized displayRadius
+      // (e.g. Stephenson 2-18 = 300) so their real mesh makes a giant hit sphere
+      // that swallows hover/click near unrelated foreground planets. Point-size
+      // their hitbox like small bodies instead of raycasting the huge mesh.
+      if (isStar || data.displayRadius < MIN_HIT_RADIUS) {
         // Create an invisible, larger collision sphere as a child of the planet mesh
         const helperGeo = new THREE.SphereGeometry(MIN_HIT_RADIUS, 8, 8);
         const helperMat = new THREE.MeshBasicMaterial({
@@ -154,10 +158,10 @@ export class InteractionManager {
     const meshes = [];
 
     for (const [key, planet] of Object.entries(this.planetFactory.planets)) {
-      const { mesh, data } = planet;
+      const { mesh, data, isStar } = planet;
 
       // If the planet has a collision helper, use that for raycasting
-      if (data.displayRadius < 8) {
+      if (isStar || data.displayRadius < 8) {
         const helper = mesh.children.find((c) => c.name === `${key}_hitHelper`);
         if (helper) {
           meshes.push(helper);
