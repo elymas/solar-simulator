@@ -37,6 +37,12 @@ describe('EarthView interface + scaffold (E6, REQ-310/315)', () => {
     expect(pass.camera.isPerspectiveCamera).toBe(true);
   });
 
+  it('pins its own background to true black, immune to the solar view\'s exposure tuning', () => {
+    const { view } = makeView();
+    expect(view.scene.background).toBeInstanceOf(THREE.Color);
+    expect(view.scene.background.getHex()).toBe(0x000000);
+  });
+
   it('exposes empty F5/F6/F7 mount points in the scene (REQ-350/360)', () => {
     const { view } = makeView();
     expect(view.scene.children).toContain(view.aircraftLayer);

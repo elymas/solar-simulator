@@ -37,7 +37,7 @@ export class SceneManager {
     // ACES filmic tone mapping compresses the HDR bloom + lit surfaces into a
     // filmic response (REQ-285). OutputPass already consumes renderer.toneMapping.
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.3; // calibration knob for overall brightness
+    this.renderer.toneMappingExposure = 1.56; // calibration knob for overall brightness
     // @MX:NOTE: [AUTO] Shadow maps enabled for the F6 eclipse diorama (SPEC-EARTH-002).
     // Harmless to the solar view — no light there casts shadows, so it costs nothing
     // until EarthView's EclipseRig marks a caster/receiver.

@@ -65,6 +65,12 @@ export class EarthView {
     this._flightServiceFactory = flightServiceFactory || (() => new FlightDataService({}));
 
     this.scene = new THREE.Scene();
+    // No starfield mesh here (unlike SolarSystemView), so empty pixels would
+    // otherwise fall back to the shared renderer's clear color — which is
+    // tuned bright for the solar view's starfield and washes this view's
+    // night sky into flat gray. Pin it to true black (0 survives any
+    // exposure/tone-mapping multiplier unchanged).
+    this.scene.background = new THREE.Color(0x000000);
     this._initCamera();
     this._initLighting();
 

@@ -1,7 +1,7 @@
 // Display constants and configuration for the Solar System simulator
 
 export const COLOR_PALETTE = {
-  background: 0x14141c,
+  background: 0x181822,
   accent: 0x16c7ff,
   textPrimary: '#e0e0e0',
   textSecondary: '#888888',
