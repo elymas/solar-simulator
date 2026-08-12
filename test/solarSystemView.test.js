@@ -1,8 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SolarSystemView } from '../src/views/SolarSystemView.js';
+import { ALIGNMENT_PLANET_KEYS } from '../src/utils/alignment.js';
+import { STR } from '../src/ui/strings.js';
+
+// Heliocentric longitudes (degrees) for the 8 planets, in ALIGNMENT_PLANET_KEYS
+// order. Evenly spread = no four inside any 30-degree window.
+const SCATTERED = [0, 45, 90, 135, 180, 225, 270, 315];
+const FORMED = [0, 6, 12, 18, 180, 225, 270, 315];
+const DISPERSED = [0, 20, 40, 60, 180, 225, 270, 315];
+
+/** Place a planet mesh on the XZ plane at the given heliocentric longitude. */
+function positionAt(position, deg, radius) {
+  const rad = (deg * Math.PI) / 180;
+  position.x = radius * Math.cos(rad);
+  position.y = 0;
+  position.z = radius * Math.sin(rad);
+}
 
 // Minimal stubs — no real WebGL/DOM layout needed for lifecycle + ownership logic.
-function makeStubs({ qualityTier = 'full' } = {}) {
+function makeStubs({ qualityTier = 'full', longitudes = SCATTERED } = {}) {
   const scene = { tag: 'scene', add: vi.fn() };
   const camera = { tag: 'camera' };
   const belts = [
@@ -21,12 +37,20 @@ function makeStubs({ qualityTier = 'full' } = {}) {
     stepCamera: vi.fn(),
     setHoveredObject: vi.fn(),
   };
+  // All 8 planets, so the alignment frame hook has real positions to read.
+  const planets = {
+    moon: { mesh: { position: {}, getWorldPosition: vi.fn((v) => v) }, pivot: {}, data: { displayRadius: 3 } },
+  };
+  for (const key of ALIGNMENT_PLANET_KEYS) {
+    planets[key] = { mesh: { position: { x: 0, y: 0, z: 0 } }, data: { displayRadius: key === 'earth' ? 8 : 5 } };
+  }
+  const setLongitudes = (degs) => {
+    ALIGNMENT_PLANET_KEYS.forEach((key, i) => positionAt(planets[key].mesh.position, degs[i], 100 + i * 50));
+  };
+  setLongitudes(longitudes);
+
   const planetFactory = {
-    planets: {
-      earth: { mesh: { position: {} }, data: { displayRadius: 8 } },
-      mars: { mesh: { position: { x: 1 } }, data: { displayRadius: 5 } },
-      moon: { mesh: { position: {}, getWorldPosition: vi.fn((v) => v) }, pivot: {}, data: { displayRadius: 3 } },
-    },
+    planets,
     update: vi.fn(),
     onFocus: vi.fn(),
     onDefocus: vi.fn(),
@@ -37,6 +61,7 @@ function makeStubs({ qualityTier = 'full' } = {}) {
   const planetStrip = { el: el(), onSelect: null, setActive: vi.fn(), clearActive: vi.fn() };
   const timeControls = { el: el(), updatePlayButton: vi.fn(), updateDate: vi.fn() };
   const interaction = { enabled: true, selectedPlanet: null, dispose: vi.fn() };
+  const eventBanner = { el: el(), show: vi.fn(), hide: vi.fn() };
 
   const keyListeners = [];
   const win = { addEventListener: (t, fn) => t === 'keydown' && keyListeners.push(fn) };
@@ -51,9 +76,13 @@ function makeStubs({ qualityTier = 'full' } = {}) {
     createTimeControls: () => timeControls,
     createInteraction: () => interaction,
     createBelts: () => belts,
+    createEventBanner: () => eventBanner,
     win,
   });
-  return { view, sceneManager, planetFactory, infoPanel, planetList, planetStrip, timeControls, interaction, belts, emitKey };
+  return {
+    view, sceneManager, planetFactory, infoPanel, planetList, planetStrip,
+    timeControls, interaction, belts, eventBanner, emitKey, setLongitudes,
+  };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -247,6 +276,69 @@ describe('SolarSystemView belt shedding (REQ-EVT-204)', () => {
     expect(s.sceneManager.focusPlanet).not.toHaveBeenCalled();
     expect(s.sceneManager.resetCamera).not.toHaveBeenCalled();
     expect(s.view._focusedKey).toBe('mars');
+  });
+});
+
+// SPEC-EVENTS-001 M5. The detection hook lives here and not in main.js: main.js
+// is a 33-line bootstrap, and the render loop runs through ViewManager into
+// update(delta). Longitudes come from the positions PlanetFactory already wrote
+// this frame — the orbits are never solved twice.
+describe('SolarSystemView alignment event (REQ-EVT-303, REQ-EVT-304)', () => {
+  it('raises the banner once when the formation enters', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+
+    s.view.update(0.1);
+    expect(s.eventBanner.show).not.toHaveBeenCalled();
+
+    s.setLongitudes(FORMED);
+    s.view.update(0.1);
+    expect(s.eventBanner.show).toHaveBeenCalledTimes(1);
+    expect(s.eventBanner.show).toHaveBeenCalledWith(STR.eventAlignment);
+
+    s.view.update(0.1);
+    s.view.update(0.1);
+    expect(s.eventBanner.show).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-triggers only after the formation disperses past the exit window', () => {
+    const s = makeStubs({ longitudes: FORMED });
+    s.view.buildUI();
+    s.view.update(0.1);
+    expect(s.eventBanner.show).toHaveBeenCalledTimes(1);
+
+    s.setLongitudes(DISPERSED); // 60 degrees apart: past the 40 exit window
+    s.view.update(0.1);
+    expect(s.eventBanner.show).toHaveBeenCalledTimes(1);
+
+    s.setLongitudes(FORMED);
+    s.view.update(0.1);
+    expect(s.eventBanner.show).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not sample a paused sky', () => {
+    const s = makeStubs({ longitudes: FORMED });
+    s.view.buildUI();
+    s.view.simApi.togglePlay(); // pause
+    s.view.update(1);
+    expect(s.eventBanner.show).not.toHaveBeenCalled();
+  });
+
+  it('waits for the planets to exist before sampling', () => {
+    const s = makeStubs({ longitudes: FORMED });
+    s.view.buildUI();
+    delete s.planetFactory.planets.neptune; // textures still loading
+    expect(() => s.view.update(0.1)).not.toThrow();
+    expect(s.eventBanner.show).not.toHaveBeenCalled();
+  });
+
+  it('hides the banner with the rest of the overlay chrome', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.view.onExit();
+    expect(s.eventBanner.el.style.display).toBe('none');
+    s.view.onEnter(null);
+    expect(s.eventBanner.el.style.display).toBe('');
   });
 });
 

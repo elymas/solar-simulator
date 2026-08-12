@@ -1,6 +1,14 @@
 import { setMuted, isMuted, isAvailable } from '../audio/tts.js';
 import { STR, formatKoDate } from './strings.js';
 
+// Log-scale bounds of the speed slider: 10^-2 (0.01x) .. 10^2.7 (~501x). Named
+// rather than inlined in the markup because the ceiling is the largest
+// simulation step a single frame can carry, which SPEC-EVENTS-001's alignment
+// sweep test (AC-EVT-304) derives its worst-case frame step from.
+export const SPEED_LOG_MIN = -2;
+export const SPEED_LOG_MAX = 2.7;
+export const MAX_TIME_SPEED = 10 ** SPEED_LOG_MAX;
+
 /**
  * TimeControls provides a fixed bottom control bar with play/pause,
  * logarithmic speed slider, and simulation date display.
@@ -180,7 +188,7 @@ export class TimeControls {
       <button id="mute-btn" class="control-btn"></button>
       <div class="speed-control">
         <label class="speed-label">${STR.timeSpeed}</label>
-        <input type="range" id="speed-slider" min="-2" max="2.7" step="0.01" value="0" aria-label="${STR.timeSpeed}" />
+        <input type="range" id="speed-slider" min="${SPEED_LOG_MIN}" max="${SPEED_LOG_MAX}" step="0.01" value="0" aria-label="${STR.timeSpeed}" />
         <span id="speed-value" class="speed-value">1x</span>
       </div>
       <div class="date-display">

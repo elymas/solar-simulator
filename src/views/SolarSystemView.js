@@ -5,8 +5,13 @@ import { TimeControls } from '../ui/TimeControls.js';
 import { PlanetList } from '../ui/PlanetList.js';
 import { PlanetStrip } from '../ui/PlanetStrip.js';
 import { InteractionManager } from '../controls/InteractionManager.js';
+import { EventBanner } from '../ui/EventBanner.js';
 import { createSolarBelts } from '../effects/Belts.js';
+import { AlignmentTracker, ALIGNMENT_PLANET_KEYS } from '../utils/alignment.js';
+import { STR } from '../ui/strings.js';
 import { init as initTts, speakBody, cancel as cancelSpeech } from '../audio/tts.js';
+
+const RAD_TO_DEG = 180 / Math.PI;
 
 /**
  * SolarSystemView wraps the original solar-system app behind the frozen View
@@ -29,6 +34,7 @@ export class SolarSystemView {
    * @param {Function} [opts.createTimeControls]
    * @param {Function} [opts.createInteraction]
    * @param {Function} [opts.createBelts]
+   * @param {Function} [opts.createEventBanner]
    * @param {Window} [opts.win]
    */
   constructor({
@@ -40,6 +46,7 @@ export class SolarSystemView {
     createTimeControls = (api) => new TimeControls(api),
     createInteraction = (sm, pf) => new InteractionManager(sm.camera, sm.scene, sm.renderer, pf),
     createBelts = () => createSolarBelts(),
+    createEventBanner = () => new EventBanner(),
     win = typeof window !== 'undefined' ? window : undefined,
   } = {}) {
     this.sceneManager = sceneManager;
@@ -49,7 +56,15 @@ export class SolarSystemView {
     this._createPlanetStrip = createPlanetStrip;
     this._createTimeControls = createTimeControls;
     this._createInteraction = createInteraction;
+    this._createEventBanner = createEventBanner;
     this._win = win;
+
+    // Alignment detection state (REQ-EVT-304). Both the longitude buffer and the
+    // tracker's result object are allocated once, so the per-frame path writes
+    // numbers into existing memory and allocates nothing — the same rule the
+    // comet tail and the belts follow.
+    this._alignment = new AlignmentTracker();
+    this._longitudes = new Float64Array(ALIGNMENT_PLANET_KEYS.length);
 
     // Belts are scene contents, so they mount here rather than in SceneManager,
     // which owns only the render core. They are deliberately NOT registered in
@@ -130,6 +145,7 @@ export class SolarSystemView {
     const planetStrip = this._createPlanetStrip();
     const timeControls = this._createTimeControls(this.simApi);
     const interaction = this._createInteraction(this.sceneManager, this.planetFactory);
+    const eventBanner = this._createEventBanner();
 
     planetList.onSelect = (key) => this._select(key);
     // The mobile strip is a third mouth on the same selection path — a strip tap
@@ -139,7 +155,7 @@ export class SolarSystemView {
     interaction.onDeselect = () => this._deselect();
     infoPanel.onClose = () => this._deselect();
 
-    this._ui = { infoPanel, planetList, planetStrip, timeControls, interaction };
+    this._ui = { infoPanel, planetList, planetStrip, timeControls, interaction, eventBanner };
     this._bindKeys();
     if (!this._active) {
       // A #/earth deep-link builds this UI (textures finish loading) while
@@ -223,12 +239,38 @@ export class SolarSystemView {
   _setUiVisible(visible) {
     if (!this._ui) return;
     const d = visible ? '' : 'none';
-    const { infoPanel, planetList, planetStrip, timeControls } = this._ui;
+    const { infoPanel, planetList, planetStrip, timeControls, eventBanner } = this._ui;
     if (infoPanel.el) infoPanel.el.style.display = d;
     if (planetList.el) planetList.el.style.display = d;
     if (planetList._toggleBtn) planetList._toggleBtn.style.display = d;
     if (planetStrip.el) planetStrip.el.style.display = d;
     if (timeControls.el) timeControls.el.style.display = d;
+    // Without this a banner raised on the last solar frame would hang over the
+    // Earth view for the rest of its display window.
+    if (eventBanner.el) eventBanner.el.style.display = d;
+  }
+
+  /**
+   * Sample the planets' heliocentric longitudes and celebrate an alignment that
+   * has just formed (REQ-EVT-303, REQ-EVT-304).
+   *
+   * Longitudes are read off the positions PlanetFactory wrote this frame rather
+   * than re-solving the orbits: `OrbitalMechanics` puts every body on the XZ
+   * plane, so the longitude is just atan2(z, x).
+   */
+  _checkAlignment() {
+    const planets = this.planetFactory.planets;
+    for (let i = 0; i < ALIGNMENT_PLANET_KEYS.length; i++) {
+      const planet = planets[ALIGNMENT_PLANET_KEYS[i]];
+      // A body the factory has not built yet (textures still loading) means the
+      // sky is incomplete, and half a sky cannot be judged aligned.
+      if (!planet) return;
+      const { x, z } = planet.mesh.position;
+      this._longitudes[i] = Math.atan2(z, x) * RAD_TO_DEG;
+    }
+    if (this._alignment.update(this._longitudes) === 'enter') {
+      this._ui.eventBanner.show(STR.eventAlignment);
+    }
   }
 
   // --- frozen View interface (ANCHOR: SPEC-EARTH-002 depends on this shape) ---
@@ -269,6 +311,7 @@ export class SolarSystemView {
       this._simTime += delta * this._timeSpeed;
       this.planetFactory.update(this._simTime, delta);
       for (const belt of this.belts) belt.update(this._simTime);
+      if (this._ui) this._checkAlignment();
     }
 
     if (this._focusedKey) {

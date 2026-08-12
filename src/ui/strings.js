@@ -26,6 +26,10 @@ export const STR = {
   // this only adds the verb a screen reader needs (SPEC-MOBILE-001 NFR a11y).
   stripSelect: (name) => `${name} 보기`,
 
+  // Celebration banner. One string, two channels: the same sentence is both the
+  // rendered banner and the spoken callout (SPEC-EVENTS-001 REQ-EVT-303).
+  eventAlignment: '행성들이 줄을 섰어요!',
+
   // Time controls bar
   timeSpeed: '속도',
   timeDate: '날짜',
