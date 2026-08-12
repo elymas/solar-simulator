@@ -50,6 +50,7 @@ const DERIVABLE_SIZE_CLAIMS = [
   { key: 'phobos', token: '150', stated: 150, actual: () => radiusOf('moon') / radiusOf('phobos') },
   { key: 'deimos', token: '280', stated: 280, actual: () => radiusOf('moon') / radiusOf('deimos') },
   { key: 'charon', token: '절반', stated: 0.5, actual: () => radiusOf('charon') / radiusOf('pluto') },
+  { key: 'siriusA', token: '1.7', stated: 1.7, actual: () => radiusOf('siriusA') / radiusOf('sun') },
   { key: 'betelgeuse', token: '900', stated: 900, actual: () => radiusOf('betelgeuse') / radiusOf('sun') },
   { key: 'stephenson2_18', token: '2000', stated: 2000, actual: () => radiusOf('stephenson2_18') / radiusOf('sun') },
 ];

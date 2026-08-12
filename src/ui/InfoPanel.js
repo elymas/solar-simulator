@@ -3,6 +3,22 @@ import { speakBody, isAvailable } from '../audio/tts.js';
 import { STR, formatKoUnit } from './strings.js';
 
 /**
+ * Build an element from text. Always textContent, never innerHTML: plan.md A.1
+ * lets downstream SPECs feed this same body shape from an external API
+ * (SPEC-EARTH-003's ISS data), so no rendered node may carry markup.
+ * @param {string} tag
+ * @param {string} className
+ * @param {string} [text]
+ * @returns {HTMLElement}
+ */
+function el(tag, className, text = '') {
+  const node = document.createElement(tag);
+  node.className = className;
+  node.textContent = text;
+  return node;
+}
+
+/**
  * InfoPanel displays detailed information about a selected celestial body
  * in a slide-in sidebar panel.
  */
@@ -307,16 +323,13 @@ export class InfoPanel {
       }
     }
 
-    gridEl.innerHTML = items
-      .map(
-        (item) => `
-        <div class="info-item">
-          <span class="info-label">${item.label}</span>
-          <span class="info-value">${item.value}</span>
-        </div>
-      `
-      )
-      .join('');
+    gridEl.replaceChildren(
+      ...items.map((item) => {
+        const row = el('div', 'info-item');
+        row.append(el('span', 'info-label', item.label), el('span', 'info-value', item.value));
+        return row;
+      })
+    );
 
     this.el.classList.add('open');
     this.isOpen = true;
@@ -333,15 +346,8 @@ export class InfoPanel {
     const facts = Array.isArray(data.factsKo) ? data.factsKo : [];
 
     this.el.querySelector('.kid-emoji').textContent = data.emoji || '';
-    // textContent, not innerHTML: plan.md A.1 lets SPEC-EARTH-003 supply this same
-    // shape from an external API, so the node must not be able to carry markup.
     this.el.querySelector('.kid-facts').replaceChildren(
-      ...facts.map((fact) => {
-        const li = document.createElement('li');
-        li.className = 'kid-fact';
-        li.textContent = fact;
-        return li;
-      })
+      ...facts.map((fact) => el('li', 'kid-fact', fact))
     );
     this.el.querySelector('.kid-size').textContent = data.sizeComparisonKo || '';
     this.el.querySelector('.info-details').hidden = facts.length > 0;

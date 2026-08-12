@@ -62,6 +62,11 @@ export function speak(text) {
   // (never a queue) and flush it from the `voiceschanged` handler so the first tap
   // after load is not lost (REQ-KIDS-205). An engine that never loads a voice
   // cannot speak at all, so parking costs nothing there.
+  // Note: the slot holds ONE request. A second call arriving while the first is
+  // still parked silently DROPS the earlier text rather than queueing it — the
+  // newest request wins. Every cross-SPEC caller routing through speak()
+  // (SPEC-EVENTS-001, SPEC-EARTH-003, SPEC-PLAY-001) inherits that, so a callout
+  // fired during the brief pre-voices window after boot may never be spoken.
   if (getVoices().length === 0) {
     heldText = text;
     return;
