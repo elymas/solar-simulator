@@ -141,8 +141,10 @@ PWA precache 42 entries.
 - acceptance_added: AC-EVT-401
 - ac_covered: 16 / 16. The original 15 each cite their ID in at least one test; AC-EVT-401 is covered by
   the named `PlanetStrip.test.js` case "carries the comet and both belts, the three bodies with no other
-  phone route", which predates the ID. Source was not touched at sync by design, so that test does not
-  yet carry the tag — the only follow-up this sync leaves behind
+  phone route", which predates the ID. That test did not carry the tag when the docs commit landed,
+  because source was deliberately untouched during sync; the tag was added immediately afterward in
+  `9857312` (comment only, no assertion changed), so all 16 criteria are now citable by grep and this
+  sync leaves no follow-up
 - tests: 469 passed / 469, 34 files. Baseline before this SPEC 341 / 29 → 128 tests added, zero regressions
 - coverage: 89.08% statements, 92.07% lines against an 85% target. New modules: `alignment.js` 100%,
   `EventBanner.js` 97.14%, `Belts.js` 96.15%, `CometTail.js` 90.90%
