@@ -1,5 +1,6 @@
-import { ECLIPSE_TABLE, ECLIPSE_DIAGRAM_INTRO, getEclipseTypeInfo } from '../utils/eclipseData.js';
+import { ECLIPSE_TABLE, ECLIPSE_DIAGRAM_INTRO, ECLIPSE_SCALE_NOTE, getEclipseTypeInfo } from '../utils/eclipseData.js';
 import { EARTH_VIEW_DEFAULTS } from '../utils/constants.js';
+import { STR } from '../ui/strings.js';
 
 /**
  * EarthHUD is the Earth view's overlay: a richer info readout than the solar
@@ -93,7 +94,8 @@ export class EarthHUD {
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
       }
       .earth-hud-label { font-size: 12px; color: #888; }
-      .earth-hud-value { font-size: 13px; font-family: 'JetBrains Mono', monospace; color: #e0e0e0; }
+      /* Korean tail on the mono stacks: JetBrains Mono carries no Hangul glyphs. */
+      .earth-hud-value { font-size: 13px; font-family: 'JetBrains Mono', 'Apple SD Gothic Neo', 'Noto Sans KR', monospace; color: #e0e0e0; }
       .earth-hud-back {
         margin-top: 14px;
         width: 100%;
@@ -130,7 +132,7 @@ export class EarthHUD {
       .earth-hud-toggle:hover { background: rgba(22, 199, 255, 0.2); }
       .earth-hud-flight-status {
         font-size: 12px;
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'JetBrains Mono', 'Apple SD Gothic Neo', 'Noto Sans KR', monospace;
         color: #9fe0b0;
       }
       .earth-hud-flight-status[data-state="OFFLINE"],
@@ -175,33 +177,33 @@ export class EarthHUD {
       .join('');
 
     this.el.innerHTML = `
-      <h2 class="earth-hud-title">Earth</h2>
-      <div class="earth-hud-row"><span class="earth-hud-label">Sub-solar point</span><span class="earth-hud-value" data-field="subsolar">—</span></div>
-      <div class="earth-hud-row"><span class="earth-hud-label">Terminator</span><span class="earth-hud-value" data-field="terminator">—</span></div>
+      <h2 class="earth-hud-title">${STR.earthTitle}</h2>
+      <div class="earth-hud-row"><span class="earth-hud-label">${STR.earthSubSolar}</span><span class="earth-hud-value" data-field="subsolar">—</span></div>
+      <div class="earth-hud-row"><span class="earth-hud-label">${STR.earthTerminator}</span><span class="earth-hud-value" data-field="terminator">—</span></div>
       <div class="earth-hud-section">
-        <span class="earth-hud-label">Rotation Speed</span>
+        <span class="earth-hud-label">${STR.earthRotationSpeed}</span>
         <div class="earth-hud-speed-row">
-          <input class="earth-hud-speed-slider" type="range" data-field="speed-slider" min="0.05" max="3" step="0.05" value="${EARTH_VIEW_DEFAULTS.rotationSpeedDefault}" aria-label="Rotation speed" />
-          <span class="earth-hud-speed-value" data-field="speed-value">${EARTH_VIEW_DEFAULTS.rotationSpeedDefault.toFixed(2)} d/s</span>
+          <input class="earth-hud-speed-slider" type="range" data-field="speed-slider" min="0.05" max="3" step="0.05" value="${EARTH_VIEW_DEFAULTS.rotationSpeedDefault}" aria-label="${STR.earthRotationSpeed}" />
+          <span class="earth-hud-speed-value" data-field="speed-value">${STR.earthRotationSpeedValue(EARTH_VIEW_DEFAULTS.rotationSpeedDefault)}</span>
         </div>
       </div>
       <div class="earth-hud-section">
-        <button class="earth-hud-toggle" type="button" data-toggle="aircraft">Live aircraft: off</button>
-        <div class="earth-hud-flight-status" data-field="flight-status" role="status" aria-live="polite" data-state="OFF">off</div>
+        <button class="earth-hud-toggle" type="button" data-toggle="aircraft">${STR.earthAircraftOff}</button>
+        <div class="earth-hud-flight-status" data-field="flight-status" role="status" aria-live="polite" data-state="OFF">${STR.earthFlightOff}</div>
       </div>
       <div class="earth-hud-section">
-        <select class="earth-hud-eclipse-select" data-field="eclipse-preset" aria-label="Jump to eclipse">
-          <option selected disabled>Jump to an eclipse…</option>
+        <select class="earth-hud-eclipse-select" data-field="eclipse-preset" aria-label="${STR.earthEclipseSelectLabel}">
+          <option selected disabled>${STR.earthEclipseSelectPlaceholder}</option>
           ${eclipseOptions}
         </select>
-        <button class="earth-hud-toggle" type="button" data-action="find-eclipse">Find next eclipse</button>
-        <button class="earth-hud-toggle" type="button" data-toggle="eclipse">Eclipse: on</button>
+        <button class="earth-hud-toggle" type="button" data-action="find-eclipse">${STR.earthFindNextEclipse}</button>
+        <button class="earth-hud-toggle" type="button" data-toggle="eclipse">${STR.earthEclipseOn}</button>
         <div class="earth-hud-note" data-field="eclipse-detail">${ECLIPSE_DIAGRAM_INTRO}</div>
       </div>
       <div class="earth-hud-section">
-        <button class="earth-hud-toggle" type="button" data-toggle="aurora">Aurora: on</button>
+        <button class="earth-hud-toggle" type="button" data-toggle="aurora">${STR.earthAuroraOn}</button>
       </div>
-      <button class="earth-hud-back" type="button">&#8592; Solar System</button>
+      <button class="earth-hud-back" type="button">${STR.earthBack}</button>
     `;
     this.el.addEventListener('click', (e) => e.stopPropagation());
     this.el.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -251,7 +253,7 @@ export class EarthHUD {
     this._toggleBtn = document.createElement('button');
     this._toggleBtn.className = 'earth-hud-toggle-btn';
     this._toggleBtn.innerHTML = '&#9776;';
-    this._toggleBtn.title = 'Toggle Earth HUD';
+    this._toggleBtn.title = STR.earthHudToggleTitle;
     this._toggleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this._toggleCollapse();
@@ -296,37 +298,37 @@ export class EarthHUD {
     let text;
     switch (state) {
       case 'LOADING':
-        text = 'loading live aircraft…';
+        text = STR.earthFlightLoading;
         break;
       case 'LIVE':
-        text = count > 0
-          ? `live · ${count} aircraft · updated ${Math.round(updatedAgoSec)}s ago`
-          : 'live · 0 aircraft · clear sky in range';
+        // A live-but-empty sky is a healthy state, worded apart from the error
+        // states so it never reads as a failure (SPEC-EARTH-002 REQ-490).
+        text = count > 0 ? STR.earthFlightLive(count, updatedAgoSec) : STR.earthFlightLiveEmpty;
         break;
       case 'RATE_LIMITED':
-        text = 'rate limited — backing off (showing last known)';
+        text = STR.earthFlightRateLimited;
         break;
       case 'OFFLINE':
-        text = 'live flight data unavailable';
+        text = STR.earthFlightOffline;
         break;
       default:
-        text = 'off';
+        text = STR.earthFlightOff;
     }
     this._flightStatusEl.dataset.state = state;
     this._flightStatusEl.textContent = text;
     if (this._aircraftToggle) {
-      this._aircraftToggle.textContent = state === 'OFF' ? 'Live aircraft: off' : 'Live aircraft: on';
+      this._aircraftToggle.textContent = state === 'OFF' ? STR.earthAircraftOff : STR.earthAircraftOn;
     }
   }
 
   /** @param {boolean} on */
   setAuroraEnabled(on) {
-    if (this._auroraToggle) this._auroraToggle.textContent = `Aurora: ${on ? 'on' : 'off'}`;
+    if (this._auroraToggle) this._auroraToggle.textContent = on ? STR.earthAuroraOn : STR.earthAuroraOff;
   }
 
   /** @param {boolean} on */
   setEclipseEnabled(on) {
-    if (this._eclipseToggle) this._eclipseToggle.textContent = `Eclipse: ${on ? 'on' : 'off'}`;
+    if (this._eclipseToggle) this._eclipseToggle.textContent = on ? STR.earthEclipseOn : STR.earthEclipseOff;
   }
 
   /**
@@ -343,7 +345,7 @@ export class EarthHUD {
     }
     const { label, description } = getEclipseTypeInfo(eclipse.type);
     const when = eclipse.date.slice(0, 10);
-    this._eclipseDetailEl.textContent = `${label} — ${eclipse.name} (${when}). ${description} Illustrative diagram — not to scale.`;
+    this._eclipseDetailEl.textContent = `${label} — ${eclipse.name} (${when}). ${description} ${ECLIPSE_SCALE_NOTE}`;
   }
 
   /**
@@ -352,7 +354,7 @@ export class EarthHUD {
    */
   setSpeedDisplay(speed) {
     if (this._speedSlider) this._speedSlider.value = speed;
-    if (this._speedValueEl) this._speedValueEl.textContent = `${speed.toFixed(2)} d/s`;
+    if (this._speedValueEl) this._speedValueEl.textContent = STR.earthRotationSpeedValue(speed);
   }
 
   /**

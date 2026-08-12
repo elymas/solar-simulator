@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Solar System 3D Simulator</title>
-  <meta name="description" content="Interactive 3D Solar System Simulation - Explore planets, orbits, and astronomical data" />
+  <title>태양계 3D 우주 여행</title>
+  <meta name="description" content="행성과 위성, 별을 3D로 둘러보는 태양계 시뮬레이터" />
   <meta name="theme-color" content="#0a0a0f" />
-  <meta property="og:title" content="Solar System 3D Simulator" />
-  <meta property="og:description" content="Explore the solar system in 3D" />
+  <meta property="og:title" content="태양계 3D 우주 여행" />
+  <meta property="og:description" content="태양계를 3D로 둘러보세요" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1FA90;</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -27,7 +27,10 @@
       height: 100%;
       overflow: hidden;
       background: #0a0a0f;
-      font-family: 'Inter', sans-serif;
+      /* Korean-capable fallback chain: Inter carries no Hangul, so Korean text
+         would otherwise land in the browser default serif (REQ-KIDS-105).
+         System fonts only — webfont delivery belongs to SPEC-PWA-001. */
+      font-family: 'Inter', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
       color: #e0e0e0;
     }
 
@@ -83,9 +86,6 @@
       .planet-list-item {
         padding: 6px 8px !important;
         font-size: 12px !important;
-      }
-      .planet-item-name-ko {
-        display: none !important;
       }
     }
 

@@ -1,4 +1,6 @@
 import { MOON_DATA, STAR_DATA } from '../planets/planetData.js';
+import { speakBody, isAvailable } from '../audio/tts.js';
+import { STR, formatKoUnit } from './strings.js';
 
 /**
  * InfoPanel displays detailed information about a selected celestial body
@@ -8,6 +10,7 @@ export class InfoPanel {
   constructor() {
     this.isOpen = false;
     this.onClose = null;
+    this.body = null; // resolved data of the body on screen, for the replay button
     this._injectStyles();
     this._createDOM();
   }
@@ -54,17 +57,62 @@ export class InfoPanel {
       .info-panel-close:hover {
         color: #16c7ff;
       }
-      .planet-name {
-        font-size: 28px;
-        font-weight: 600;
-        margin: 0 0 4px 0;
+      /* Korean is the primary label, English the secondary one (REQ-KIDS-101). */
+      .planet-name-ko {
+        font-size: 32px;
+        font-weight: 700;
+        margin: 0 0 2px 0;
         color: #16c7ff;
       }
-      .planet-name-ko {
-        font-size: 16px;
+      .planet-name {
+        font-size: 15px;
         font-weight: 300;
         color: #888;
-        margin: 0 0 24px 0;
+        margin: 0 0 20px 0;
+      }
+      .kid-emoji {
+        font-size: 56px;
+        line-height: 1.1;
+      }
+      .kid-facts {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 18px 0;
+      }
+      /* >=18px is a spec floor (REQ-KIDS-302), not a taste choice. */
+      .kid-fact {
+        font-size: 19px;
+        line-height: 1.6;
+        margin-bottom: 12px;
+      }
+      .kid-size {
+        font-size: 19px;
+        line-height: 1.5;
+        color: #16c7ff;
+        margin: 0 0 18px 0;
+      }
+      .kid-replay {
+        font-size: 26px;
+        background: none;
+        border: 1px solid rgba(22, 199, 255, 0.4);
+        border-radius: 12px;
+        color: #16c7ff;
+        cursor: pointer;
+        padding: 8px 16px;
+        margin-bottom: 18px;
+      }
+      .kid-details-toggle {
+        display: block;
+        width: 100%;
+        background: none;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        color: #888;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 15px;
+        padding: 10px;
+        margin-bottom: 16px;
       }
       .info-grid {
         display: grid;
@@ -98,11 +146,19 @@ export class InfoPanel {
     this.el.id = 'info-panel';
     this.el.className = 'info-panel';
 
+    // Kid view first, scientific table behind the expander (REQ-KIDS-302/303).
     this.el.innerHTML = `
       <button class="info-panel-close">&times;</button>
-      <h2 class="planet-name"></h2>
-      <h3 class="planet-name-ko"></h3>
-      <div class="info-grid"></div>
+      <div class="kid-emoji" aria-hidden="true"></div>
+      <h2 class="planet-name-ko"></h2>
+      <h3 class="planet-name"></h3>
+      <ul class="kid-facts"></ul>
+      <p class="kid-size"></p>
+      <button class="kid-replay" aria-label="${STR.infoReplay}">&#128266;</button>
+      <button class="kid-details-toggle">${STR.infoDetailsToggle}</button>
+      <div class="info-details" hidden>
+        <div class="info-grid"></div>
+      </div>
     `;
 
     // Prevent clicks on the panel from propagating to the canvas
@@ -120,6 +176,16 @@ export class InfoPanel {
       }
     });
 
+    this.el.querySelector('.kid-details-toggle').addEventListener('click', () => {
+      const details = this.el.querySelector('.info-details');
+      details.hidden = !details.hidden;
+    });
+
+    // Replay runs from a real tap, so it keeps satisfying the iOS gesture rule.
+    this.el.querySelector('.kid-replay').addEventListener('click', () => {
+      if (this.body) speakBody(this.body);
+    });
+
     document.body.appendChild(this.el);
   }
 
@@ -131,9 +197,9 @@ export class InfoPanel {
   _formatOrbitalPeriod(days) {
     if (days >= 365.25) {
       const years = days / 365.25;
-      return `${years.toFixed(2)} years`;
+      return formatKoUnit(years.toFixed(2), STR.unitYear);
     }
-    return `${days.toFixed(1)} days`;
+    return formatKoUnit(days.toFixed(1), STR.unitDay);
   }
 
   /**
@@ -142,15 +208,15 @@ export class InfoPanel {
    * @returns {string}
    */
   _formatRotationPeriod(hours) {
-    if (!hours) return 'N/A';
+    if (!hours) return STR.infoValueNone;
     const absHours = Math.abs(hours);
-    const retrograde = hours < 0 ? ' (retrograde)' : '';
+    const retrograde = hours < 0 ? STR.infoRetrogradeSuffix : '';
 
     if (absHours >= 24) {
       const days = absHours / 24;
-      return `${days.toFixed(1)} days${retrograde}`;
+      return `${formatKoUnit(days.toFixed(1), STR.unitDay)}${retrograde}`;
     }
-    return `${absHours.toFixed(1)} hours${retrograde}`;
+    return `${formatKoUnit(absHours.toFixed(1), STR.unitHour)}${retrograde}`;
   }
 
   /**
@@ -176,66 +242,68 @@ export class InfoPanel {
     const moonData = this._findMoonData(planetKey);
     const starData = STAR_DATA[planetKey] || null;
     const data = moonData || starData || planetData;
-    if (!data) return;
+    if (!data) return null;
 
     const nameEl = this.el.querySelector('.planet-name');
     const nameKoEl = this.el.querySelector('.planet-name-ko');
     const gridEl = this.el.querySelector('.info-grid');
 
+    this.body = data;
     nameEl.textContent = data.name || planetKey;
     nameKoEl.textContent = data.nameKo || '';
+    this._renderKidView(data);
 
     const items = [];
 
     if (starData) {
       // Star-specific data
-      items.push({ label: 'Type', value: data.type });
-      items.push({ label: 'Radius', value: `${data.radiusSolar} R\u2609` });
-      items.push({ label: 'Distance', value: `${data.distance.toLocaleString()} ${data.distanceUnit}` });
-      items.push({ label: 'Mass', value: `${data.mass} ${data.massUnit}` });
-      items.push({ label: 'Luminosity', value: `${data.luminosity.toLocaleString()} ${data.luminosityUnit}` });
-      items.push({ label: 'Surface Temp', value: `${data.surfaceTemp.toLocaleString()} K` });
-      items.push({ label: 'Constellation', value: `${data.constellation} (${data.constellationKo})` });
-      items.push({ label: 'Apparent Mag', value: data.apparentMagnitude.toString() });
-      items.push({ label: 'Absolute Mag', value: data.absoluteMagnitude.toString() });
+      items.push({ label: STR.infoType, value: data.type });
+      items.push({ label: STR.infoRadius, value: `${data.radiusSolar} R\u2609` });
+      items.push({ label: STR.infoDistance, value: `${data.distance.toLocaleString()} ${data.distanceUnit}` });
+      items.push({ label: STR.infoMass, value: `${data.mass} ${data.massUnit}` });
+      items.push({ label: STR.infoLuminosity, value: `${data.luminosity.toLocaleString()} ${data.luminosityUnit}` });
+      items.push({ label: STR.infoSurfaceTemp, value: `${data.surfaceTemp.toLocaleString()} K` });
+      items.push({ label: STR.infoConstellation, value: `${data.constellation} (${data.constellationKo})` });
+      items.push({ label: STR.infoApparentMag, value: data.apparentMagnitude.toString() });
+      items.push({ label: STR.infoAbsoluteMag, value: data.absoluteMagnitude.toString() });
     } else if (planetKey === 'sun') {
-      items.push({ label: 'Diameter', value: `${(data.radius * 2).toLocaleString()} km` });
-      items.push({ label: 'Surface Temp', value: '5,778 K' });
-      items.push({ label: 'Rotation Period', value: this._formatRotationPeriod(data.rotationPeriod) });
-      items.push({ label: 'Axial Tilt', value: `${data.axialTilt}\u00B0` });
+      items.push({ label: STR.infoDiameter, value: `${(data.radius * 2).toLocaleString()} km` });
+      items.push({ label: STR.infoSurfaceTemp, value: '5,778 K' });
+      items.push({ label: STR.infoRotationPeriod, value: this._formatRotationPeriod(data.rotationPeriod) });
+      items.push({ label: STR.infoAxialTilt, value: `${data.axialTilt}\u00B0` });
     } else if (moonData) {
-      items.push({ label: 'Diameter', value: `${(data.radius * 2).toLocaleString()} km` });
-      items.push({ label: 'Distance from Parent', value: `${data.distanceFromParent?.toLocaleString()} km` });
-      items.push({ label: 'Orbital Period', value: this._formatOrbitalPeriod(Math.abs(data.orbitalPeriod)) });
-      items.push({ label: 'Rotation Period', value: this._formatRotationPeriod(data.rotationPeriod) });
-      items.push({ label: 'Axial Tilt', value: `${data.axialTilt}\u00B0` });
-      items.push({ label: 'Eccentricity', value: data.eccentricity?.toFixed(4) || 'N/A' });
+      items.push({ label: STR.infoDiameter, value: `${(data.radius * 2).toLocaleString()} km` });
+      items.push({ label: STR.infoDistanceFromParent, value: `${data.distanceFromParent?.toLocaleString()} km` });
+      items.push({ label: STR.infoOrbitalPeriod, value: this._formatOrbitalPeriod(Math.abs(data.orbitalPeriod)) });
+      items.push({ label: STR.infoRotationPeriod, value: this._formatRotationPeriod(data.rotationPeriod) });
+      items.push({ label: STR.infoAxialTilt, value: `${data.axialTilt}\u00B0` });
+      items.push({ label: STR.infoEccentricity, value: data.eccentricity?.toFixed(4) || STR.infoValueNone });
       if (data.retrograde) {
-        items.push({ label: 'Orbit', value: 'Retrograde' });
+        items.push({ label: STR.infoOrbit, value: STR.infoValueRetrograde });
       }
     } else if (data.category === 'dwarf') {
-      items.push({ label: 'Classification', value: 'Dwarf Planet' });
-      items.push({ label: 'Diameter', value: `${(data.radius * 2).toLocaleString()} km` });
-      items.push({ label: 'Distance from Sun', value: `${data.distance} AU` });
-      items.push({ label: 'Orbital Period', value: this._formatOrbitalPeriod(data.orbitalPeriod) });
-      items.push({ label: 'Rotation Period', value: this._formatRotationPeriod(data.rotationPeriod) });
-      items.push({ label: 'Axial Tilt', value: `${data.axialTilt}°` });
-      items.push({ label: 'Eccentricity', value: data.eccentricity?.toFixed(4) || 'N/A' });
+      items.push({ label: STR.infoClassification, value: STR.infoValueDwarfPlanet });
+      items.push({ label: STR.infoDiameter, value: `${(data.radius * 2).toLocaleString()} km` });
+      items.push({ label: STR.infoDistanceFromSun, value: `${data.distance} AU` });
+      items.push({ label: STR.infoOrbitalPeriod, value: this._formatOrbitalPeriod(data.orbitalPeriod) });
+      items.push({ label: STR.infoRotationPeriod, value: this._formatRotationPeriod(data.rotationPeriod) });
+      items.push({ label: STR.infoAxialTilt, value: `${data.axialTilt}°` });
+      items.push({ label: STR.infoEccentricity, value: data.eccentricity?.toFixed(4) || STR.infoValueNone });
       if (data.discoveryYear !== undefined) {
-        items.push({ label: 'Discovered', value: data.discoveryYear.toString() });
+        items.push({ label: STR.infoDiscovered, value: data.discoveryYear.toString() });
       }
       if (data.moons !== undefined) {
-        items.push({ label: 'Moons', value: data.moons.toString() });
+        items.push({ label: STR.infoMoons, value: data.moons.toString() });
       }
     } else {
-      items.push({ label: 'Diameter', value: `${(data.radius * 2).toLocaleString()} km` });
-      items.push({ label: 'Distance from Sun', value: `${data.distance} AU` });
-      items.push({ label: 'Orbital Period', value: this._formatOrbitalPeriod(data.orbitalPeriod) });
-      items.push({ label: 'Rotation Period', value: this._formatRotationPeriod(data.rotationPeriod) });
-      items.push({ label: 'Axial Tilt', value: `${data.axialTilt}\u00B0` });
-      items.push({ label: 'Eccentricity', value: data.eccentricity?.toFixed(4) || 'N/A' });
+      items.push({ label: STR.infoDiameter, value: `${(data.radius * 2).toLocaleString()} km` });
+      items.push({ label: STR.infoDistanceFromSun, value: `${data.distance} AU` });
+      items.push({ label: STR.infoOrbitalPeriod, value: this._formatOrbitalPeriod(data.orbitalPeriod) });
+      items.push({ label: STR.infoRotationPeriod, value: this._formatRotationPeriod(data.rotationPeriod) });
+      items.push({ label: STR.infoAxialTilt, value: `${data.axialTilt}\u00B0` });
+      items.push({ label: STR.infoEccentricity, value: data.eccentricity?.toFixed(4) || STR.infoValueNone });
       if (data.moons !== undefined) {
-        items.push({ label: 'Moons', value: data.moons.toString() });
+        items.push({ label: STR.infoMoons, value: data.moons.toString() });
       }
     }
 
@@ -252,6 +320,26 @@ export class InfoPanel {
 
     this.el.classList.add('open');
     this.isOpen = true;
+    return data;
+  }
+
+  /**
+   * Fill the kid-first section. Bodies outside the REQ-KIDS-301 set carry no
+   * facts, so their sections stay empty and the expander opens instead — the
+   * scientific table is all the content they have (plan.md A.3).
+   * @param {Object} data - Resolved body data.
+   */
+  _renderKidView(data) {
+    const facts = Array.isArray(data.factsKo) ? data.factsKo : [];
+
+    this.el.querySelector('.kid-emoji').textContent = data.emoji || '';
+    this.el.querySelector('.kid-facts').innerHTML = facts
+      .map((fact) => `<li class="kid-fact">${fact}</li>`)
+      .join('');
+    this.el.querySelector('.kid-size').textContent = data.sizeComparisonKo || '';
+    this.el.querySelector('.info-details').hidden = facts.length > 0;
+    // No speech engine: no 🔊 affordance at all (REQ-KIDS-206).
+    this.el.querySelector('.kid-replay').hidden = !isAvailable();
   }
 
   /**

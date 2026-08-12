@@ -47,29 +47,29 @@ export function isTotalLunar(type) {
   return type === 'lunar-total';
 }
 
-// Human-readable label + plain-language explanation per cataloged eclipse type,
-// shown alongside the diorama so "what am I looking at" doesn't require prior
-// astronomy knowledge.
+// Label + plain-language explanation per cataloged eclipse type, shown alongside
+// the diorama. Written for a 5-year-old per spec.md §8.1: one clause each, 해요체,
+// no term beyond 해/달/지구/그림자, wonder-positive (SPEC-KIDS-001 REQ-KIDS-104).
 const ECLIPSE_TYPE_INFO = {
   'solar-total': {
-    label: 'Total Solar Eclipse',
-    description: "The Moon fully covers the Sun's disk as seen from within its umbra (shadow cone), turning day briefly into twilight along a narrow path on Earth.",
+    label: '해가 다 가려지는 날',
+    description: '달이 해를 쏙 가려서 낮인데도 깜깜해져요.',
   },
   'solar-annular': {
-    label: 'Annular Solar Eclipse',
-    description: 'The Moon crosses the Sun while farther from Earth in its orbit, so it looks too small to fully cover the disk — leaving a bright ring ("ring of fire") around its silhouette.',
+    label: '해가 반지가 되는 날',
+    description: '달이 조금 작게 보여서 해가 반지처럼 남아요.',
   },
   'solar-partial': {
-    label: 'Partial Solar Eclipse',
-    description: "The Moon covers only part of the Sun's disk, seen from the penumbra outside the path of totality or annularity.",
+    label: '해가 조금 가려지는 날',
+    description: '달이 해의 한쪽만 살짝 가려요.',
   },
   'lunar-total': {
-    label: 'Total Lunar Eclipse',
-    description: "The Moon passes fully into Earth's umbra. Sunlight bent through Earth's atmosphere reddens it — the \"Blood Moon\".",
+    label: '달이 빨개지는 날',
+    description: '지구 그림자에 들어간 달이 빨갛게 물들어요.',
   },
   'lunar-partial': {
-    label: 'Partial Lunar Eclipse',
-    description: "Only part of the Moon passes through Earth's umbra, so a portion of its disk visibly darkens.",
+    label: '달이 조금 가려지는 날',
+    description: '지구 그림자가 달의 한쪽만 살짝 덮어요.',
   },
 };
 
@@ -85,7 +85,10 @@ export function getEclipseTypeInfo(type) {
 
 // Default HUD copy shown before any eclipse has been jumped to / detected.
 export const ECLIPSE_DIAGRAM_INTRO =
-  "This diorama shows how the Sun, Earth, and Moon line up during an eclipse: solar eclipses cast the Moon's shadow onto Earth, lunar eclipses cast Earth's shadow onto the Moon. Illustrative diagram — not to scale.";
+  '해와 지구와 달이 나란히 서면 그림자가 생겨요. 그림자가 지구에 닿으면 해가 가려지고, 달에 닿으면 달이 가려져요. 그림 크기는 실제와 달라요.';
+
+// Appended after a specific eclipse description, same caveat as the intro.
+export const ECLIPSE_SCALE_NOTE = '그림 크기는 실제와 달라요.';
 
 // Table with sim-day precomputed, sorted ascending. Frozen provenance data.
 export const ECLIPSE_TABLE = ECLIPSES
