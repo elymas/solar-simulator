@@ -22,6 +22,10 @@ export const STR = {
   listToggleTitle: '행성 목록 열고 닫기',
   listMoonToggleTitle: '위성 보기',
 
+  // Mobile icon strip. The visible label is already the body's Korean name, so
+  // this only adds the verb a screen reader needs (SPEC-MOBILE-001 NFR a11y).
+  stripSelect: (name) => `${name} 보기`,
+
   // Time controls bar
   timeSpeed: '속도',
   timeDate: '날짜',

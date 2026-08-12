@@ -3,6 +3,7 @@ import { PlanetFactory } from '../planets/PlanetFactory.js';
 import { InfoPanel } from '../ui/InfoPanel.js';
 import { TimeControls } from '../ui/TimeControls.js';
 import { PlanetList } from '../ui/PlanetList.js';
+import { PlanetStrip } from '../ui/PlanetStrip.js';
 import { InteractionManager } from '../controls/InteractionManager.js';
 import { init as initTts, speakBody, cancel as cancelSpeech } from '../audio/tts.js';
 
@@ -23,6 +24,7 @@ export class SolarSystemView {
    * @param {Object} [opts.planetFactory] - Defaults to a real PlanetFactory on the solar scene.
    * @param {Function} [opts.createInfoPanel]
    * @param {Function} [opts.createPlanetList]
+   * @param {Function} [opts.createPlanetStrip]
    * @param {Function} [opts.createTimeControls]
    * @param {Function} [opts.createInteraction]
    * @param {Window} [opts.win]
@@ -32,6 +34,7 @@ export class SolarSystemView {
     planetFactory,
     createInfoPanel = () => new InfoPanel(),
     createPlanetList = () => new PlanetList(),
+    createPlanetStrip = () => new PlanetStrip(),
     createTimeControls = (api) => new TimeControls(api),
     createInteraction = (sm, pf) => new InteractionManager(sm.camera, sm.scene, sm.renderer, pf),
     win = typeof window !== 'undefined' ? window : undefined,
@@ -40,6 +43,7 @@ export class SolarSystemView {
     this.planetFactory = planetFactory || new PlanetFactory(sceneManager.scene, sceneManager);
     this._createInfoPanel = createInfoPanel;
     this._createPlanetList = createPlanetList;
+    this._createPlanetStrip = createPlanetStrip;
     this._createTimeControls = createTimeControls;
     this._createInteraction = createInteraction;
     this._win = win;
@@ -97,15 +101,19 @@ export class SolarSystemView {
     initTts();
     const infoPanel = this._createInfoPanel();
     const planetList = this._createPlanetList();
+    const planetStrip = this._createPlanetStrip();
     const timeControls = this._createTimeControls(this.simApi);
     const interaction = this._createInteraction(this.sceneManager, this.planetFactory);
 
     planetList.onSelect = (key) => this._select(key);
+    // The mobile strip is a third mouth on the same selection path — a strip tap
+    // must be indistinguishable from a sidebar click or a 3D tap (REQ-MOB-303).
+    planetStrip.onSelect = (key) => this._select(key);
     interaction.onSelect = (key) => this._select(key);
     interaction.onDeselect = () => this._deselect();
     infoPanel.onClose = () => this._deselect();
 
-    this._ui = { infoPanel, planetList, timeControls, interaction };
+    this._ui = { infoPanel, planetList, planetStrip, timeControls, interaction };
     this._bindKeys();
     if (!this._active) {
       // A #/earth deep-link builds this UI (textures finish loading) while
@@ -160,6 +168,7 @@ export class SolarSystemView {
     // the body the panel resolved, so moons/stars read their own facts.
     speakBody(this._ui.infoPanel.show(key, planet.data));
     this._ui.planetList.setActive(key);
+    this._ui.planetStrip.setActive(key);
     this._ui.interaction.selectedPlanet = key;
     this._focusedKey = key;
     this.sceneManager.focusPlanet(planet.mesh.position, planet.data.displayRadius);
@@ -174,6 +183,7 @@ export class SolarSystemView {
     cancelSpeech();
     this._ui.infoPanel.hide();
     this._ui.planetList.clearActive();
+    this._ui.planetStrip.clearActive();
     this._ui.interaction.selectedPlanet = null;
     this._focusedKey = null;
     this.sceneManager.resetCamera();
@@ -187,10 +197,11 @@ export class SolarSystemView {
   _setUiVisible(visible) {
     if (!this._ui) return;
     const d = visible ? '' : 'none';
-    const { infoPanel, planetList, timeControls } = this._ui;
+    const { infoPanel, planetList, planetStrip, timeControls } = this._ui;
     if (infoPanel.el) infoPanel.el.style.display = d;
     if (planetList.el) planetList.el.style.display = d;
     if (planetList._toggleBtn) planetList._toggleBtn.style.display = d;
+    if (planetStrip.el) planetStrip.el.style.display = d;
     if (timeControls.el) timeControls.el.style.display = d;
   }
 

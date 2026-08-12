@@ -28,6 +28,7 @@ function makeStubs() {
   const el = () => ({ style: {} });
   const infoPanel = { el: el(), show: vi.fn(), hide: vi.fn() };
   const planetList = { el: el(), _toggleBtn: el(), setActive: vi.fn(), clearActive: vi.fn() };
+  const planetStrip = { el: el(), onSelect: null, setActive: vi.fn(), clearActive: vi.fn() };
   const timeControls = { el: el(), updatePlayButton: vi.fn(), updateDate: vi.fn() };
   const interaction = { enabled: true, selectedPlanet: null, dispose: vi.fn() };
 
@@ -40,11 +41,12 @@ function makeStubs() {
     planetFactory,
     createInfoPanel: () => infoPanel,
     createPlanetList: () => planetList,
+    createPlanetStrip: () => planetStrip,
     createTimeControls: () => timeControls,
     createInteraction: () => interaction,
     win,
   });
-  return { view, sceneManager, planetFactory, infoPanel, planetList, timeControls, interaction, emitKey };
+  return { view, sceneManager, planetFactory, infoPanel, planetList, planetStrip, timeControls, interaction, emitKey };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -131,6 +133,40 @@ describe('SolarSystemView earth selection routes to a view transition (REQ-310)'
     s.view._select('mars'); // other bodies still focus
     expect(s.sceneManager.focusPlanet).toHaveBeenCalledTimes(1);
     expect(s.planetFactory.onFocus).toHaveBeenCalledWith('mars');
+  });
+});
+
+describe('SolarSystemView mobile icon strip wiring (REQ-MOB-303, AC-MOB-303)', () => {
+  it('routes a strip tap through the same selection path as the sidebar', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+
+    s.planetStrip.onSelect('mars');
+    expect(s.infoPanel.show).toHaveBeenCalledWith('mars', s.planetFactory.planets.mars.data);
+    expect(s.sceneManager.focusPlanet).toHaveBeenCalledTimes(1);
+    expect(s.planetFactory.onFocus).toHaveBeenCalledWith('mars');
+  });
+
+  it('mirrors selection state onto the strip exactly as onto the sidebar', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+
+    s.view._select('mars');
+    expect(s.planetStrip.setActive).toHaveBeenCalledWith('mars');
+
+    s.view._deselect();
+    expect(s.planetStrip.clearActive).toHaveBeenCalled();
+  });
+
+  it('hides and restores the strip with the rest of the overlay chrome', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+
+    s.view.onExit();
+    expect(s.planetStrip.el.style.display).toBe('none');
+
+    s.view.onEnter(null);
+    expect(s.planetStrip.el.style.display).toBe('');
   });
 });
 
