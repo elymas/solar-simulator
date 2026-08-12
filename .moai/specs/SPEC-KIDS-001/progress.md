@@ -47,10 +47,34 @@
 - Native-Korean read-aloud pass over the full facts dataset (spec.md §8.1 checklist).
 - Mobile viewport visual check at 375px width (AC-KIDS-102 second clause). SPEC-MOBILE-001 owns tap-target sizing for the new buttons.
 
+### Phase 2.8 — 독립 평가 (2 rounds)
+
+- 1차 평가 FAIL. 지적 사항: (1) `tts.js`가 `globalThis.speechSynthesis` / `globalThis.localStorage`의 속성 접근 자체를 감싸지 않아, 쿠키 전면 차단이나 `allow-same-origin` 없는 iframe에서 SecurityError가 발생 — `buildUI()`가 UI 구성 전에 `initTts()`를 부르므로 내레이션이 아니라 **시뮬레이터 전체**가 죽는 경로였다. (2) 호버 툴팁이 영어 우선 — REQ-KIDS-101이 지정한 세 표면 중 세 번째가 정반대였고, 툴팁 테스트가 아예 없어 통과했다. (3) 음성 엔진 부재 시에도 음소거 토글이 렌더됨. (4) Sirius A 크기 비교 문구가 1.71배 차이를 "조금 더 큰"으로 표현.
+- 수정 커밋 712839c / 1b7c09f. 2차 평가 PASS.
+- 같은 커밋에서 범위 밖 데이터 1건을 의도적으로 수정: Enceladus `nameKo` 엘셀라두스 → 엔셀라두스. 사유와 범위 예외 처리는 spec.md §10.2 3번.
+
+### 커버리지 (측정값, 목표 미달)
+
+- 저장소 전체 statement 커버리지 **84.81%** — 목표 85% 미달.
+- 미달분은 전부 이 SPEC이 건드리지 않은 파일: `EclipseRig` 약 65%, `PlanetFactory` 약 75%.
+- 이 SPEC이 추가한 `src/audio/tts.js`는 **95.09%**.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+- run_complete_at: 2026-08-12
+- run_status: audit-ready
+- REQ 구현: 18/18 (K1 5 + K2 8 + K3 5)
+- 자동 검증: `npm test` 27 files / **283 tests** 통과 (기준선 24 / 197), `npm run build` 성공
+  - 274는 1차 평가 시점의 수치다. 평가 지적 수정(712839c)에서 툴팁 테스트와 InfoPanel 헤더 폰트 크기 단언이, 후속 정리(1b7c09f)에서 Sirius A 기계 검증이 추가되어 283이 되었다.
+- 독립 평가: 2차 PASS
+- 미검증 항목: 위 "Manual ACs still open" 목록 — 통과로 반올림하지 않음
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- sync_complete_at: 2026-08-12
+- sync_status: audit-ready
+- lifecycle: spec-anchored (Level 2) — spec.md를 실제 구현에 맞춰 갱신, 원본 요구사항(§3)은 보존하고 차이만 §10에 주석
+- `status: draft → completed`, `version: 0.1.0 → 1.0.0`
+- 갱신 문서: spec.md(§10 구현 결과 신설 — 후속 SPEC 계약 / 계획 대비 차이 / 수동 검증 대기 / 커버리지), plan.md(§H 실행 기록), acceptance.md(§5 추가 수용 기준 4건 + DoD 판정), progress.md(본 문서), `.moai/project/structure.md`, `.moai/project/product.md`, `.moai/project/tech.md`
+- 후속 SPEC이 읽어야 할 계약 정본: **spec.md §10.1**
+- 남은 부채: 실기기 수동 AC(§10.3), 저장소 커버리지 84.81%(§10.4, 이 SPEC 외부 파일 기인)

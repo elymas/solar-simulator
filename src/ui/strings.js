@@ -98,6 +98,11 @@ export const STR = {
   unitHour: '시간',
 };
 
+// @MX:ANCHOR: [AUTO] Every Korean unit-suffixed value in the UI is formatted here.
+// @MX:SPEC: [AUTO] SPEC-KIDS-001 REQ-KIDS-105
+// @MX:REASON: [AUTO] Four InfoPanel call sites depend on the no-space join. Adding a
+// space to match English spacing would be wrong in Korean and would silently reformat
+// every duration in the panel at once.
 /**
  * Attach a Korean unit word straight onto a value: 1.88 + 년 -> "1.88년".
  * Korean takes no space before the unit, unlike the English "1.88 years".

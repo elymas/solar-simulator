@@ -93,3 +93,34 @@ Seed set (6 bodies) is fixed in spec.md §8.2; the remaining ~23 bodies are auth
 - SPEC-EVENTS-001 / SPEC-EARTH-003 route event callouts through `speak()`; they must NOT construct their own utterances.
 
 No open clarification markers — all decisions above are resolved with stated defaults.
+
+---
+
+## H. 실행 기록 (as-built, 2026-08-12)
+
+§A~§G는 계획 시점의 기록으로 보존한다. 이 절은 **실제로 밟은 단계**를 남긴다. 계약과 차이의 정본은 spec.md §10이며, 여기서는 계획 문서 자체에 대한 차이만 다룬다.
+
+### H.1 마일스톤 → 태스크 실행 순서
+
+| 계획 (§C) | 실행 태스크 | 실제 순서 |
+|-----------|-------------|-----------|
+| M2 (TTS 래퍼) | T-002 | 1번째. 22/22 테스트 통과 |
+| M1 (facts 데이터) | T-001 | 2번째. 필수 29개 천체 전부 충족 |
+| M4 (한국어 우선 라벨 + CSS 삭제 + 음소거 토글) | T-004 | 3번째 |
+| M3 (InfoPanel) / M5 (chrome 일괄 번역) | T-003 / T-005a | 4번째, **병렬**. 파일 소유권 분리 |
+| M5 잔여 | T-005b | 5번째. InfoPanel 라벨을 `STR`로 이관 |
+| M6 (회귀) | T-006 | 6번째 |
+
+§C의 M1→M2 순서와 달리 **T-002(TTS)를 먼저** 실행했다. T-003이 두 산출물 모두에 의존하므로 어느 쪽을 먼저 하든 무방했고, 계약 표면(TTS API)을 먼저 고정하는 편이 이후 판단을 단순하게 만들었다.
+
+T-003과 T-005a는 병렬로 돌리되 `InfoPanel.js`를 T-003이 단독 소유하도록 묶고, 라벨 이관은 T-005b로 미뤄 **두 에이전트가 같은 파일을 만지지 않게** 했다.
+
+### H.2 §D 파일 목록과의 차이
+
+- `src/controls/InteractionManager.js` **또는** `src/main.js` 중 하나에 훅을 건다고 적었으나, 실제 훅 위치는 `src/views/SolarSystemView.js:161`의 `_select()`다. 3D 탭과 목록 클릭이 모두 이 지점으로 모인다 — 두 개 대신 하나로 끝난다.
+- 그럼에도 `src/controls/InteractionManager.js`는 **결국 수정되었다.** 훅 때문이 아니라 호버 툴팁이 영어 우선이었기 때문이다. REQ-KIDS-101이 지정한 세 표면 중 세 번째이며, 계획 단계에서 툴팁을 §D 어디에도 적지 않은 것이 누락의 출발점이었다.
+- `src/planets/planetData.js`는 계획상 "데이터 추가만"이었으나, 기존 `nameKo` 한 건(Enceladus)을 수정했다. 사유는 spec.md §10.2 3번.
+
+### H.3 계획이 예측하지 못한 것 — 회고
+
+계획은 **읽히는 텍스트**와 **들리는 텍스트**를 구분하지 않았다. `nameKo`가 화면에 뜨기만 할 때와 소리로 재생될 때는 정확성 기준이 다르다는 사실이 가정 A-101을 무너뜨렸다. TTS를 추가하는 후속 SPEC은 자신이 읽어주게 될 기존 문자열 데이터를 "이미 검수된 것"으로 전제하지 말 것.

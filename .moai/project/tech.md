@@ -86,6 +86,7 @@
 - `Inter` (weights 300, 400, 500, 600, 700) — UI text
 - `JetBrains Mono` (weights 400, 500) — numerical data display
 - Both loaded via Google Fonts with `preconnect` hints in `index.html`
+- **한글 폴백 체인** (SPEC-KIDS-001): Inter와 JetBrains Mono 어느 쪽에도 **한글 글리프가 없다.** UI가 한국어 우선이 되면서 `index.html`의 폰트 스택에 `'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic'` 폴백을 명시했다. 새로 내려받는 웹폰트는 없다 — 시스템 폰트에만 의존하며, 한국어 웹폰트 자체 호스팅 여부는 SPEC-PWA-001이 결정한다.
 
 ---
 
@@ -140,3 +141,13 @@
 - **역할**: 지구 뷰의 실시간 항공기 위치 오버레이(F5)를 위한 무료·키리스·CORS 검증 완료 ADS-B API.
 - **중요성**: 이것이 앱이 런타임에 수행하는 **유일한 외부 네트워크 호출**이다. SPEC-UI-001이 확립한 "초기 로드 후 완전 오프라인 동작" 설계 원칙(REQ-020)과 공존하도록, 이 기능은 완전히 선택적(옵트인)이며 API가 도달 불가능해도 우아하게 저하되어 다른 모든 기능에 영향을 주지 않는다.
 - **채택 경위**: 원래 후보였던 adsb.lol/adsb.fi 대신, 배포 origin에서의 라이브 브라우저 CORS 스모크 테스트를 통과한 airplanes.live가 채택되었다.
+
+## 브라우저 플랫폼 의존성 (SPEC-KIDS-001에서 신규 도입)
+
+### Web Speech API — `window.speechSynthesis`
+
+- **역할**: 한국어 음성 내레이션. `src/audio/tts.js`가 유일한 사용 지점이다.
+- **npm 의존성 증가 없음.** 브라우저 내장 API이며 이 SPEC은 패키지를 하나도 추가하지 않았다.
+- **우아한 저하**: 엔진이 없거나 부분 구현이거나 예외를 던져도 앱은 침묵할 뿐 죽지 않는다. 🔊 어포던스는 `isAvailable()`이 false면 렌더되지 않는다.
+- **플랫폼 특성**: 음성 목록이 비동기로 채워지므로(iOS Safari) 래퍼가 `voiceschanged`를 구독하고, 목록이 비어 있는 동안 요청 **한 건**을 보관했다가 흘려보낸다(큐가 아니다). iOS는 사용자 제스처 콜스택에서만 발화를 시작하므로 자동 재생 내레이션은 어디에도 없다.
+- **음소거 영속화**: `localStorage` 키 `solar.muted` 한 개. 사생활 보호 모드에서 읽기가 예외를 던지면 세션 메모리로 저하된다.

@@ -62,9 +62,26 @@
 - Grep gates: `planet-item-name-ko` hiding rule absent; legacy English chrome literals absent from the enumerated component list (AC-KIDS-103).
 - TRUST 5: Tested (above), Readable (strings centralized, English code comments), Unified (existing style), Secured (no new external input; localStorage values parsed defensively), Trackable (conventional commits per milestone referencing SPEC-KIDS-001).
 
-## 5. Definition of Done
+## 5. 구현 중 추가된 수용 기준 (2026-08-12)
+
+원래 범위를 넘어 구현된 항목에 대한 기준이다. §1의 기준은 그대로 두고, 각각을 상위 REQ에 접미사 ID로 붙인다. 전부 통과 상태다.
+
+| AC | 상위 REQ | 기준 (검증 가능) | 검증 | 추가 사유 |
+|----|----------|------------------|------|-----------|
+| AC-KIDS-201a | REQ-KIDS-201 | `globalThis.speechSynthesis` / `globalThis.localStorage`의 **속성 접근 자체**가 예외를 던지는 환경(쿠키 전면 차단, `allow-same-origin` 없는 iframe)에서 `init()`이 인자 없이 호출되어도 throw하지 않는다 | vitest | `buildUI()`가 UI 구성 **전에** `initTts()`를 호출하므로, 이 throw는 내레이션이 아니라 시뮬레이터 전체를 죽였다. 기존 가드는 주입된 storage만 덮었고 프로덕션이 실제로 쓰는 무인자 경로는 테스트된 적이 없었다 |
+| AC-KIDS-206a | REQ-KIDS-206 | 음성 엔진 부재 시 InfoPanel의 🔊뿐 아니라 **TimeControls의 소리 토글도** 렌더되지 않는다 | vitest | REQ-KIDS-206은 "모든 🔊 어포던스"를 요구한다. 토글이 남아 있으면 결코 발생하지 않을 소리에 대한 선호를 영속시킨다 |
+| AC-KIDS-301a | REQ-KIDS-301 | 천체 데이터에서 파생된 DOM(사실 목록, 과학 데이터 그리드, 호버 툴팁)은 `createElement` + `textContent`로 구성되며 `innerHTML` 문자열 보간을 쓰지 않는다. 천체 데이터가 들어가지 않는 정적 골격은 예외 | 코드 리뷰 + grep | plan.md §A.1이 SPEC-EARTH-003이 **외부 API**에서 같은 형태를 공급한다고 약속했다. 그 시점에 XSS 싱크가 된다 |
+| AC-KIDS-304a | REQ-KIDS-304 | 필수 집합 천체의 `nameKo`는 **소리 내어 읽었을 때** 정확하다(Enceladus 엔셀라두스) | 검수 | 가정 A-101은 기존 `nameKo`를 범위 밖으로 선언했으나, `speakBody`가 이름을 읽게 되면서 표시 전용 오타가 아이가 귀로 배우는 오류가 되었다. 의도적 범위 예외 |
+
+## 6. Definition of Done
 
 - All AC-KIDS-1xx/2xx/3xx PASS (unit ACs green in CI; manual ACs checked on an iPhone-class device and one desktop browser).
 - The facts dataset for the full REQ-KIDS-301 set is present and checklist-reviewed.
 - SPEC frontmatter `status` transitioned per lifecycle by the owning agents (draft → in-progress → implemented → completed).
 - No open clarification markers remain in plan.md (none were declared).
+
+### DoD 판정 (2026-08-12)
+
+- 자동 검증 AC 18/18 통과, 독립 평가 2차 PASS, `status: completed`.
+- **다만 "manual ACs checked on an iPhone-class device" 항목은 아직 충족되지 않았다.** 실기기 확인 대기 목록은 spec.md §10.3과 progress.md에 있으며, 어느 것도 통과로 반올림하지 않는다. facts 데이터셋은 기계적 완전성·길이·수치 일치 검사는 통과했으나 **한국어 모어 화자 낭독 검수는 미완**이다.
+- 커버리지는 저장소 전체 84.81%로 85% 목표에 미달한다. 미달분은 이 SPEC이 건드리지 않은 파일에서 발생한다(spec.md §10.4).
