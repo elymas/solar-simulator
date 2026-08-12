@@ -189,6 +189,7 @@ describe('PlanetStrip is registry-driven (REQ-MOB-305, AC-MOB-305)', () => {
   // that reaches only the sidebar is a body a child on a phone cannot reach.
   // The belts especially: they are deliberately not raycast-selectable, so the
   // strip is their only route on a phone.
+  // AC-EVT-401 (REQ-EVT-401)
   it('carries the comet and both belts, the three bodies with no other phone route', () => {
     const strip = new PlanetStrip();
     for (const [key, data] of [['halley', PLANET_DATA.halley], ...Object.entries(BELT_DATA)]) {
