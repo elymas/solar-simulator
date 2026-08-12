@@ -32,6 +32,8 @@ export const ALIGNMENT_PLANET_KEYS = [
 // Belts.js and CometTail.js). Single-threaded and never held across a yield.
 const _norm = [];
 const _order = [];
+// Hoisted too: an inline arrow would be a fresh closure on every frame.
+const _byLongitude = (a, b) => _norm[a] - _norm[b];
 
 const normalizeDeg = (deg) => ((deg % 360) + 360) % 360;
 
@@ -79,7 +81,7 @@ export function detectAlignment(
     _norm[i] = normalizeDeg(longitudes[i]);
     _order[i] = i;
   }
-  _order.sort((a, b) => _norm[a] - _norm[b]);
+  _order.sort(_byLongitude);
 
   let bestStart = 0;
   let bestSpan = Infinity;
