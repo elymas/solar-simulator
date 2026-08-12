@@ -10,8 +10,15 @@
 
 import { STAR_DATA } from '../planets/planetData.js';
 
-/** How many missions a child gets per real calendar day (plan.md §A.4). */
-export const MISSIONS_PER_DAY = 3;
+/**
+ * How many missions a child gets per real calendar day (plan.md §A.4).
+ *
+ * This is a fraction of the catalog, not a fixed number: at 5 a day the catalog
+ * has to stay well above 5 or consecutive days repeat almost the same set. The
+ * rotation is a seeded shuffle per date, so a catalog of N gives a child roughly
+ * N/5 days before a mission can recur — missions.test.js asserts that floor.
+ */
+export const MISSIONS_PER_DAY = 5;
 
 /**
  * Seed catalog (spec.md §8). Every promptKo follows the SPEC-KIDS-001 §8.1
@@ -93,6 +100,123 @@ export const MISSION_CATALOG = [
     predicate: { type: 'select', bodies: Object.keys(STAR_DATA) },
     sticker: 'star',
     emoji: '⭐',
+  },
+
+  // --- Bodies the seed catalog never sent a child to ---------------------
+  // The seed set covered 5 of the 15 entries in PLANET_DATA and one moon, so a
+  // child could finish a week without ever being pointed at Venus, an ice giant,
+  // or anything SPEC-EVENTS-001 added. Each prompt names the trait a five-year-old
+  // can actually see or has just been told, never a number to memorize.
+  {
+    id: 'find-hottest',
+    promptKo: '가장 뜨거운 행성을 찾아보세요!',
+    predicate: { type: 'select', bodies: ['venus'] },
+    sticker: 'hottest',
+    emoji: '🟡',
+  },
+  {
+    id: 'find-closest-to-sun',
+    promptKo: '태양과 가장 가까운 행성을 찾아보세요!',
+    predicate: { type: 'select', bodies: ['mercury'] },
+    sticker: 'closest',
+    emoji: '⚪',
+  },
+  {
+    id: 'find-tilted',
+    promptKo: '누워서 도는 행성을 찾아보세요!',
+    predicate: { type: 'select', bodies: ['uranus'] },
+    sticker: 'tilted',
+    emoji: '🩵',
+  },
+  {
+    id: 'find-farthest',
+    promptKo: '태양에서 가장 먼 행성을 찾아보세요!',
+    predicate: { type: 'select', bodies: ['neptune'] },
+    sticker: 'farthest',
+    emoji: '🔵',
+  },
+  {
+    id: 'find-sun',
+    promptKo: '우리를 따뜻하게 해 주는 별을 찾아보세요!',
+    predicate: { type: 'select', bodies: ['sun'] },
+    sticker: 'our-star',
+    emoji: '☀️',
+  },
+  {
+    id: 'find-comet',
+    // SPEC-EVENTS-001 bodies. They are selectable from the list and the strip,
+    // so they are reachable missions the seed catalog simply never named.
+    promptKo: '긴 꼬리를 가진 혜성을 찾아보세요!',
+    predicate: { type: 'select', bodies: ['halley'] },
+    sticker: 'comet',
+    emoji: '☄️',
+  },
+  {
+    id: 'find-asteroid-belt',
+    promptKo: '돌멩이가 모여 있는 띠를 찾아보세요!',
+    predicate: { type: 'select', bodies: ['asteroidBelt'] },
+    sticker: 'asteroid-belt',
+    emoji: '🪨',
+  },
+  {
+    id: 'find-kuiper-belt',
+    promptKo: '가장 바깥에 있는 띠를 찾아보세요!',
+    predicate: { type: 'select', bodies: ['kuiperBelt'] },
+    sticker: 'kuiper-belt',
+    emoji: '🧊',
+  },
+  {
+    id: 'find-ice-moon',
+    promptKo: '얼음으로 덮인 위성을 찾아보세요!',
+    predicate: { type: 'select', bodies: ['europa'] },
+    sticker: 'ice-moon',
+    emoji: '🤍',
+  },
+  {
+    id: 'find-biggest-moon',
+    promptKo: '가장 큰 위성을 찾아보세요!',
+    predicate: { type: 'select', bodies: ['ganymede'] },
+    sticker: 'biggest-moon',
+    emoji: '🌑',
+  },
+  {
+    id: 'find-mars-moons',
+    // Either one counts: they are a pair a child meets together, and demanding
+    // the specific smaller rock would be a memory test rather than a hunt.
+    promptKo: '화성의 작은 위성을 찾아보세요!',
+    predicate: { type: 'select', bodies: ['phobos', 'deimos'] },
+    sticker: 'mars-moons',
+    emoji: '🥔',
+  },
+  {
+    id: 'find-titan',
+    promptKo: '토성의 가장 큰 위성을 찾아보세요!',
+    predicate: { type: 'select', bodies: ['titan'] },
+    sticker: 'titan',
+    emoji: '🟤',
+  },
+  {
+    id: 'compare-earth',
+    promptKo: '지구가 얼마나 큰지 비교해 보세요!',
+    predicate: { type: 'action', action: 'size-compare', body: 'earth' },
+    sticker: 'earth-size',
+    emoji: '📏',
+  },
+  {
+    id: 'rocket-moon',
+    // The predicate matcher already narrows an action by body, so a destination
+    // mission needs no engine change — only this entry.
+    promptKo: '로켓을 타고 달에 가 보세요!',
+    predicate: { type: 'action', action: 'rocket-arrived', body: 'moon' },
+    sticker: 'rocket-moon',
+    emoji: '🌙',
+  },
+  {
+    id: 'rocket-mars',
+    promptKo: '로켓을 타고 화성에 가 보세요!',
+    predicate: { type: 'action', action: 'rocket-arrived', body: 'mars' },
+    sticker: 'rocket-mars',
+    emoji: '🛸',
   },
 ];
 

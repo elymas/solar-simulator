@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { SolarSystemView } from './SolarSystemView.js';
 import { InfoPanel } from '../ui/InfoPanel.js';
-import { missionsForDate } from '../play/missions.js';
+import { missionsForDate, MISSIONS_PER_DAY } from '../play/missions.js';
 import { onPlayEvent, emitPlayEvent, resetPlayEvents } from '../play/playEvents.js';
 import { init as initTts, setMuted } from '../audio/tts.js';
 import { init as initSfx, unlockAudio } from '../audio/sfx.js';
@@ -12,8 +12,40 @@ import { PLANET_DATA } from '../planets/planetData.js';
 
 const DATE = new Date('2026-08-12T09:00:00');
 const NEXT_DAY = new Date('2026-08-13T09:00:00');
+
+/** The bodies the scene stub actually builds — the only ones _select can resolve. */
+const STUB_BODIES = ['earth', 'saturn', 'mars', 'jupiter'];
+
+/**
+ * Find a date whose rotation contains a given mission id.
+ *
+ * SEARCHED, not hard-coded. The rotation is a seeded shuffle over the whole
+ * catalog, so every catalog addition re-rolls which missions land on which date.
+ * A literal date here silently stops testing what it claims the moment the
+ * catalog grows — which is exactly what happened when the catalog went from 10
+ * entries to 25 and this file's fixed dates quietly lost their missions.
+ */
+function dayWithMission(id, limit = 400) {
+  for (let offset = 0; offset < limit; offset += 1) {
+    const date = new Date(2026, 0, 1 + offset, 9);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    if (missionsForDate(key).some((m) => m.id === id)) return date;
+  }
+  throw new Error(`no date within ${limit} days carries mission "${id}"`);
+}
+
+/** Every body today's select-missions listen for. */
+function selectTargets(date) {
+  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return new Set(
+    missionsForDate(key)
+      .filter((m) => m.predicate.type === 'select')
+      .flatMap((m) => m.predicate.bodies)
+  );
+}
+
 /** A day whose rotation contains 'earth-home' — the mission Earth itself completes. */
-const EARTH_MISSION_DAY = new Date('2026-08-04T09:00:00');
+const EARTH_MISSION_DAY = dayWithMission('earth-home');
 
 /** Fire the play event that completes a catalog mission, whatever its predicate. */
 function emitFor(mission) {
@@ -214,14 +246,14 @@ describe('SolarSystemView mission + play surfaces (SPEC-PLAY-001 M2/M5)', () => 
 
     it('flips the sticker book tile and ticks the badge', () => {
       const mission = pendingMission();
-      expect(view._stickerBook.toggleBtn.querySelector('.sticker-badge').textContent).toBe('0/3');
+      expect(view._stickerBook.toggleBtn.querySelector('.sticker-badge').textContent).toBe(`0/${MISSIONS_PER_DAY}`);
 
       emitFor(mission);
       view._stickerBook.open();
 
       const tile = view._stickerBook.el.querySelector(`[data-sticker="${mission.sticker}"]`);
       expect(tile.classList.contains('sticker-tile--locked')).toBe(false);
-      expect(view._stickerBook.toggleBtn.querySelector('.sticker-badge').textContent).toBe('1/3');
+      expect(view._stickerBook.toggleBtn.querySelector('.sticker-badge').textContent).toBe(`1/${MISSIONS_PER_DAY}`);
     });
 
     it('stays silent but fully visual with the shared 소리 toggle off (Scenario 4)', () => {
@@ -297,15 +329,26 @@ describe('SolarSystemView mission + play surfaces (SPEC-PLAY-001 M2/M5)', () => 
     // Same defect, its other face: the stale `_focusedKey` put the burst on the
     // PREVIOUS pick, so the child saw the reward land on the wrong planet.
     it('sparkles on the completing body, not on the body picked before it', () => {
+      // Both bodies are DERIVED from the day's rotation rather than named: which
+      // planet completes a mission on a given date changes whenever the catalog
+      // does, and a hard-coded pair turns into a silent no-op test.
+      const targets = selectTargets(now);
+      const completing = STUB_BODIES.find((k) => targets.has(k));
+      const inert = STUB_BODIES.find((k) => !targets.has(k));
+      expect(completing, 'no stub body completes a mission on this date').toBeTruthy();
+      expect(inert, 'every stub body completes a mission on this date').toBeTruthy();
+
       const burst = vi.spyOn(view._praise, 'burst');
 
-      view._select('mars'); // z=300, completes nothing in today's rotation
+      view._select(inert);
       expect(burst).not.toHaveBeenCalled();
 
-      view._select('jupiter'); // z=400, completes find-biggest
+      view._select(completing);
 
       expect(burst).toHaveBeenCalledTimes(1);
-      expect(burst.mock.calls[0][0].z).toBeCloseTo(400);
+      const at = view.planetFactory.planets[completing].mesh.position;
+      expect(burst.mock.calls[0][0].z).toBeCloseTo(at.z);
+      expect(burst.mock.calls[0][0].x).toBeCloseTo(at.x);
     });
   });
 

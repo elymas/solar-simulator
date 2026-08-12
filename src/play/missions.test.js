@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { MISSION_CATALOG, missionsForDate, createMissionEngine } from './missions.js';
+import { MISSION_CATALOG, MISSIONS_PER_DAY, missionsForDate, createMissionEngine } from './missions.js';
 import { createStickerStore } from './stickers.js';
-import { PLANET_DATA, MOON_DATA, STAR_DATA } from '../planets/planetData.js';
+import { PLANET_DATA, MOON_DATA, STAR_DATA, BELT_DATA } from '../planets/planetData.js';
 
 const DATE = '2026-08-12';
 
@@ -11,15 +11,29 @@ function memoryStore() {
   return createStickerStore({ storage: null });
 }
 
-/** Every body key the catalog is allowed to reference. */
+/**
+ * Every body key the catalog is allowed to reference — i.e. everything a child
+ * can actually select. The belts belong here for the same reason the moons and
+ * stars do: SPEC-EVENTS-001 put them in the planet list and the mobile strip, so
+ * a mission may legitimately point at one.
+ */
 function knownBodyKeys() {
   const moonKeys = Object.values(MOON_DATA).flat().map((m) => m.key);
-  return new Set([...Object.keys(PLANET_DATA), ...moonKeys, ...Object.keys(STAR_DATA)]);
+  return new Set([
+    ...Object.keys(PLANET_DATA),
+    ...moonKeys,
+    ...Object.keys(STAR_DATA),
+    ...Object.keys(BELT_DATA),
+  ]);
 }
 
 describe('MISSION_CATALOG (REQ-PLAY-401)', () => {
-  it('carries the seed missions from spec §8', () => {
-    expect(MISSION_CATALOG.map((m) => m.id)).toEqual([
+  // The seed set is a floor, not the whole catalog: later entries are additive,
+  // so this asserts the spec §8 missions still SHIP rather than pinning a length
+  // that turns every catalog addition into a test edit.
+  it('still carries every seed mission from spec §8', () => {
+    const ids = MISSION_CATALOG.map((m) => m.id);
+    for (const seed of [
       'find-rings',
       'find-red',
       'find-biggest',
@@ -30,7 +44,9 @@ describe('MISSION_CATALOG (REQ-PLAY-401)', () => {
       'earth-view',
       'find-dwarf',
       'watch-star',
-    ]);
+    ]) {
+      expect(ids, `seed mission ${seed} was dropped`).toContain(seed);
+    }
   });
 
   it('gives every entry id/promptKo/predicate/sticker/emoji', () => {
@@ -80,8 +96,22 @@ describe('MISSION_CATALOG (REQ-PLAY-401)', () => {
 });
 
 describe('missionsForDate (REQ-PLAY-401, AC-PLAY-401)', () => {
-  it('returns three missions', () => {
-    expect(missionsForDate(DATE, MISSION_CATALOG)).toHaveLength(3);
+  it('returns a full day of missions', () => {
+    expect(missionsForDate(DATE, MISSION_CATALOG)).toHaveLength(MISSIONS_PER_DAY);
+  });
+
+  // The rotation is a per-date shuffle, so the catalog has to stay well above a
+  // single day's draw or consecutive days serve nearly the same set. 4 days of
+  // headroom is the floor: below that a child sees a repeat within the week.
+  it('keeps enough catalog behind the daily draw to avoid near-repeats', () => {
+    expect(MISSION_CATALOG.length).toBeGreaterThanOrEqual(MISSIONS_PER_DAY * 4);
+  });
+
+  it('draws a different set on consecutive days', () => {
+    const day1 = missionsForDate('2026-08-13', MISSION_CATALOG).map((m) => m.id);
+    const day2 = missionsForDate('2026-08-14', MISSION_CATALOG).map((m) => m.id);
+    const shared = day1.filter((id) => day2.includes(id));
+    expect(shared.length).toBeLessThan(MISSIONS_PER_DAY);
   });
 
   it('is identical across repeated calls for the same date', () => {
@@ -93,18 +123,28 @@ describe('missionsForDate (REQ-PLAY-401, AC-PLAY-401)', () => {
   it('is stable across process runs (frozen snapshot, no Math.random)', () => {
     // Regenerating this snapshot means the child's daily missions changed for
     // every past date — treat a diff here as a deliberate decision, not noise.
+    //
+    // It was regenerated once, deliberately: growing the catalog from 10 to 25
+    // and the daily draw from 3 to 5 re-rolls the shuffle for every date, past
+    // ones included. Already-earned stickers survive (the store keys them by
+    // sticker id, not by date), but a completion recorded against a mission that
+    // is no longer in that date's set simply stops being shown.
     expect(missionsForDate('2026-08-12', MISSION_CATALOG).map((m) => m.id)).toMatchInlineSnapshot(`
       [
         "find-dwarf",
-        "find-rings",
-        "find-biggest",
+        "watch-star",
+        "find-red",
+        "earth-home",
+        "find-kuiper-belt",
       ]
     `);
     expect(missionsForDate('2026-08-13', MISSION_CATALOG).map((m) => m.id)).toMatchInlineSnapshot(`
       [
-        "watch-star",
-        "find-red",
-        "compare-sun",
+        "rocket-any",
+        "find-titan",
+        "find-dwarf",
+        "compare-earth",
+        "find-kuiper-belt",
       ]
     `);
   });

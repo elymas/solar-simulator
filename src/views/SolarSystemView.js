@@ -423,6 +423,12 @@ export class SolarSystemView {
   _selectBelt(key, belt) {
     const { innerRadius, outerRadius } = belt.config;
     speakBody(this._ui.infoPanel.show(key, BELT_DATA[key]));
+    // Same contract as the planet path in _select: the belt IS a selectable body
+    // in the list and the strip, so selecting one has to reach the mission engine
+    // too. Without this a belt mission could never complete — the branch above
+    // returns before _select's own emit. Ordered after the narration for the same
+    // reason it is there: the praise must not talk over the body's fact.
+    emitPlayEvent('select', { body: key });
     this._ui.planetList.setActive(key);
     this._ui.planetStrip.setActive(key);
     this._ui.interaction.selectedPlanet = key;

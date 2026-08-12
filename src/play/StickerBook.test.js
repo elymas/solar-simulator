@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { StickerBook } from './StickerBook.js';
-import { MISSION_CATALOG, createMissionEngine, missionsForDate } from './missions.js';
+import { MISSION_CATALOG, MISSIONS_PER_DAY, createMissionEngine, missionsForDate } from './missions.js';
 import { createStickerStore, PLAY_STATE_KEY } from './stickers.js';
 import { STR } from '../ui/strings.js';
 
@@ -114,7 +114,10 @@ describe('sticker grid (REQ-PLAY-403, AC-PLAY-403)', () => {
   it('survives a reload: award, persist, re-open from fresh storage (round-trip)', () => {
     const storage = fakeStorage();
     const first = build({ storage });
-    first.engine.handleEvent({ type: 'select', body: 'saturn' });
+    // Derived from the day's rotation, not a hard-coded body: the catalog grows,
+    // and a fixed 'saturn' silently stops completing anything the day it drops
+    // out of this date's draw.
+    first.engine.handleEvent(eventFor(missionsForDate(DATE)[0]));
     first.book.dispose();
 
     expect(storage.map.has(PLAY_STATE_KEY)).toBe(true);
@@ -124,7 +127,7 @@ describe('sticker grid (REQ-PLAY-403, AC-PLAY-403)', () => {
     second.book.open();
 
     const earned = [...second.book.el.querySelectorAll('.sticker-tile:not(.sticker-tile--locked)')];
-    expect(earned.map((t) => t.dataset.sticker)).toEqual(['rings']);
+    expect(earned.map((t) => t.dataset.sticker)).toEqual([missionsForDate(DATE)[0].sticker]);
   });
 
   it('labels every tile in Korean, locked ones saying so', () => {
@@ -141,7 +144,7 @@ describe('sticker grid (REQ-PLAY-403, AC-PLAY-403)', () => {
 });
 
 describe('mission HUD (REQ-PLAY-401/403)', () => {
-  it("surfaces today's three missions by promptKo", () => {
+  it("surfaces today's missions by promptKo", () => {
     const { book } = build();
     book.open();
 
@@ -161,10 +164,10 @@ describe('mission HUD (REQ-PLAY-401/403)', () => {
     const done = book.el.querySelectorAll('.sticker-mission--done');
     expect(done).toHaveLength(1);
     expect(done[0].textContent).toContain(first.promptKo);
-    expect(book.el.querySelectorAll('.sticker-mission')).toHaveLength(3);
+    expect(book.el.querySelectorAll('.sticker-mission')).toHaveLength(MISSIONS_PER_DAY);
   });
 
-  it('shows the day-complete state only once all three are done', () => {
+  it('shows the day-complete state only once every mission is done', () => {
     const { book, engine } = build();
     const missions = missionsForDate(DATE);
 
@@ -181,12 +184,12 @@ describe('mission HUD (REQ-PLAY-401/403)', () => {
 
   it('badges the toggle with the day progress so the button is worth tapping', () => {
     const { book, engine } = build();
-    expect(book.toggleBtn.querySelector('.sticker-badge').textContent).toBe('0/3');
+    expect(book.toggleBtn.querySelector('.sticker-badge').textContent).toBe(`0/${MISSIONS_PER_DAY}`);
 
     engine.handleEvent(eventFor(missionsForDate(DATE)[0]));
     book.refresh();
 
-    expect(book.toggleBtn.querySelector('.sticker-badge').textContent).toBe('1/3');
+    expect(book.toggleBtn.querySelector('.sticker-badge').textContent).toBe(`1/${MISSIONS_PER_DAY}`);
   });
 
   it('re-reads the engine on every refresh, so a midnight rollover lands', () => {
