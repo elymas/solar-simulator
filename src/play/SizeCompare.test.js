@@ -6,9 +6,9 @@ import {
   SizeCompare,
   comparisonRows,
   canCompareSize,
-  LANE_WIDTH_PX,
   MAX_COUNT,
 } from './SizeCompare.js';
+import { layoutLineup, LANE_WIDTH } from './SizeCompareScene.js';
 import { PLANET_DATA, MOON_DATA, STAR_DATA } from '../planets/planetData.js';
 
 const moon = MOON_DATA.earth[0];
@@ -20,9 +20,10 @@ function build(opts = {}) {
   return { view, speak, emit };
 }
 
-/** Rendered px width of an element, read from the inline style the module sets. */
-function widthOf(el) {
-  return parseFloat(el.style.width);
+/** The lineup laid out for a body's first comparison row. */
+function lineupFor(key, data) {
+  const [row] = comparisonRows(key, data);
+  return { row, layout: layoutLineup(row.ratio, row.count) };
 }
 
 afterEach(() => {
@@ -123,37 +124,91 @@ describe('eligibility is data-driven (acceptance §3)', () => {
 });
 
 describe('rendered widths match the true ratio (AC-PLAY-102)', () => {
-  it('renders the small body at exactly 1/ratio of the big one', () => {
-    const { view } = build();
-    view.open('jupiter', PLANET_DATA.jupiter);
-
-    const big = view.el.querySelector('.sizecompare-big');
-    const unit = view.el.querySelector('.sizecompare-unit');
+  // The picture moved from DOM discs to an orthographic 3D lineup, so the width
+  // claim is asserted where it is now decided: in the layout maths the scene
+  // builds spheres from. Orthographic is what keeps this arithmetic equal to what
+  // reaches the screen — under perspective the near end of the row would be wider
+  // and none of these spans would hold.
+  it('sizes the small body at exactly 1/ratio of the big one', () => {
+    const { layout } = lineupFor('jupiter', PLANET_DATA.jupiter);
     const trueRatio = PLANET_DATA.jupiter.radius / PLANET_DATA.earth.radius;
 
-    expect(widthOf(big)).toBe(LANE_WIDTH_PX);
-    expect(Math.abs(widthOf(big) / widthOf(unit) / trueRatio - 1)).toBeLessThan(0.05);
+    expect(layout.bigRadius * 2).toBe(LANE_WIDTH);
+    expect(Math.abs(layout.bigRadius / layout.unitRadius / trueRatio - 1)).toBeLessThan(0.05);
   });
 
-  it('lays out exactly `count` unit discs, so the row IS the width claim', () => {
-    const { view } = build();
+  it('lays out exactly `count` units, so the row IS the width claim', () => {
+    const { row, layout } = lineupFor('sun', PLANET_DATA.sun);
+
+    expect(row.count).toBe(109);
+    expect(layout.unitCentersX).toHaveLength(109);
+    const spanned = layout.unitRadius * 2 * row.count;
+    expect(Math.abs(spanned / LANE_WIDTH - 1)).toBeLessThan(0.05);
+  });
+
+  it('lays the units edge to edge, with no gap to inflate the span', () => {
+    const { layout } = lineupFor('sun', PLANET_DATA.sun);
+    const step = layout.unitCentersX[1] - layout.unitCentersX[0];
+    expect(step).toBeCloseTo(layout.unitRadius * 2, 6);
+  });
+
+  it('draws a half count as a half-width unit, so the row still spans the claim', () => {
+    const { row, layout } = lineupFor('mercury', PLANET_DATA.mercury);
+
+    expect(row.count).toBe(2.5);
+    expect(layout.unitCentersX).toHaveLength(3); // 2개 반
+    expect(layout.halfUnit).toBe(true);
+    const spanned = layout.unitRadius * 2 * row.count;
+    expect(Math.abs(spanned / LANE_WIDTH - 1)).toBeLessThan(0.05);
+  });
+});
+
+describe('the 3D lineup replaces the discs without touching the main scene (REQ-PLAY-103)', () => {
+  it('gives every row one canvas and starts one scene per row', () => {
+    const scenes = [];
+    const { view } = build({
+      createScene: (opts) => {
+        const scene = { ...opts, shown: null, disposed: false,
+          show(row) { this.shown = row; }, resize() {}, dispose() { this.disposed = true; } };
+        scenes.push(scene);
+        return scene;
+      },
+    });
+
     view.open('sun', PLANET_DATA.sun);
 
-    const units = view.el.querySelectorAll('.sizecompare-unit');
-    expect(units).toHaveLength(109);
-    const spanned = [...units].reduce((sum, u) => sum + widthOf(u), 0);
-    expect(Math.abs(spanned / LANE_WIDTH_PX - 1)).toBeLessThan(0.05);
+    const canvases = view.el.querySelectorAll('.sizecompare-canvas');
+    expect(canvases).toHaveLength(view.rows.length);
+    expect(scenes).toHaveLength(view.rows.length);
+    expect(scenes[0].shown.count).toBe(109);
   });
 
-  it('draws a half count as a half-width disc, so the row still spans the claim', () => {
-    const { view } = build();
-    view.open('mercury', PLANET_DATA.mercury);
+  it('disposes every scene on close, so no GPU context outlives the overlay', () => {
+    const scenes = [];
+    const { view } = build({
+      createScene: () => {
+        const scene = { shown: null, disposed: false,
+          show(row) { this.shown = row; }, resize() {}, dispose() { this.disposed = true; } };
+        scenes.push(scene);
+        return scene;
+      },
+    });
 
-    const units = [...view.el.querySelectorAll('.sizecompare-unit')];
-    expect(units).toHaveLength(3); // 2개 반
-    expect(units.filter((u) => u.classList.contains('sizecompare-unit--half'))).toHaveLength(1);
-    const spanned = units.reduce((sum, u) => sum + widthOf(u), 0);
-    expect(Math.abs(spanned / LANE_WIDTH_PX - 1)).toBeLessThan(0.05);
+    view.open('sun', PLANET_DATA.sun);
+    view.close();
+
+    expect(scenes.length).toBeGreaterThan(0);
+    expect(scenes.every((s) => s.disposed)).toBe(true);
+  });
+
+  it('still shows the fact when the scene cannot start at all (no WebGL)', () => {
+    const { view, speak } = build({
+      createScene: () => { throw new Error('no webgl'); },
+    });
+
+    expect(view.open('sun', PLANET_DATA.sun)).toBe(true);
+    expect(view.el.querySelector('.sizecompare-fact').textContent).toContain('109');
+    expect(speak).toHaveBeenCalledTimes(1);
   });
 });
 

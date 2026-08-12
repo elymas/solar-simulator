@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { ViewManager, VIEW_STATES } from '../src/core/ViewManager.js';
 
 // --- stubs: views + render core + window, so no real WebGL context is needed ---
@@ -245,12 +245,33 @@ describe('single WebGL context static guard (REQ-385)', () => {
     }
   })(join(process.cwd(), 'src'));
 
-  it('constructs exactly one WebGLRenderer across the whole src tree', () => {
-    const count = srcFiles.reduce(
-      (n, f) => n + (readFileSync(f, 'utf8').match(/new THREE\.WebGLRenderer\(/g) || []).length,
-      0
-    );
+  // The rule REQ-385 actually protects is that the VIEWS share one render core:
+  // SolarSystemView owns it and lends it to EarthView, so switching views can
+  // never cost a second context or a context-loss race. A short-lived overlay that
+  // builds its own renderer and disposes it on close is a different thing, and the
+  // guard now says which files are allowed to be that — by name, so a new one has
+  // to be argued for here rather than appearing quietly.
+  const OVERLAY_RENDERERS = ['src/play/SizeCompareScene.js'];
+
+  it('constructs exactly one WebGLRenderer among the view/render-core files', () => {
+    const count = srcFiles
+      .filter((f) => !OVERLAY_RENDERERS.some((allowed) => f.endsWith(allowed.replace(/\//g, sep))))
+      .reduce(
+        (n, f) => n + (readFileSync(f, 'utf8').match(/new THREE\.WebGLRenderer\(/g) || []).length,
+        0
+      );
     expect(count).toBe(1);
+  });
+
+  it('makes every overlay renderer dispose itself, so none outlives its overlay', () => {
+    for (const allowed of OVERLAY_RENDERERS) {
+      const file = srcFiles.find((f) => f.endsWith(allowed.replace(/\//g, sep)));
+      expect(file, `${allowed} is allowlisted but missing`).toBeTruthy();
+      const source = readFileSync(file, 'utf8');
+      expect(source, `${allowed} must build a renderer to need the exemption`)
+        .toMatch(/new THREE\.WebGLRenderer\(/);
+      expect(source, `${allowed} must dispose its renderer`).toMatch(/renderer\.dispose\(\)/);
+    }
   });
 
   it('constructs exactly one EffectComposer across the whole src tree', () => {

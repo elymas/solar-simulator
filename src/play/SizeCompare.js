@@ -1,23 +1,28 @@
 // Size-comparison lineup (SPEC-PLAY-001 REQ-PLAY-101..104).
 //
-// 2D DOM, per the resolved plan.md §A.1 decision (Option B). There is no second
-// three.js scene and no extra render pass here on purpose: the count
-// representation — "지구 109개를 나란히 놓으면 태양 폭이에요!" drawn as 109 little
-// Earths spanning exactly one Sun-width — is what maps 1:1 to the spoken fact,
-// and it survives ratios a textured mini-scene would render sub-pixel.
+// The lineup is now DRAWN IN 3D (SizeCompareScene) inside a DOM overlay that
+// still owns the chrome: the backdrop, the spoken fact, the close button and the
+// accessible labels. The 2D disc row it replaces is described in git history.
 //
-// The row IS the width claim: the big body's disc is LANE_WIDTH_PX wide and each
-// unit disc is LANE_WIDTH_PX / ratio, so laying `count` of them side by side
-// spans the big disc. One geometry serves both REQ-PLAY-101 (count fact) and
-// REQ-PLAY-102 (true relative diameters).
+// What did NOT change is the claim being made. The row IS the width claim: the
+// big body spans LANE_WIDTH and each unit spans LANE_WIDTH / ratio, so laying
+// `count` of them side by side spans the big body exactly. That is why the scene
+// is orthographic — a perspective camera would widen the near end of the row and
+// the picture would stop matching the sentence. One geometry still serves both
+// REQ-PLAY-101 (count fact) and REQ-PLAY-102 (true relative diameters).
+//
+// REQ-PLAY-103 (opening this touches neither the main scene, the selection nor
+// the camera) used to hold because the class was all DOM. It now holds because
+// SizeCompareScene builds its OWN renderer/scene/camera and disposes them on
+// close — it never reaches for the shared render core.
 
 import { PLANET_DATA } from '../planets/planetData.js';
 import { STR } from '../ui/strings.js';
 import { speak as ttsSpeak } from '../audio/tts.js';
 import { emitPlayEvent } from './playEvents.js';
+import { SizeCompareScene, LANE_WIDTH } from './SizeCompareScene.js';
 
-/** Width of the big body's disc, and therefore of the whole unit row. */
-export const LANE_WIDTH_PX = 260;
+export { LANE_WIDTH };
 
 // @MX:NOTE: [AUTO] The countability budget, not a taste knob. At LANE_WIDTH_PX a
 // row of 120 discs is ~2.2 px each — already the floor of "a child can see there
@@ -131,12 +136,23 @@ export class SizeCompare {
    * @param {boolean} [opts.reducedMotion] - REQ-PLAY-104: instant layout.
    * @param {Document} [opts.doc]
    */
-  constructor({ speak = ttsSpeak, emit = emitPlayEvent, reducedMotion = false, doc = document } = {}) {
+  constructor({
+    speak = ttsSpeak,
+    emit = emitPlayEvent,
+    reducedMotion = false,
+    doc = document,
+    createScene = (opts) => new SizeCompareScene(opts),
+    win = typeof window !== 'undefined' ? window : null,
+  } = {}) {
     this.speak = speak;
     this.emit = emit;
     this.reducedMotion = Boolean(reducedMotion);
     this.doc = doc;
+    this._createScene = createScene;
+    this._win = win;
     this._open = false;
+    this._scenes = [];
+    this._canvases = [];
 
     injectStyles(doc);
     this._build();
@@ -144,6 +160,10 @@ export class SizeCompare {
       if (e.key === 'Escape' && this._open) this.close();
     };
     this.doc.addEventListener('keydown', this._onKeyDown);
+    // Rotating a phone changes the canvas box, and an orthographic frustum fitted
+    // to the old box would crop the lineup — the one thing this picture may not do.
+    this._onResize = () => { for (const scene of this._scenes) scene.resize(); };
+    if (this._win) this._win.addEventListener('resize', this._onResize);
   }
 
   get isOpen() {
@@ -160,9 +180,16 @@ export class SizeCompare {
     const rows = comparisonRows(key, data);
     if (!rows.length) return false;
 
+    this.rows = rows;
+    // Reset before rendering: _renderRow appends to this, and a second open()
+    // would otherwise hand _startScenes the previous opening's dead canvases.
+    this._canvases = [];
     this._panel.replaceChildren(this._closeBtn, ...rows.map((row) => this._renderRow(row)));
     this.doc.body.appendChild(this.el);
     this._open = true;
+    // Strictly after the overlay is in the document: the scene sizes its frustum
+    // from the canvas's laid-out box, which is 0x0 until then.
+    this._startScenes(rows);
 
     // The fact is spoken before the event so that, on the one body where opening
     // also completes a mission (compare-sun), the praise lands last and the
@@ -177,12 +204,45 @@ export class SizeCompare {
   close() {
     if (!this._open) return;
     this._open = false;
+    // Before the overlay leaves the DOM: disposing frees the GPU context, which
+    // is what puts the app back to a single live WebGL context between openings.
+    this._stopScenes();
     this.el.remove();
   }
 
   dispose() {
     this.close();
     this.doc.removeEventListener('keydown', this._onKeyDown);
+    if (this._win) this._win.removeEventListener('resize', this._onResize);
+  }
+
+  /**
+   * Build one 3D lineup per comparison row.
+   *
+   * A failure here must not cost the child the fact: the overlay's text, close
+   * button and speech are already live, so a scene that cannot start (no WebGL,
+   * a lost context, a headless test environment) is skipped and the panel stays
+   * usable as a text card.
+   * @param {Array} rows
+   */
+  _startScenes(rows) {
+    this._scenes = [];
+    for (let i = 0; i < rows.length; i += 1) {
+      const canvas = this._canvases[i];
+      if (!canvas) continue;
+      try {
+        const scene = this._createScene({ canvas, reducedMotion: this.reducedMotion });
+        scene.show(rows[i]);
+        this._scenes.push(scene);
+      } catch {
+        // Leave the row as its text; nothing else in the overlay depends on it.
+      }
+    }
+  }
+
+  _stopScenes() {
+    for (const scene of this._scenes) scene.dispose();
+    this._scenes = [];
   }
 
   _build() {
@@ -211,7 +271,7 @@ export class SizeCompare {
     this.el.appendChild(this._panel);
   }
 
-  _renderRow({ big, small, ratio, count, factKo }) {
+  _renderRow({ big, small, count, factKo }) {
     const doc = this.doc;
     const row = doc.createElement('div');
     row.className = 'sizecompare-row';
@@ -220,46 +280,26 @@ export class SizeCompare {
     fact.className = 'sizecompare-fact';
     fact.textContent = factKo;
 
-    row.append(fact, this._renderLane(big, LANE_WIDTH_PX, 'sizecompare-big'));
+    const canvas = doc.createElement('canvas');
+    canvas.className = 'sizecompare-canvas';
+    // The picture is decorative: everything it says is in the fact above it and
+    // in the names below, both of which a screen reader already reads.
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.dataset.big = big.key;
+    canvas.dataset.small = small.key;
+    canvas.dataset.count = String(count);
+    this._canvases.push(canvas);
 
-    // Unit discs carry the count; the name beside them is the accessible label,
-    // so the strip itself is decorative.
-    const units = doc.createElement('div');
-    units.className = 'sizecompare-units';
-    const unitWidth = LANE_WIDTH_PX / ratio;
-    for (let i = 0; i < Math.floor(count); i += 1) {
-      units.appendChild(disc(doc, small, unitWidth, 'sizecompare-unit'));
-    }
-    if (count % 1) {
-      // A literal half body: half the width, full height, sliced by CSS.
-      units.appendChild(
-        disc(doc, small, unitWidth / 2, 'sizecompare-unit sizecompare-unit--half', unitWidth)
-      );
-    }
-    const lane = doc.createElement('div');
-    lane.className = 'sizecompare-lane';
-    lane.append(units, name(doc, small.nameKo));
-    row.appendChild(lane);
+    // Names stay in the DOM rather than becoming 3D labels: they are the
+    // accessible reading of the picture, and text in a canvas is invisible to
+    // assistive tech (REQ-KIDS-105).
+    const legend = doc.createElement('div');
+    legend.className = 'sizecompare-legend';
+    legend.append(name(doc, big.nameKo), name(doc, small.nameKo));
 
+    row.append(fact, canvas, legend);
     return row;
   }
-
-  _renderLane(body, width, extraClass) {
-    const lane = this.doc.createElement('div');
-    lane.className = 'sizecompare-lane';
-    lane.append(disc(this.doc, body, width, extraClass), name(this.doc, body.nameKo));
-    return lane;
-  }
-}
-
-function disc(doc, body, width, extraClass, height = width) {
-  const el = doc.createElement('span');
-  el.className = `sizecompare-disc ${extraClass}`;
-  el.dataset.body = body.key;
-  el.style.width = `${width}px`;
-  el.style.height = `${height}px`;
-  el.style.background = body.color;
-  return el;
 }
 
 function name(doc, text) {
@@ -300,7 +340,11 @@ function injectStyles(doc) {
     }
     .sizecompare-panel {
       position: relative;
-      max-width: 340px;
+      /* Wide enough for the unit row to be countable. The Sun lineup lays 109
+         Earths across this width; at the old 340px each was ~3px and the row read
+         as a dotted line. This is the same "countability budget" MAX_COUNT is
+         chosen against — the two have to agree or the cap stops meaning anything. */
+      max-width: 720px;
       width: 100%;
       background: rgba(26, 26, 46, 0.95);
       border: 1px solid rgba(22, 199, 255, 0.2);
@@ -335,32 +379,26 @@ function injectStyles(doc) {
       color: #16c7ff;
       margin: 0 0 20px 0;
     }
-    .sizecompare-lane {
+    /* The lineup's own aspect is wide-and-short (one body plus a row beside it),
+       so the canvas is given a wide box and the orthographic frustum fits itself
+       to whatever that box actually measures. */
+    .sizecompare-canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: 40vh;
+      touch-action: none;
+    }
+    .sizecompare-legend {
       display: flex;
-      align-items: center;
+      justify-content: space-between;
       gap: 10px;
-      margin-bottom: 14px;
+      margin-top: 10px;
     }
     .sizecompare-name {
       font-size: 15px;
       color: #b0b0b0;
       flex-shrink: 0;
-    }
-    .sizecompare-disc {
-      border-radius: 50%;
-      flex-shrink: 0;
-      display: inline-block;
-    }
-    .sizecompare-unit--half {
-      border-radius: 50% 0 0 50%;
-    }
-    /* No gap: the unit discs laid edge to edge span exactly one big disc,
-       which is the "나란히 놓으면 ... 폭이에요" claim made literal. */
-    .sizecompare-units {
-      display: flex;
-      flex-wrap: nowrap;
-      align-items: center;
-      max-width: ${LANE_WIDTH_PX}px;
     }
   `;
   doc.head.appendChild(style);
