@@ -323,6 +323,56 @@ export const PLANET_DATA = {
     moons: 1,
     discoveryYear: 2005,
   },
+  // Halley's Comet (SPEC-EVENTS-001 REQ-EVT-101). The only comet in the sim.
+  //
+  // It lives in PLANET_DATA rather than its own export because it is a
+  // Keplerian orbiter like everything else here: PlanetFactory's create /
+  // orbit-line / per-frame-position loops all read this map, so the whole mount
+  // is free. STAR_DATA is separate precisely because stars are NOT orbiters
+  // (azimuth/elevation placement, no period). category:'comet' marks it for the
+  // UI the same way category:'dwarf' marks the five above.
+  //
+  // DISPLAY SCALING — two numbers are scaled, both deliberately:
+  //
+  //   a: real 17.8 AU -> 700 display units, putting it on the same symbolic
+  //      scale as every other body here (Mercury 80 ... Eris 1150). The real
+  //      eccentricity is kept, so the shape falls out of it: perihelion
+  //      q = a(1-e) = 23.1 dives well inside Mercury's 80, qualitatively
+  //      matching real Halley's sub-Venus perihelion, and aphelion
+  //      Q = a(1+e) = 1376.9 reaches beyond Eris's 1150, matching its real
+  //      beyond-Neptune aphelion. That dive and retreat is the whole reason to
+  //      draw this body.
+  //
+  //   T: real 76 years -> 7.6 simulation years (2775.9 days). Every other body
+  //      keeps its real period; Halley alone is divided by 10, because at the
+  //      real period a child never sees a perihelion pass at kid-typical
+  //      simulation speeds — the pass would be off-screen behind hours of
+  //      waiting. The cost is that Halley's phase relative to the planets is
+  //      not physical. Accepted: the dive is the lesson, the phase is not.
+  halley: {
+    name: "Halley's Comet",
+    nameKo: '핼리 혜성',
+    emoji: '☄️',
+    category: 'comet',
+    radius: 5.5,
+    displayRadius: 2,
+    distance: 17.8,
+    distanceDisplay: 700,
+    orbitalPeriod: 2775.9,
+    rotationPeriod: 52.8,
+    axialTilt: 0,
+    eccentricity: 0.967,
+    inclination: 162.3,
+    // Orbit-line resolution override. generateOrbitPath samples uniformly in
+    // true anomaly, which at e=0.967 puts its widest chords at the aphelion
+    // apex — exactly where the ellipse is sharpest (curvature radius
+    // a(1-e^2) = 45 units). The shared 128 default cuts that tip flat by ~10
+    // display units, five nucleus diameters of visible facet; 512 brings it
+    // under 1 unit and is still one LineLoop draw call. Comet-only: no other
+    // body is eccentric enough to need it.
+    orbitSegments: 512,
+    color: 0xcfe6f0,
+  },
 };
 
 export const MOON_DATA = {

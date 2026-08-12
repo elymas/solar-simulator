@@ -294,7 +294,10 @@ export class PlanetFactory {
 
     for (const key of planetKeys) {
       const data = PLANET_DATA[key];
-      const positions = OrbitalMechanics.generateOrbitPath(data, 128);
+      // orbitSegments lets one body opt out of the shared 128 default; only
+      // Halley needs it (see planetData.js), and raising the default for
+      // everyone would cost 40 orbit lines their cheapness for nothing.
+      const positions = OrbitalMechanics.generateOrbitPath(data, data.orbitSegments ?? 128);
 
       if (positions.length === 0) continue;
 
