@@ -78,7 +78,6 @@ describe('solar degradation ladder sheds belts first (REQ-EVT-204)', () => {
   });
 
   it('leaves the Earth ladder alone — that view has no belts to shed', () => {
-    expect(EARTH_DEGRADE_STEPS).toEqual(['aurora', 'bloom', 'lod', 'pixelRatio']);
     expect(EARTH_DEGRADE_STEPS).not.toContain('belts');
   });
 
@@ -119,5 +118,23 @@ describe('solar degradation ladder sheds belts first (REQ-EVT-204)', () => {
       'restore:bloom',
       'restore:belts',
     ]);
+  });
+});
+
+describe('EARTH_DEGRADE_STEPS — meteors join the ladder after aurora (REQ-E3-106)', () => {
+  it('is the 5-step ladder: aurora, meteors, bloom, lod, pixelRatio', () => {
+    expect(EARTH_DEGRADE_STEPS).toEqual(['aurora', 'meteors', 'bloom', 'lod', 'pixelRatio']);
+  });
+
+  it('sheds aurora, then meteors, then bloom in that order under sustained over-budget frames', () => {
+    const budgetMs = 1000 / 60;
+    const over = () => budgetMs + 5;
+    const d = new FrameBudgetDegrader({ budgetMs, overBudgetFrames: 30, steps: EARTH_DEGRADE_STEPS });
+    for (let i = 0; i < 29; i++) expect(d.record(over())).toBeNull();
+    expect(d.record(over())).toBe('aurora');
+    for (let i = 0; i < 29; i++) expect(d.record(over())).toBeNull();
+    expect(d.record(over())).toBe('meteors');
+    for (let i = 0; i < 29; i++) expect(d.record(over())).toBeNull();
+    expect(d.record(over())).toBe('bloom');
   });
 });

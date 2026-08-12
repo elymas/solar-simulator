@@ -200,6 +200,9 @@ export class SceneManager {
     // Set by ViewManager while the Earth view is active so the aurora sheds first
     // (SPEC-EARTH-002 REQ-650). Null in the solar view.
     this.onAuroraShed = null;
+    // Same pattern for the meteor shower streak pool, one step after aurora in
+    // the Earth ladder (SPEC-EARTH-003 REQ-E3-106). Null in the solar view.
+    this.onMeteorsShed = null;
 
     // Set by SolarSystemView, which owns the belts, so the first solar shed step
     // thins them out (SPEC-EVENTS-001 REQ-EVT-204). Unlike the aurora hook this
@@ -232,6 +235,14 @@ export class SceneManager {
         break;
       case 'restore:aurora':
         if (this.onAuroraShed) this.onAuroraShed(false);
+        break;
+      case 'meteors':
+        // Earth-view-only step, right after aurora (REQ-E3-106). SceneManager
+        // stays agnostic — EarthView owns the effect and registers this callback.
+        if (this.onMeteorsShed) this.onMeteorsShed(true);
+        break;
+      case 'restore:meteors':
+        if (this.onMeteorsShed) this.onMeteorsShed(false);
         break;
       case 'belts':
         // Solar-view-only step: the scenery belts thin out first (REQ-EVT-204).

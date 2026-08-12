@@ -6,7 +6,7 @@ const over = () => budgetMs + 5;
 
 describe('EARTH_DEGRADE_STEPS — aurora sheds FIRST (REQ-650, AC-AURORA-02)', () => {
   it('places aurora before bloom, then keeps the SIM-001 ladder order', () => {
-    expect(EARTH_DEGRADE_STEPS).toEqual(['aurora', 'bloom', 'lod', 'pixelRatio']);
+    expect(EARTH_DEGRADE_STEPS).toEqual(['aurora', 'meteors', 'bloom', 'lod', 'pixelRatio']);
     expect(EARTH_DEGRADE_STEPS.indexOf('aurora')).toBeLessThan(EARTH_DEGRADE_STEPS.indexOf('bloom'));
   });
 
@@ -23,7 +23,7 @@ describe('EARTH_DEGRADE_STEPS — aurora sheds FIRST (REQ-650, AC-AURORA-02)', (
     for (let i = 0; i < 29; i++) expect(d.record(over())).toBeNull();
     expect(d.record(over())).toBe('aurora');
     for (let i = 0; i < 29; i++) expect(d.record(over())).toBeNull();
-    expect(d.record(over())).toBe('bloom');
+    expect(d.record(over())).toBe('meteors');
   });
 
   it('setSteps swaps the ladder at runtime and resets the level (view switch)', () => {

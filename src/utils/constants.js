@@ -112,8 +112,8 @@ export const SIM_EPOCH_MS = Date.parse(SIM_EPOCH_ISO);
 // and cap both the query radius and the rendered instance count defensively.
 export const FLIGHT_DEFAULTS = {
   baseUrl: 'https://api.airplanes.live/v2/point',
-  lat: 51.5, // London — a dense, always-populated region for a live demo
-  lon: -0.1,
+  lat: 37.5, // Seoul/Incheon — the primary user's home sky; ICN/GMP corridor is among Asia's densest
+  lon: 126.9,
   radiusNm: 250,
   pollIntervalMs: 12000, // within the SPEC's 10-15s window
   backoffStartMs: 30000, // exponential backoff floor (REQ-470)
@@ -128,6 +128,35 @@ export const AURORA_DEFAULTS = {
   axialTiltDeg: 23.44, // matches EarthRig's tilt so the oval aligns with the lit hemisphere
   curtainSegments: 96,
   height: 22,
+};
+
+// F11 ISS marker tuning (SPEC-EARTH-003 REQ-E3-201). Symbolic circular orbit
+// only — no TLE/live tracking (REQ-E3-204, A-405). altitudeOffset is chosen to
+// sit clearly above the aircraft altitude band (FLIGHT_DEFAULTS.altitudeScale
+// puts cruise aircraft at ~3-4.5 units above the surface) so the two layers
+// never visually collide.
+export const ISS_DEFAULTS = {
+  orbitalPeriodMinutes: 92, // one full lap in SIMULATION minutes (REQ-E3-201)
+  inclinationDeg: 51.6, // real ISS orbital inclination
+  altitudeOffset: 15, // earth-local units above earthRadius
+};
+
+// F8 meteor shower streak-pool tuning (SPEC-EARTH-003 REQ-E3-103/106). Budget
+// rationale: a fixed pre-allocated pool bounds worst-case per-frame line updates
+// to a small constant regardless of shower intensity (mirrors AURORA_DEFAULTS'
+// fixed-budget stance); the constrained tier boots at half the pool size
+// (SPEC-MOBILE-001, AC-E3-106). altitude/length/speed are visual calibration
+// knobs for a decorative night-side streak, not physical meteor scale.
+export const METEOR_DEFAULTS = {
+  poolSizeFull: 12,
+  poolSizeConstrained: 6,
+  baseSpawnRate: 3, // max streaks/sec at intensity 1.0 (shower peak date)
+  lifetimeMinSec: 0.5,
+  lifetimeMaxSec: 0.8,
+  altitudeMin: 30, // earth-local units above earthRadius — night-side upper dome band
+  altitudeMax: 55,
+  length: 12, // streak length, earth-local units
+  speed: 80, // earth-local units/sec, head travel speed
 };
 
 export const BLOOM_DEFAULTS = {

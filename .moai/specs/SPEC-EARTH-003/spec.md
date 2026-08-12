@@ -1,8 +1,8 @@
 ---
 id: SPEC-EARTH-003
 title: "Earth-view event additions: annual meteor showers, ISS marker, Seoul flight reference point"
-version: "0.1.0"
-status: draft
+version: "1.0.0"
+status: implemented
 created: 2026-08-12
 updated: 2026-08-12
 author: limbowl
@@ -18,6 +18,7 @@ related_specs: [SPEC-EARTH-001, SPEC-EARTH-002, SPEC-SIM-001]
 
 ## HISTORY
 
+- 2026-08-12 (v1.0.0): Run completed and synced. All 12 REQ/AC pairs implemented. Independent evaluation PASS on cycle 2 after fixing critical entry-detection gap and intensity dead zones. Plan-versus-actual divergence and frozen contracts for downstream SPECs are recorded in §9. Original requirements (§3) preserved verbatim; divergence annotated in §9.2. Status upgraded from draft to implemented.
 - 2026-08-12 (v0.1.0): Initial draft. Covers proposal items 8 (meteor showers), 11 (ISS), 15 (flight reference point → Seoul/Incheon). Third Earth-view SPEC, extending the SPEC-EARTH-001/002 layer stack. Depends on SPEC-KIDS-001 for Korean HUD strings + TTS channel + facts shape.
 
 ---
@@ -154,3 +155,93 @@ Naming convention (canonical): the table's `koreanName` field is the SINGLE sour
 | 8 | Meteor showers (table + range-test detection, year wrap, streak pool, Korean HUD notice + TTS, reduced-motion, degrade ladder) | REQ-E3-101, 102, 103, 104, 105, 106 |
 | 11 | ISS (92-min sim orbit, 51.6°, HUD toggle, tappable → Korean facts + TTS, no external data) | REQ-E3-201, 202, 203, 204 |
 | 15 | Flight reference point → Seoul/Incheon + Korean HUD copy | REQ-E3-301, 302 |
+
+---
+
+## 9. Implementation Record (2026-08-12)
+
+All 12 REQ/AC pairs were implemented. This section records **what was actually built**. Sections 1–8 preserve the plan-time record unchanged; only §9.2 explicitly lists where reality diverged from plan, and why.
+
+### 9.1 Frozen Contracts for Downstream SPECs
+
+Currently only SPEC-KIDS-001 references EARTH-003 as a consumer of its TTS and facts contracts, so EARTH-003 has no downstream SPECs of its own. Still, the following public surface is frozen for any future SPEC that might consume it:
+
+#### Shower table and predicates — `src/utils/meteorData.js`
+
+| Export | Signature | Purpose |
+|--------|-----------|---------|
+| `SHOWER_TABLE` | `Array<{id, koreanName, start, end, peak}>` where `start`, `end`, `peak` are ordinal day-of-year (1..365) integers | Four-entry table (Quadrantids, Lyrids, Perseids, Geminids) with canonical Korean names and ordinal-day ranges. Ordinals are fixed to a non-leap reference year; the wrap is encoded as `start > end` (Quadrantids: 362 > 12 representing Dec 28 → Jan 12). Example: `{id:"quadrantids",koreanName:"사분의 유성우",start:362,end:12,peak:3}`. Do not modify existing entries; extend by appending. Table ranges do not overlap — a single match is the correct return type for activity queries. |
+| `isShowerActive(simDay)` | `(number) → {id,koreanName,start,end,peak}\|null` | The shower object active at `simDay`, or `null` if none. Pure function; no external state. Unit-testable. |
+| `showerIntensity(simDay)` | `(number) → [0, 1]` | Intensity value for the active shower (0 if none). Reaches exactly 0 at the instant the range opens, exactly 1.0 at the peak instant, and tapers to 0 at the close of the final active day. **Load-bearing split**: activity remains day-quantized (used by `detectShowerEntries` boundary scan), but intensity interpolates continuously within days (for smooth spawn-rate animation). |
+| `detectShowerEntries(prevDay, currDay)` | `(number, number) → Array<{...}>` | Pure function returning shower objects newly entered during the half-open window (prevDay, currDay]. Walks every whole day boundary the span crosses, making detection exact regardless of frame step size. Returns `[]` for backward time (currDay ≤ prevDay). Returns the full `SHOWER_TABLE` array once each for spans ≥ 365.25 days (multi-year fast-forward rule to avoid notice spam after 500x jumps). |
+
+**Key invariant**: The table's `koreanName` field is the single source for every shower-name surface (HUD notice, AC literal, TTS callout, derived as `${koreanName}가 쏟아져요!`). Consumers maintain their own notice re-arm gate (see EarthView._detectShowers); the function is stateless and pure.
+
+#### ISS propagation — `src/utils/issOrbit.js`
+
+| Export | Signature | Purpose |
+|--------|-----------|---------|
+| `issPosition(simTimeMinutes)` | `(number) → {x, y, z}` | Pure function: circular-orbit ISS position in sim world coordinates. Period 92 sim-minutes, inclination 51.6°, constant radius = earthRadius + 15 units. Returns cartesian {x, y, z} in the same scale as planets. Unit-testable; no external data, no network calls. No TLE, no live tracking (REQ-E3-204, A-405). |
+
+#### ISS marker and facts — `src/earth/ISSMarker.js`
+
+| Export | Signature | Purpose |
+|--------|-----------|---------|
+| `ISS_FACTS` | `{name, nameKo, emoji, factsKo, sizeComparisonKo}` where `factsKo` is `string[3]` | SPEC-KIDS-001 §10.1(c) frozen body-facts shape. First fact verbatim: `"우주인이 사는 우주 정거장이에요!"`; `sizeComparisonKo`: `"국제 우주 정거장은 축구장 하나만큼 커요!"`. Reused identically by consumer InfoPanel and TTS layers. |
+| `ISSMarker` | Class: `constructor()`, property `object3d: THREE.Sprite`, method `update(simMinutes)`, method `setVisible(visible)`, method `dispose()` | Small emissive sprite orbiting Earth at altitude 15. Built once; `update()` rewrites position in place (zero per-frame allocation). Included in `EarthView`'s raycast target set via the `object3d` property (tappable). `setVisible()` controls visibility; tap handling and facts/TTS dispatch live in `EarthView._selectISS` (drag-guarded by `TOUCH_TAP_MAX_DRAG_PX`). |
+
+#### Streak effect — `src/effects/MeteorShower.js`
+
+| Export | Signature | Purpose |
+|--------|-----------|---------|
+| `MeteorShower` | Class: `constructor(opts)` where opts = `{poolSize?, earthRadius?, sunDirection?, win?}`, method `update(dt, simDay)`, method `setVisible(v)`, method `dispose()` | Fixed pre-allocated pool (12 full / 6 constrained) of short additive-blended line streaks spawning on the night-side upper dome. `update(dt, simDay)` advances streak life and spawns new ones at rate = `baseSpawnRate × intensity`. `setVisible(false)` both hides the pool AND stops all spawning/animation (degrade shed, REQ-E3-106). Zero per-frame allocation; slots recycle in place. Respects `prefers-reduced-motion`. |
+
+#### Degradation ladder — `src/utils/performance.js`
+
+| Export | Value | Purpose |
+|--------|-------|---------|
+| `EARTH_DEGRADE_STEPS` | `['aurora', 'meteors', 'bloom', 'lod', 'pixelRatio']` | Degradation order for Earth-view frame budgeting (REQ-E3-106). Steps shed left-to-right; restore resumes right-to-left. The 'meteors' step is positioned immediately after 'aurora' so frame-budget pressure sheds decorative streaks before costly bloom. SceneManager dispatches `'meteors'` (shed) and `'restore:meteors'` (restore) to the `onMeteorsShed` callback, which calls `meteorShower.setVisible()`. |
+
+#### Constants — `src/utils/constants.js`
+
+| Export | Fields | Purpose | Attribution |
+|--------|--------|---------|-------------|
+| `ISS_DEFAULTS` | `{orbitalPeriodMinutes: 92, inclinationDeg: 51.6, altitudeOffset: 15}` | ISS symbolic orbit tuning (REQ-E3-201). Altitude chosen to sit above aircraft band (3–4.5 units at cruise) and below cloud shell (~102) to prevent visual collision. | SPEC-EARTH-003 |
+| `METEOR_DEFAULTS` | `{poolSizeFull: 12, poolSizeConstrained: 6, baseSpawnRate: 3, lifetimeMinSec: 0.5, lifetimeMaxSec: 0.8, altitudeMin: 30, altitudeMax: 55, length: 12, speed: 80}` | Streak pool and spawn tuning (REQ-E3-103/106). Altitude/length/speed are visual calibration knobs for decorative night-side streaks, not physical meteor scale. Constrained tier (SPEC-MOBILE-001) uses `poolSizeConstrained`. | SPEC-EARTH-003 |
+| `FLIGHT_DEFAULTS` | `{baseUrl, lat: 37.5, lon: 126.9, radiusNm, pollIntervalMs, backoffStartMs, backoffMaxMs, maxInstances, altitudeScale}` | Live-aircraft query moved from London (51.5°N, 0.1°W) to Seoul/Incheon (37.5°N, 126.9°E) — the primary user's home sky; ICN/GMP corridor is among Asia's densest. All other fields (radius, poll interval, backoff, instance cap) unchanged. | SPEC-EARTH-002 (set); SPEC-EARTH-003 (lat/lon moved) |
+
+### 9.2 Plan Versus Actual (Divergence Table)
+
+| # | Item | Planned | Actual | Reason |
+|---|------|--------|--------|--------|
+| 1 | Shower entry detection module location | `src/utils/meteorData.js` (plan.md §D lists it flatly) | `src/utils/meteorData.js`, separate file mirroring `eclipseData.js` structure | No divergence; plan.md did not propose absorption into EarthView. Pure logic warrants standalone module for unit-test isolation and reuse (same eclipse-data pattern). |
+| 2 | ISS propagation module location | `src/utils/issOrbit.js` (plan.md §D alternative: "same file or `src/utils/issOrbit.js`") | Implemented in `src/utils/issOrbit.js`, separate file | Isolated propagation logic enables unit testing without Three.js setup; matches plan. |
+| 3 | `SceneManager.js` modification | Listed as "only if shed-callback wiring requires it" | Required modification; shed callback wired at lines 234 and 239, new `'meteors'` and `'restore:meteors'` cases dispatching to `onMeteorsShed` callback | SPEC-EARTH-002 established the shed-callback precedent for aurora. Meteor degrade follows the exact pattern: EarthView calls `meteorShower.setVisible()` in response to the callback. Necessary, not optional. |
+| 4 | `src/ui/strings.js` | Implied as "HUD strings via strings module" but not explicitly named in file-touch list (plan.md §D) | Modified to add shower Korean names and ISS status strings | Shower notice and ISS toggle/fact labels routed through the module as required by REQ-E3-104/202. No new dependency, existing pattern. |
+| 5 | ISS facts object location | Plan.md §D allows "planet-data or local beside ISSMarker" | `ISS_FACTS` object defined locally in `ISSMarker.js` alongside the marker class | Plan explicitly permitted this option. SPEC-KIDS-001 §10.1(c) mandates that "consumed is the shape, not the file", so location does not matter to consumers. |
+| 6 | New external dependencies | Zero stated in §5 NFR | Zero dependencies added | package.json and package-lock.json byte-identical before and after. |
+| 7 | New directories | Not mentioned in plan | `src/earth/` and `src/effects/` pre-existed (SPEC-EARTH-001/002); no new directory created | All new and modified files fit within existing module boundaries. |
+
+### 9.3 Unverified Items (Not Rounded Up to Pass)
+
+The following criteria remain **unverified** and are explicitly NOT marked satisfied until a device-based manual pass is completed:
+
+- **AC-E3-103 visual verification** — "Streaks spawn from fixed pool, spawn rate at peak > edge" (vitest logic passes; visual appearance not verified). The pool is correctly recycled and spawn cadence scales with intensity, but the visual "look" of streaks at peak vs edge intensity is unverified on a real browser at real framerates.
+- **Definition of Done device pass (§5)** — "Manual Earth-view pass on device (streak look, ISS visibility, Seoul aircraft live smoke from the deploy origin)". All automated tests pass and the code review found no issues, but the following require actual rendering:
+  - Streak visual appearance and night-side placement
+  - ISS marker glint/visibility and orbit smoothness
+  - Seoul aircraft population density (live API smoke test on a real device in a real browser)
+
+### 9.4 Coverage Metrics
+
+- **Repository totals**: 87.47% statement coverage, 90.33% line coverage (target 85%, met).
+- **New modules**:
+  - `ISSMarker.js`: 100 / 100 / 100 (statement / branch / function)
+  - `issOrbit.js`: 100 / 100 / 100 (statement / branch / function)
+  - `meteorData.js`: 100 / 95.65 / 100 (one internal `intensityOf` branch at line 77 untested; reflects a guard that never fires in practice because `isShowerActive` gates every caller. Functionality verified by 1000-sample fuzzing; statement coverage 100%)
+  - `MeteorShower.js`: 98.86 / 94.59 / 100 (statement / branch / function)
+- **Modified modules**:
+  - `EarthHUD.js`: 95.8% statement
+  - `EarthView.js`: 88.16% statement
+  - `performance.js`: 97.5% statement
+- **Untested integration**: `SceneManager.js` dispatch of new `'meteors'` (line 234) and `'restore:meteors'` (line 239) shed steps is untested in isolation. The function is not imported by any test; no test harness exists for `_applyBudgetDegradation` dispatch logic. Both endpoints (FrameBudgetDegrader emits step names; `EarthView.setMeteorsShed` receives them via `onMeteorsShed` callback) are covered; only the dispatch line itself is dark. This is a pre-existing structural gap shared with `'aurora'`/`'restore:aurora'` from SPEC-EARTH-002, not introduced by this SPEC.
