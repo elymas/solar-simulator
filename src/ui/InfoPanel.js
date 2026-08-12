@@ -1,5 +1,6 @@
 import { MOON_DATA, STAR_DATA } from '../planets/planetData.js';
 import { speakBody, isAvailable } from '../audio/tts.js';
+import { canCompareSize } from '../play/SizeCompare.js';
 import { STR, formatKoUnit } from './strings.js';
 
 /**
@@ -27,6 +28,14 @@ export class InfoPanel {
     this.isOpen = false;
     this.onClose = null;
     this.body = null; // resolved data of the body on screen, for the replay button
+    this.bodyKey = null;
+    // Play-layer entry points (SPEC-PLAY-001). The rocket rule is INJECTED rather
+    // than derived here: SolarSystemView.canLaunchRocket is the one eligibility
+    // table (travelFacts -> RocketJourney), and a second copy would be a second
+    // answer to "can I fly there". Absent a wired view, the button stays hidden.
+    this.onCompare = null;
+    this.onRocket = null;
+    this.canLaunch = () => false;
     this._injectStyles();
     this._createDOM();
   }
@@ -117,6 +126,31 @@ export class InfoPanel {
         padding: 8px 16px;
         margin-bottom: 18px;
       }
+      /* Play entry points (SPEC-PLAY-001 REQ-PLAY-101/201), same idiom as the
+         replay button one row below them. */
+      .kid-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+      .kid-action {
+        flex: 1 1 auto;
+        /* Kid-sized hit area, Apple HIG 44pt floor (SPEC-MOBILE-001 REQ-MOB-105). */
+        min-width: 44px;
+        min-height: 44px;
+        font-family: inherit;
+        font-size: 18px;
+        background: rgba(22, 199, 255, 0.15);
+        border: 1px solid rgba(22, 199, 255, 0.4);
+        border-radius: 12px;
+        color: #16c7ff;
+        cursor: pointer;
+        padding: 10px 14px;
+      }
+      .kid-action[hidden] {
+        display: none;
+      }
       .kid-details-toggle {
         display: block;
         width: 100%;
@@ -170,6 +204,10 @@ export class InfoPanel {
       <h3 class="planet-name"></h3>
       <ul class="kid-facts"></ul>
       <p class="kid-size"></p>
+      <div class="kid-actions">
+        <button class="kid-action kid-compare" hidden>${STR.playCompare}</button>
+        <button class="kid-action kid-rocket" hidden>${STR.playRocket}</button>
+      </div>
       <button class="kid-replay" aria-label="${STR.infoReplay}">&#128266;</button>
       <button class="kid-details-toggle">${STR.infoDetailsToggle}</button>
       <div class="info-details" hidden>
@@ -200,6 +238,15 @@ export class InfoPanel {
     // Replay runs from a real tap, so it keeps satisfying the iOS gesture rule.
     this.el.querySelector('.kid-replay').addEventListener('click', () => {
       if (this.body) speakBody(this.body);
+    });
+
+    // Both play buttons are real taps too, which is what lets the view unlock
+    // audio and start speech from inside their handlers (spec A-502).
+    this.el.querySelector('.kid-compare').addEventListener('click', () => {
+      if (this.onCompare) this.onCompare(this.bodyKey, this.body);
+    });
+    this.el.querySelector('.kid-rocket').addEventListener('click', () => {
+      if (this.onRocket) this.onRocket(this.bodyKey);
     });
 
     document.body.appendChild(this.el);
@@ -265,6 +312,7 @@ export class InfoPanel {
     const gridEl = this.el.querySelector('.info-grid');
 
     this.body = data;
+    this.bodyKey = planetKey;
     nameEl.textContent = data.name || planetKey;
     nameKoEl.textContent = data.nameKo || '';
     this._renderKidView(data);
@@ -358,6 +406,18 @@ export class InfoPanel {
     this.el.querySelector('.info-details').hidden = facts.length > 0;
     // No speech engine: no 🔊 affordance at all (REQ-KIDS-206).
     this.el.querySelector('.kid-replay').hidden = !isAvailable();
+
+    // Both entry points are offered only where they lead somewhere: a body with
+    // no countable lineup, and a destination the rocket refuses (Earth itself,
+    // the Sun, stars — REQ-PLAY-201) show no button at all rather than a dead one.
+    const nameKo = data.nameKo || data.name || this.bodyKey;
+    const compare = this.el.querySelector('.kid-compare');
+    compare.hidden = !canCompareSize(this.bodyKey, data);
+    compare.setAttribute('aria-label', STR.playCompareLabel(nameKo));
+
+    const rocket = this.el.querySelector('.kid-rocket');
+    rocket.hidden = !this.canLaunch(this.bodyKey);
+    rocket.setAttribute('aria-label', STR.playRocketLabel(nameKo));
   }
 
   /**

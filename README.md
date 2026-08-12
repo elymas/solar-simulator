@@ -24,6 +24,10 @@ An interactive 3D simulation of the solar system built with Three.js, featuring 
 - **Responsive Design** — Works on desktop and mobile; render quality is decided from device signals (pixel ratio, core count, memory), not a blanket mobile check, so high-end phones render at full sharpness
 - **Touch-Optimized Selection** — Tap-to-select behind a drag guard, so starting an orbit drag on a body never triggers an accidental selection
 - **Mobile Planet Strip** — A bottom, scrollable strip of tappable body icons is the primary selector on screens ≤768px, synced with the 3D scene and the sidebar
+- **Size Comparison** — A "크기 비교" lineup that answers "how big IS it?" by counting: the body is drawn one lane wide and the reference body as that many little discs beside it. Ratios come from real diameters, and a comparison that cannot be stated honestly is not shown at all
+- **Rocket Journey** — Launch a rocket from Earth to any planet, dwarf planet, or the Moon along a curved schematic path; arrival plays a celebration and speaks a real approximate travel time in Korean
+- **Celebrations & Sound** — Sparkle bursts and chimes on arrival, a distinct twinkle for stars, all from a pooled particle effect and a small Web Audio module that shares the one "소리" toggle with the speech narration
+- **Daily Missions & Stickers** — Three Korean play prompts per real calendar day; completing one plays praise and awards a sticker that persists in the browser and fills in a sticker book
 - **Keyboard Shortcuts** — Space, R, and Escape for quick control
 - **PWA & Offline Support** — Installable to the home screen as "태양계 탐험", runs standalone with safe-area layout (Dynamic Island, home indicator), boots offline after the first visit with all textures and fonts cached
 
@@ -113,6 +117,17 @@ solar-simulator/
 │   │   └── planetData.js      # Astronomical constants for all bodies
 │   ├── controls/
 │   │   └── InteractionManager.js  # Raycasting, hover, click, touch
+│   ├── play/
+│   │   ├── missions.js        # Mission catalog, daily rotation, completion engine (pure)
+│   │   ├── stickers.js        # Sticker inventory persisted to localStorage
+│   │   ├── StickerBook.js     # Sticker grid + today's mission list overlay
+│   │   ├── SizeCompare.js     # "크기 비교" count lineup and its ratio math
+│   │   ├── RocketJourney.js   # Schematic Earth-to-body flight (not a transfer orbit)
+│   │   ├── travelFacts.js     # Korean travel-time facts per destination
+│   │   └── playEvents.js      # Event seam the mission engine subscribes to
+│   ├── audio/
+│   │   ├── tts.js             # Korean speech narration wrapper
+│   │   └── sfx.js             # Synthesized chime / twinkle / fanfare (shares the mute toggle)
 │   ├── ui/
 │   │   ├── InfoPanel.js       # Slide-in sidebar with planet data
 │   │   ├── PlanetStrip.js     # Mobile bottom icon strip (≤768px primary selector)

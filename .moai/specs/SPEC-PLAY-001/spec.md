@@ -1,8 +1,8 @@
 ---
 id: SPEC-PLAY-001
 title: "Play and engagement layer: size comparison, rocket journey, celebration effects and sounds, missions and stickers"
-version: "0.1.0"
-status: draft
+version: "1.0.0"
+status: completed
 created: 2026-08-12
 updated: 2026-08-12
 author: limbowl
@@ -18,6 +18,8 @@ related_specs: [SPEC-UI-001, SPEC-SIM-001, SPEC-MOBILE-001]
 
 ## HISTORY
 
+- 2026-08-12 (v1.0.0): Run complete and synced. All 19 REQs implemented across six milestones (M1 mission engine + sticker persistence + SFX + travel facts, M2 size comparison, M3/M4 celebrations + rocket journey, M5 sticker book + mission HUD + praise, M6 evaluation fixes); `npm test` 42 files / 580 tests green and `npm run build` succeeds. The independent evaluation initially returned FAIL; both MUST-FIX findings — the mission-completion celebration firing at the previous selection's position (AC-PLAY-404) and the Ceres travel fact teaching inverted distance (AC-PLAY-203) — are fixed reproduction-first in `b9fa3f4`, together with a Korean particle defect in the rocket `aria-label`. Four SHOULD-FIX findings (S1 count-strip lane overflow, S3 `MAX_COUNT` dropping most star lineups, S4 reduced-motion read once at boot, S5 second silent Celebration pool) are deliberately deferred with the code untouched and are recorded in progress.md §E.2 M6. `status: draft → completed`. **The acceptance.md §5 definition-of-done manual/device pass has NOT been performed** — audio unlock on real Safari/iOS, celebration feel, sticker-book touch UX, the reduced-motion sweep, lineup readability, and the native-Korean read-aloud check remain outstanding; the full residual list is in progress.md §E.2 (M5 and M6 residual tables).
+- 2026-08-12 (v1.0.0): Spec correction (not a scope change). §1.2 and §3.1 REQ-PLAY-101 illustrated the count fact as "태양에는 지구가 109개 들어가요!". 109 is the DIAMETER ratio; by volume roughly 1.3 million Earths fit inside the Sun, so "들어가요" ("fit inside") attached to 109 states a falsehood and would teach a child a wrong fact. Both examples now use the honest width form — the form `planetData.js` `sizeComparisonKo` already authored and the form `SizeCompare.js` actually renders (`STR.playCompareCount`). acceptance.md §2 Scenario 1 carried the same string and is corrected identically; AC-PLAY-102's "Sun/Earth ≈ 109" is a diameter ratio and is correct as written. No requirement's observable behavior changes — only the illustrative strings were wrong.
 - 2026-08-12 (v0.1.0): Initial draft. Covers proposal items 12 (size comparison mode), 13 (rocket journey mini-event), 14 (celebration effects + sounds), 17 (missions & stickers). Depends on SPEC-KIDS-001 (TTS channel, shared sound toggle, facts/size data). Carries one sanctioned open decision: size-comparison implementation approach (plan.md).
 
 ---
@@ -33,7 +35,7 @@ The simulator is currently an observation tool: look, select, read. For a 5-year
 ### 1.2 Brownfield Facts (verified citations)
 
 - **No audio code of any kind exists** (grep-verified; SPEC-KIDS-001 introduces the first audio module — TTS — and the shared mute contract this SPEC extends to SFX).
-- `src/planets/planetData.js` — bodies carry real scientific diameters (the honest basis for size comparison; display radii are symbolic and must NOT be used for ratios). SPEC-KIDS-001 adds `sizeComparisonKo` (count facts like "태양에는 지구가 109개 들어가요!") and `emoji`.
+- `src/planets/planetData.js` — bodies carry real scientific diameters (the honest basis for size comparison; display radii are symbolic and must NOT be used for ratios). SPEC-KIDS-001 adds `sizeComparisonKo` (count facts like "태양 지름은 지구 109개를 나란히 놓은 만큼이에요!" — a WIDTH claim; 109 is the diameter ratio, and "109개가 들어간다" would be false since ~1.3 million Earths fit inside the Sun by volume) and `emoji`.
 - `src/core/ViewManager.js` — SOLAR/EARTH state machine, single rAF, crossfade transitions, `prefers-reduced-motion` honored, frozen View interface (additions must mount into existing scenes/layers — no ViewManager contract change).
 - Camera focus flow (SPEC-UI-001/SIM-001): selecting a body flies the camera to it — the "camera-arrival" event that celebrations hook.
 - `localStorage` is already the persistence mechanism precedent (SPEC-KIDS-001 mute key); missions/stickers persist the same way, namespaced.
@@ -53,7 +55,7 @@ The simulator is currently an observation tool: look, select, read. For a 5-year
 
 **Event-driven**
 
-- **REQ-PLAY-101**: **When** the "크기 비교" entry point (button in the InfoPanel kid view) is activated for the selected body, the UI shall present a lineup visualization showing the selected body beside Earth (and beside the Sun where the comparison is meaningful) at TRUE relative diameter scale, with the count fact rendered large (e.g. "태양에는 지구가 109개 들어가요!") and spoken via the shared TTS channel.
+- **REQ-PLAY-101**: **When** the "크기 비교" entry point (button in the InfoPanel kid view) is activated for the selected body, the UI shall present a lineup visualization showing the selected body beside Earth (and beside the Sun where the comparison is meaningful) at TRUE relative diameter scale, with the count fact rendered large (e.g. "지구 109개를 나란히 놓으면 태양 폭이에요!" — the count states WIDTH, never volume) and spoken via the shared TTS channel.
 - **REQ-PLAY-103**: **When** the comparison view is dismissed (close button / back), the UI shall return to the prior view state without disturbing the 3D scene or selection.
 
 **Ubiquitous**

@@ -114,6 +114,38 @@ export const STR = {
   unitYear: '년',
   unitDay: '일',
   unitHour: '시간',
+
+  // --- Play layer (SPEC-PLAY-001 M2/M5) ---
+
+  // InfoPanel entry points
+  playCompare: '크기 비교',
+  playCompareLabel: (name) => `${name} 크기 비교하기`,
+  playRocket: '로켓 발사',
+  // Particle-free like the comparison forms below: `${name}으로` is only correct
+  // for a consonant-final name that does not end in ㄹ, so a screen reader spoke
+  // 달으로 / 세레스으로 / 하우메아으로 / 마케마케으로 / 에리스으로 out loud.
+  playRocketLabel: (name) => `${name} 로켓 발사하기`,
+  playClose: '닫기',
+
+  // Size comparison. Both forms are deliberately particle-free: the count form
+  // borrows the wording already authored for jupiter/saturn/uranus/neptune in
+  // planetData, and the near-equal form ends every noun with "크기", so no 은/는
+  // 이/가 와/과 selection logic is needed for a body name we cannot see.
+  playCompareTitle: '크기 비교',
+  // `countPhrase` arrives already carrying its object particle ("109개를" /
+  // "2개 반을"), because 개 and 반 take different ones.
+  playCompareCount: (small, countPhrase, big) => `${small} ${countPhrase} 나란히 놓으면 ${big} 폭이에요!`,
+  playCompareSame: (big, small) => `${big} 크기는 ${small} 크기와 거의 같아요!`,
+
+  // Sticker book + mission HUD
+  playStickerBookOpen: '스티커 책 열기',
+  playStickerBookTitle: '내 스티커',
+  playMissionsTitle: '오늘의 놀이',
+  playDayComplete: '내일 또 만나요!',
+  playStickerLocked: (prompt) => `${prompt} 아직 못 받았어요.`,
+
+  // Mission praise (REQ-PLAY-404)
+  playPraise: '참 잘했어요! 스티커를 받았어요!',
 };
 
 // @MX:ANCHOR: [AUTO] Every Korean unit-suffixed value in the UI is formatted here.

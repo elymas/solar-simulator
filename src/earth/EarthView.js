@@ -14,6 +14,7 @@ import { ISSMarker, ISS_FACTS } from './ISSMarker.js';
 import { speak } from '../audio/tts.js';
 import { STR } from '../ui/strings.js';
 import { TOUCH_TAP_MAX_DRAG_PX } from '../controls/InteractionManager.js';
+import { emitPlayEvent } from '../play/playEvents.js';
 
 // Sun direction shared between the rig terminator and this view's key light so the
 // lit hemisphere and the day/night blend agree.
@@ -398,6 +399,9 @@ export class EarthView {
    * @param {string|null} _fromState
    */
   onEnter(_fromState) {
+    // Play-event seam (SPEC-PLAY-001 plan §A.3): the "지구 구경을 해 보세요!"
+    // mission listens for this.
+    emitPlayEvent('view-enter', { view: 'EARTH' });
     this._build();
     if (this._hud) this._hud.show();
     if (this.controls) this.controls.enabled = true;

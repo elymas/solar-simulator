@@ -21,7 +21,9 @@ function positionAt(position, deg, radius) {
 
 // Minimal stubs — no real WebGL/DOM layout needed for lifecycle + ownership logic.
 function makeStubs({ qualityTier = 'full', longitudes = SCATTERED } = {}) {
-  const scene = { tag: 'scene', add: vi.fn() };
+  // add/remove: the play layer (SPEC-PLAY-001) mounts its celebration pool and
+  // its rocket into the same scene during buildUI.
+  const scene = { tag: 'scene', add: vi.fn(), remove: vi.fn() };
   const camera = { tag: 'camera' };
   const belts = [ASTEROID_BELT, KUIPER_BELT].map((config) => ({
     config,
@@ -44,12 +46,22 @@ function makeStubs({ qualityTier = 'full', longitudes = SCATTERED } = {}) {
   };
   // All 8 planets, so the alignment frame hook has real positions to read. The
   // comet joins them: PlanetFactory registers it like any other PLANET_DATA body.
+  //
+  // getWorldPosition on every body: the mission praise burst (SPEC-PLAY-001 M5)
+  // reads the focused body's world position, and WHICH body that is depends on
+  // the real calendar date's mission rotation — so no stub may lack it.
   const planets = {
     moon: { mesh: { position: {}, getWorldPosition: vi.fn((v) => v) }, pivot: {}, data: { displayRadius: 3 } },
-    halley: { mesh: { position: { x: 700, y: 0, z: 0 } }, data: { displayRadius: 2 } },
+    halley: {
+      mesh: { position: { x: 700, y: 0, z: 0 }, getWorldPosition: vi.fn((v) => v) },
+      data: { displayRadius: 2 },
+    },
   };
   for (const key of ALIGNMENT_PLANET_KEYS) {
-    planets[key] = { mesh: { position: { x: 0, y: 0, z: 0 } }, data: { displayRadius: key === 'earth' ? 8 : 5 } };
+    planets[key] = {
+      mesh: { position: { x: 0, y: 0, z: 0 }, getWorldPosition: vi.fn((v) => v) },
+      data: { displayRadius: key === 'earth' ? 8 : 5 },
+    };
   }
   const setLongitudes = (degs) => {
     ALIGNMENT_PLANET_KEYS.forEach((key, i) => positionAt(planets[key].mesh.position, degs[i], 100 + i * 50));

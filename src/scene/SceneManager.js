@@ -208,6 +208,10 @@ export class SceneManager {
     // thins them out (SPEC-EVENTS-001 REQ-EVT-204). Unlike the aurora hook this
     // is registered at construction, because the solar ladder is the default one.
     this.onBeltsShed = null;
+
+    // Set by SolarSystemView to hear when a focus flight finishes (SPEC-PLAY-001
+    // REQ-PLAY-301). Fired from stepCamera; null means nobody is listening.
+    this.onFocusArrive = null;
   }
 
   /**
@@ -404,6 +408,9 @@ export class SceneManager {
       if (t >= 1) {
         this._isFocusing = false;
         this._focusProgress = 0;
+        // Camera arrival (SPEC-PLAY-001 REQ-PLAY-301). Assigned by SolarSystemView;
+        // cleared above first, so one focus can only ever announce one arrival.
+        if (this.onFocusArrive) this.onFocusArrive();
       }
     }
   }

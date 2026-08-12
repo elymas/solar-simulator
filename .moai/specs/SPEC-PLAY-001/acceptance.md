@@ -29,7 +29,7 @@
 ### Scenario 1 — "How big IS the sun?"
 - **Given** the sun selected, kid view open
 - **When** the child taps "크기 비교"
-- **Then** the lineup shows Sun vs Earth at true ~109:1 representation, "태양에는 지구가 109개 들어가요!" renders big and is spoken aloud, and closing returns to the untouched solar view.
+- **Then** the lineup shows Sun vs Earth at true ~109:1 representation, "지구 109개를 나란히 놓으면 태양 폭이에요!" renders big and is spoken aloud, and closing returns to the untouched solar view.
 
 ### Scenario 2 — Rocket to Mars
 - **Given** Mars selected
