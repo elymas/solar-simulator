@@ -1,4 +1,4 @@
-import { setMuted, isMuted } from '../audio/tts.js';
+import { setMuted, isMuted, isAvailable } from '../audio/tts.js';
 import { STR, formatKoDate } from './strings.js';
 
 /**
@@ -212,6 +212,12 @@ export class TimeControls {
    * Reflect the shared mute state (restored from localStorage by tts.init).
    */
   updateMuteButton() {
+    // No speech engine means nothing to toggle, so the control must not appear
+    // operable (REQ-KIDS-206) — same rule the InfoPanel replay button follows.
+    // ponytail: gated on speech alone; when SPEC-PLAY-001 lands, widen this one
+    // condition to "speech or SFX available" rather than adding an audio service.
+    this.muteBtn.hidden = !isAvailable();
+
     const muted = isMuted();
     this.muteBtn.textContent = muted ? '🔇' : '🔊';
     this.muteBtn.setAttribute('aria-label', muted ? STR.timeSoundOff : STR.timeSoundOn);

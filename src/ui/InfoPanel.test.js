@@ -75,6 +75,24 @@ describe('InfoPanel kid view (REQ-KIDS-302)', () => {
     expect(ko.compareDocumentPosition(en) & 4).toBeTruthy();
   });
 
+  it('renders the Korean name strictly larger than the English secondary', () => {
+    const panel = new InfoPanel();
+    panel.show('mars', marsData);
+
+    const size = (el) => parseFloat(getComputedStyle(el).fontSize);
+    expect(size(panel.el.querySelector('.planet-name-ko')))
+      .toBeGreaterThan(size(panel.el.querySelector('.planet-name')));
+  });
+
+  it('renders facts as text, never as markup (SPEC-EARTH-003 feeds this from an API)', () => {
+    const panel = new InfoPanel();
+    panel.show('mars', { ...marsData, factsKo: ['<img src=x onerror=alert(1)>', 'b', 'c'] });
+
+    const first = panel.el.querySelector('.kid-fact');
+    expect(first.querySelector('img')).toBeNull();
+    expect(first.textContent).toBe('<img src=x onerror=alert(1)>');
+  });
+
   it('renders the emoji and the size comparison', () => {
     const panel = new InfoPanel();
     panel.show('mars', marsData);

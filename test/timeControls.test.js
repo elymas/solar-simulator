@@ -71,9 +71,26 @@ describe('TimeControls sound toggle (REQ-KIDS-207)', () => {
       setItem: (k, v) => map.set(k, String(v)),
     };
   };
+  const fakeSynth = () => ({ speak() {}, cancel() {}, getVoices: () => [] });
+
+  it('hides the sound button when there is no speech engine (REQ-KIDS-206)', () => {
+    initTts({ synth: undefined, storage: fakeStorage() });
+    const tc = new TimeControls(stubSimApi());
+
+    // A control that governs nothing must not look operable — otherwise a parent
+    // "mutes" a browser that was never going to speak.
+    expect(tc.muteBtn.hidden).toBe(true);
+  });
+
+  it('shows the sound button when a speech engine is present', () => {
+    initTts({ synth: fakeSynth(), storage: fakeStorage() });
+    const tc = new TimeControls(stubSimApi());
+
+    expect(tc.muteBtn.hidden).toBe(false);
+  });
 
   it('renders a sound button labelled in Korean, unmuted by default', () => {
-    initTts({ storage: fakeStorage() });
+    initTts({ synth: fakeSynth(), storage: fakeStorage() });
     const tc = new TimeControls(stubSimApi());
 
     expect(tc.muteBtn).toBeTruthy();
@@ -83,7 +100,7 @@ describe('TimeControls sound toggle (REQ-KIDS-207)', () => {
   });
 
   it('toggles the shared mute state and the icon on click', () => {
-    initTts({ storage: fakeStorage() });
+    initTts({ synth: fakeSynth(), storage: fakeStorage() });
     const tc = new TimeControls(stubSimApi());
 
     tc.muteBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -97,7 +114,7 @@ describe('TimeControls sound toggle (REQ-KIDS-207)', () => {
   });
 
   it('reflects the persisted muted state restored by init on boot', () => {
-    initTts({ storage: fakeStorage({ 'solar.muted': 'true' }) });
+    initTts({ synth: fakeSynth(), storage: fakeStorage({ 'solar.muted': 'true' }) });
     const tc = new TimeControls(stubSimApi());
 
     expect(tc.muteBtn.textContent).toBe('🔇');

@@ -31,8 +31,8 @@ const factCursor = new Map();
  */
 export function init({ synth: injectedSynth, storage: injectedStorage } = {}) {
   detachVoiceListener();
-  synth = injectedSynth ?? globalThis.speechSynthesis ?? null;
-  storage = injectedStorage ?? globalThis.localStorage ?? null;
+  synth = injectedSynth ?? readGlobal('speechSynthesis');
+  storage = injectedStorage ?? readGlobal('localStorage');
   muted = readMuted();
   voice = null;
   heldText = '';
@@ -177,6 +177,19 @@ function nextFact(body) {
   const index = factCursor.get(key) ?? 0;
   factCursor.set(key, (index + 1) % facts.length);
   return facts[index % facts.length];
+}
+
+// Reading the global is itself a trust boundary: `localStorage` throws
+// SecurityError when the document origin is opaque (sandboxed iframe without
+// allow-same-origin) or cookies are blocked outright — before any getItem guard
+// can run. init() executes during app boot, ahead of the rest of the UI, so an
+// unguarded read would take the whole simulator down for a narration feature.
+function readGlobal(name) {
+  try {
+    return globalThis[name] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function readMuted() {

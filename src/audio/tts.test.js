@@ -252,6 +252,30 @@ describe('AC-KIDS-207 — mute persistence', () => {
     expect(isMuted()).toBe(false);
   });
 
+  it('survives a localStorage getter that itself throws, on the no-argument init path', () => {
+    // Chrome with all cookies blocked, or a sandboxed iframe without
+    // allow-same-origin, throws SecurityError on the property access — before
+    // any getItem/setItem guard can run. init() is called during app boot, so a
+    // throw here takes down the whole simulator, not just narration.
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('access denied', 'SecurityError');
+      },
+    });
+
+    try {
+      expect(() => init()).not.toThrow();
+      expect(isMuted()).toBe(false);
+      expect(() => setMuted(true)).not.toThrow();
+      expect(isMuted()).toBe(true);
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'localStorage', original);
+      else delete globalThis.localStorage;
+    }
+  });
+
   it('falls back to in-memory mute when storage throws (private mode)', () => {
     expect(() => boot({ storage: THROWING_STORAGE })).not.toThrow();
     expect(isMuted()).toBe(false);

@@ -333,9 +333,16 @@ export class InfoPanel {
     const facts = Array.isArray(data.factsKo) ? data.factsKo : [];
 
     this.el.querySelector('.kid-emoji').textContent = data.emoji || '';
-    this.el.querySelector('.kid-facts').innerHTML = facts
-      .map((fact) => `<li class="kid-fact">${fact}</li>`)
-      .join('');
+    // textContent, not innerHTML: plan.md A.1 lets SPEC-EARTH-003 supply this same
+    // shape from an external API, so the node must not be able to carry markup.
+    this.el.querySelector('.kid-facts').replaceChildren(
+      ...facts.map((fact) => {
+        const li = document.createElement('li');
+        li.className = 'kid-fact';
+        li.textContent = fact;
+        return li;
+      })
+    );
     this.el.querySelector('.kid-size').textContent = data.sizeComparisonKo || '';
     this.el.querySelector('.info-details').hidden = facts.length > 0;
     // No speech engine: no 🔊 affordance at all (REQ-KIDS-206).
