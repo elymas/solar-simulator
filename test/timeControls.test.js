@@ -120,3 +120,11 @@ describe('TimeControls sound toggle (REQ-KIDS-207)', () => {
     expect(tc.muteBtn.textContent).toBe('🔇');
   });
 });
+
+describe('TimeControls safe-area inset (REQ-PWA-103)', () => {
+  it('adds a safe-area-inset-bottom padding term additive to the base bottom padding', () => {
+    new TimeControls(stubSimApi());
+    const styleText = document.head.querySelector('style').textContent;
+    expect(styleText).toContain('padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));');
+  });
+});

@@ -39,8 +39,12 @@ export class TimeControls {
         border-bottom: none;
         border-radius: 12px 12px 0 0;
         padding: 12px 24px;
+        /* Additive safe-area inset (home indicator, REQ-PWA-103): 0 on
+           devices/browsers without env() support, zero desktop regression.
+           Kept on padding (not "bottom") so the bar stays flush to the edge. */
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
         z-index: 100;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         user-select: none;
       }
       .control-btn {
@@ -70,7 +74,7 @@ export class TimeControls {
         color: #888;
       }
       .speed-value {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'JetBrains Mono Variable', monospace;
         font-size: 13px;
         color: #16c7ff;
         min-width: 50px;
@@ -92,7 +96,7 @@ export class TimeControls {
       .sim-date {
         /* Korean tail: the date now reads "2026년 3월 30일", and JetBrains Mono
            carries no Hangul glyphs. */
-        font-family: 'JetBrains Mono', 'Apple SD Gothic Neo', 'Noto Sans KR', monospace;
+        font-family: 'JetBrains Mono Variable', 'Apple SD Gothic Neo', 'Noto Sans KR', monospace;
         font-size: 14px;
         color: #e0e0e0;
       }

@@ -37,8 +37,10 @@ export class EarthHUD {
     style.textContent = `
       .earth-hud {
         position: fixed;
-        top: 64px;
-        right: 16px;
+        /* Additive safe-area insets (Dynamic Island + landscape rounded
+           corner, REQ-PWA-103): 0 on devices/browsers without env() support. */
+        top: calc(64px + env(safe-area-inset-top, 0px));
+        right: calc(16px + env(safe-area-inset-right, 0px));
         background: rgba(26, 26, 46, 0.9);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
@@ -46,7 +48,7 @@ export class EarthHUD {
         border-radius: 12px;
         padding: 18px 20px;
         z-index: 120;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         color: #e0e0e0;
         min-width: 240px;
         max-width: 320px;
@@ -59,8 +61,10 @@ export class EarthHUD {
       }
       .earth-hud-toggle-btn {
         position: fixed;
-        top: 16px;
-        right: 16px;
+        /* Additive safe-area insets (Dynamic Island + landscape rounded
+           corner, REQ-PWA-103): 0 on devices/browsers without env() support. */
+        top: calc(16px + env(safe-area-inset-top, 0px));
+        right: calc(16px + env(safe-area-inset-right, 0px));
         background: rgba(26, 26, 46, 0.85);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
@@ -95,7 +99,7 @@ export class EarthHUD {
       }
       .earth-hud-label { font-size: 12px; color: #888; }
       /* Korean tail on the mono stacks: JetBrains Mono carries no Hangul glyphs. */
-      .earth-hud-value { font-size: 13px; font-family: 'JetBrains Mono', 'Apple SD Gothic Neo', 'Noto Sans KR', monospace; color: #e0e0e0; }
+      .earth-hud-value { font-size: 13px; font-family: 'JetBrains Mono Variable', 'Apple SD Gothic Neo', 'Noto Sans KR', monospace; color: #e0e0e0; }
       .earth-hud-back {
         margin-top: 14px;
         width: 100%;
@@ -104,7 +108,7 @@ export class EarthHUD {
         color: #16c7ff;
         border-radius: 8px;
         padding: 10px 12px;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         font-size: 13px;
         cursor: pointer;
         transition: background 0.2s;
@@ -124,7 +128,7 @@ export class EarthHUD {
         color: #16c7ff;
         border-radius: 8px;
         padding: 8px 10px;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         font-size: 12px;
         cursor: pointer;
         text-align: left;
@@ -132,7 +136,7 @@ export class EarthHUD {
       .earth-hud-toggle:hover { background: rgba(22, 199, 255, 0.2); }
       .earth-hud-flight-status {
         font-size: 12px;
-        font-family: 'JetBrains Mono', 'Apple SD Gothic Neo', 'Noto Sans KR', monospace;
+        font-family: 'JetBrains Mono Variable', 'Apple SD Gothic Neo', 'Noto Sans KR', monospace;
         color: #9fe0b0;
       }
       .earth-hud-flight-status[data-state="OFFLINE"],
@@ -145,7 +149,7 @@ export class EarthHUD {
         border: 1px solid rgba(22, 199, 255, 0.25);
         border-radius: 8px;
         padding: 7px 8px;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         font-size: 12px;
       }
       .earth-hud-note { font-size: 11px; color: #888; font-style: italic; }
@@ -159,7 +163,7 @@ export class EarthHUD {
         accent-color: #16c7ff;
       }
       .earth-hud-speed-value {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'JetBrains Mono Variable', monospace;
         font-size: 13px;
         color: #e0e0e0;
         min-width: 56px;

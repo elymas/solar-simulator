@@ -102,7 +102,7 @@ export class InteractionManager {
         border: 1px solid rgba(22, 199, 255, 0.3);
         border-radius: 6px;
         padding: 4px 10px;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         font-size: 13px;
         color: #e0e0e0;
         white-space: nowrap;

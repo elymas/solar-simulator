@@ -38,7 +38,7 @@ export class LoadingScreen {
         text-align: center;
       }
       .loading-title {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         font-size: 48px;
         font-weight: 300;
         color: #e0e0e0;
@@ -47,7 +47,7 @@ export class LoadingScreen {
         margin-bottom: 8px;
       }
       .loading-subtitle {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         font-size: 16px;
         font-weight: 300;
         color: #16c7ff;
@@ -71,7 +71,7 @@ export class LoadingScreen {
         transition: width 0.3s ease;
       }
       .loading-text {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'JetBrains Mono Variable', monospace;
         font-size: 12px;
         color: #888;
       }

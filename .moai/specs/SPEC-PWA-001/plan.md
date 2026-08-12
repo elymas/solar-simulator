@@ -53,12 +53,12 @@ Master 512×512 planet-on-dark (#0a0a0f) motif consistent with the existing 🪐
 
 ## C. Milestones (phase ordering; priority labels)
 
-| M | Scope | Priority |
-|---|-------|----------|
-| M0 | A.1 resolved 2026-08-12 (Option A) — no remaining action | High |
-| M1 | Manifest + icons + iOS metas + `viewport-fit=cover` + safe-area CSS map; production-build URL audit under `/solar-simulator/` base | High |
-| M2 | Service worker per A.2 (+ font path per A.1): precache shell/textures/fonts, runtime rules (NetworkOnly live API), activate purge | High |
-| M3 | Verification pass: offline boot drill (build → preview → load → kill network → reload), Lighthouse PWA installability audit, device add-to-home-screen + safe-area visual check, deploy smoke on GitHub Pages | High |
+| M | Scope | Priority | Run-Phase Outcome (d1ecbd8) |
+|---|-------|----------|----------------------------|
+| M0 | A.1 resolved 2026-08-12 (Option A) — no remaining action | High | ✓ COMPLETE: User confirmed Option A (self-host) via AskUserQuestion |
+| M1 | Manifest + icons + iOS metas + `viewport-fit=cover` + safe-area CSS map; production-build URL audit under `/solar-simulator/` base | High | ✓ COMPLETE: vite-plugin-pwa generated manifest from vite.config.js; icons generated from `public/icons/icon.svg` via @vite-pwa/assets-generator; viewport-fit added; safe-area env() insets applied to four anchored surfaces; production build verified all URLs resolve under `/solar-simulator/` base |
+| M2 | Service worker per A.2 (+ font path per A.1): precache shell/textures/fonts, runtime rules (NetworkOnly live API), activate purge | High | ✓ COMPLETE: vite-plugin-pwa configured with Workbox precache (42 entries, 8121.97 KiB) including shell, 7.0MB textures, and self-hosted fonts; api.airplanes.live routed NetworkOnly; autoUpdate + activate-time cache purge configured; @fontsource-variable packages precached as build assets |
+| M3 | Verification pass: offline boot drill (build → preview → load → kill network → reload), Lighthouse PWA installability audit, device add-to-home-screen + safe-area visual check, deploy smoke on GitHub Pages | High | ⚠ PARTIAL: Desktop offline drill PASSED (scene booted fully from cache, fonts rendered offline); device drills UNVERIFIED (require physical iPhone); Lighthouse audit NOT run |
 
 ## D. File-Touch List
 
@@ -95,4 +95,16 @@ Master 512×512 planet-on-dark (#0a0a0f) motif consistent with the existing 🪐
 - SPEC-KIDS-001's Korean text uses system fonts — unaffected by A.1 (Latin/mono families only; Hangul webfont excluded by spec §6).
 - SPEC-EARTH-002's FlightDataService offline behavior is consumed as-is (REQ-PWA-107); NetworkOnly rule guarantees the SW never masks it (REQ-PWA-108).
 
-Open markers: none — the §A.1 font-strategy clarification was resolved 2026-08-12 (Option A, user decision via AskUserQuestion).
+## H. Additional Implementation Divergences (Beyond D-1..D-4)
+
+The following five divergences from plan.md emerged during implementation (run phase d1ecbd8, outside the four pre-approved deviations). They are recorded for completeness and future reference but do not require re-approval (they are necessary/technical corrections, not scope changes).
+
+| # | Issue | Plan Said | Implemented | Reason |
+|---|-------|-----------|-------------|--------|
+| D-5 | Font-family name propagation | Not anticipated — §A.1 chose self-hosting but assumed the family names would stay `'Inter'` / `'JetBrains Mono'`, so no rename appears in the §D touch list | Families renamed to `'Inter Variable'` / `'JetBrains Mono Variable'` across 7 files: the 4 safe-area surfaces plus `src/ui/InfoPanel.js`, `src/ui/LoadingScreen.js`, `src/controls/InteractionManager.js` | @fontsource-variable registers under the `* Variable` names. Leaving the bare CDN-era names would have silently fallen back to system fonts once the CDN links were removed — the exact outcome REQ-PWA-105 forbids. Post-change grep confirms zero remaining non-Variable references. |
+| D-6 | Icon generation config | Implicit reliance on @vite-pwa/assets-generator defaults | `pwa-assets.config.js` added to customize generator behavior | Generator built-in presets emit maskable only at 512px and pad with white background; REQ-PWA-101 mandates maskable-192. Custom config was necessary to emit both 192 and 512 maskable variants without background padding. |
+| D-7 | Build-artifact test structure | `npm run test` includes dist checks post-build (acceptance §4, first alternative) | Two vitest configs: default (unit + component tests), separate `vitest.build.config.js` for build-artifact tests. `npm run test:build` runs both build and the build-artifact suite. | vitest CLI positional filter (`.spec.js` filename pattern) only narrows within files matched by the `include` glob already. A `.spec.js` file explicitly excluded from the default `include` cannot be re-included by filter alone; separate config required. Keeps the default `npm test` build-free at ~2.2s (24 files, 202 tests after the 5 new safe-area tests); the build-artifact suite adds a full `vite build` on every run. |
+| D-8 | Safe-area inset application scope | Four anchored surfaces (§A.3): TimeControls, PlanetList, EarthHUD + toggles | Safe-area insets applied in BOTH component-injected `<style>` blocks AND index.html `!important` media-query overrides | Base CSS rules alone are defeated at exactly the mobile widths where insets matter (480px and 768px breakpoints in `@media` queries). The overrides must carry the insets as well for the rule to take effect on physical devices where safe-area env() values are non-zero. Without the second application site, the DOM-level styles would be shadowed by index.html media rules. |
+| D-9 | iOS manifest meta handling | `apple-mobile-web-app-capable` (apple- variant only, per §D New) | Both `<meta name="apple-mobile-web-app-capable">` and `<meta name="mobile-web-app-capable">` added | Apple's variant is required for iOS Safari standalone launch (no web standard exists yet); the standardized `mobile-web-app-capable` replacement logs a deprecation warning on every Chrome load if absent. Both are necessary for zero-warning cross-browser PWA behavior. Documented inline in index.html. |
+
+Open markers: none — all divergences are technical/necessary corrections (no scope changes). §A.1 font-strategy clarification remains resolved (Option A, user decision 2026-08-12).

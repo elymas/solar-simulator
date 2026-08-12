@@ -127,6 +127,21 @@ describe('PlanetList Korean-primary labels (REQ-KIDS-101, AC-KIDS-101)', () => {
   });
 });
 
+describe('PlanetList safe-area inset (REQ-PWA-103)', () => {
+  it('adds a safe-area-inset-left margin to the panel, additive to the base left offset', () => {
+    new PlanetList();
+    const styleText = document.head.querySelector('style').textContent;
+    expect(styleText).toContain('left: calc(16px + env(safe-area-inset-left, 0px));');
+  });
+
+  it('adds safe-area-inset-top/left margins to the toggle button', () => {
+    new PlanetList();
+    const styleText = document.head.querySelector('style').textContent;
+    expect(styleText).toContain('top: calc(16px + env(safe-area-inset-top, 0px));');
+    expect(styleText).toContain('left: calc(16px + env(safe-area-inset-left, 0px));');
+  });
+});
+
 describe('InfoPanel dwarf branch (REQ-030, TASK-004)', () => {
   let panel;
   beforeEach(() => {
