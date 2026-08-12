@@ -99,24 +99,129 @@ file already existed at HEAD, so plan.md §D was stale on this point.
 | `7c94541` | M2 (GREEN) | `fix(SPEC-MOBILE-001): M2 GREEN — select on touchend behind a drag guard` |
 | `be5ca32` | M3 | `refactor(SPEC-MOBILE-001): M3 — quality tier from device signals, not the user agent` |
 
+### M4-M5 evidence (tap targets + PlanetStrip)
+
+Scope of this record: M4 (tap-target sweep) and M5 (PlanetStrip). This closes
+the two milestones the M1-M3 record above left open; M6 (regression + browser
+verification) is the orchestrator's.
+
+Baseline at delegation: HEAD `1f10a6c`, 28 files / 308 tests passing (re-measured
+by this delegation, `npm test` exit 0).
+Evidence logs: `.moai/state/verify/spec-mobile-001-m4m5/`.
+
+#### AC-MOB-105 measurement method
+
+jsdom has **no layout engine** — `offsetHeight` is always 0 — but it **does**
+cascade class rules from an injected `<style>` tag into `getComputedStyle`. This
+was established empirically with a throwaway probe before writing any test:
+`min-height`/`width`/`height` declared on a class resolved to `"48px"`/`"44px"`,
+while `offsetHeight` read `0`. The pre-existing `renders nameKo strictly larger`
+test in `test/ui.test.js` relies on the same mechanism.
+
+Every target size is therefore declared as an explicit `min-height`/`width`/
+`height` floor and asserted as a **real computed value** (`parseFloat(
+getComputedStyle(el).minHeight) >= 48`), not as a style-text `toContain` match.
+The floors are also real boxes, not invisible hit-slop: a `.planet-list-item` is
+genuinely 48px tall with its content vertically centred.
+
+One target cannot be checked this way: `index.html`'s `@media (max-width: 768px)`
+block is never loaded into jsdom, so its declaration is asserted as **file text**
+(`readFileSync('index.html')` + a regex scoped to the planet-list block). See
+Gaps below.
+
+#### AC matrix (M4-M5)
+
+| AC | Status | Verification command | Actual output |
+|----|--------|----------------------|---------------|
+| AC-MOB-105 | PASS | `npx vitest run test/ui.test.js test/timeControls.test.js` | RED first (`m4-red.log`): play `40 < 44`, list rows `NaN`, caret `14 < 32`, toggle `36 < 44`, index.html regex no-match. GREEN at `b96fcd0`: rows/moon rows `minHeight 48`, caret `width 32` + `minHeight 32`, toggle `44x44`, play/reset/mute `44x44`, mobile block matches `min-height: 48px` |
+| AC-MOB-301 | PASS | `npx vitest run src/ui/PlanetStrip.test.js` | at 402px `strip.el.isConnected === true` and `document.querySelector('.planet-strip') === strip.el`; declared `bottom: calc(64px + env(safe-area-inset-bottom, 0px))` parsed to `64 >= 64` (mobile TimeControls = 44px button + 10px padding either side); `PlanetList` still carries `auto-hidden` at the same width |
+| AC-MOB-302 | PASS | same | `saturn` → token `🪐` + name `토성`; emoji-less registry body → `.planet-strip-dot` with `background: rgb(22, 199, 255)` and empty text; `nameKo`-less body → English `Nameless`; `minWidth`/`minHeight` both `48`; items are `BUTTON` with `aria-label` `화성 보기` |
+| AC-MOB-303 | PASS | `npx vitest run src/ui/PlanetStrip.test.js test/solarSystemView.test.js` | strip click → `onSelect('saturn')`; `setActive('neptune')` → `active` class + `scrollIntoView({block:'nearest',inline:'center'})`; highlight moves rather than accumulates; via SolarSystemView a strip tap produces `infoPanel.show('mars', …)` + one `focusPlanet` + `onFocus('mars')`, and `_select`/`_deselect` drive `planetStrip.setActive`/`clearActive` |
+| AC-MOB-304 | PASS | `npx vitest run src/ui/PlanetStrip.test.js` | at 1280px `strip.el.isConnected === false`, `document.querySelector('.planet-strip')` and `.planet-strip-item` both `null` — AC's **absent-from-DOM** branch (not the `display:none` alternative), so its "zero listeners" qualifier does not apply. Rotation test: portrait→landscape→portrait mounts/unmounts correctly |
+| AC-MOB-305 | PASS | same | rendered `data-key` order deep-equals `[...Object.keys(PLANET_DATA), ...Object.keys(STAR_DATA)]` (18 bodies); `_buttons.moon`/`_buttons.io` undefined (moons excluded per spec.md §6); a synthetic `__comet` added to `PLANET_DATA` renders token `☄️` + name `시험 혜성` with **zero** change to `PlanetStrip.js` |
+
+AC-MOB-101..104 and AC-MOB-201..205 were not re-claimed by this delegation; they
+remain PASS from M1-M3 and stayed green inside the 336-test run below.
+
+#### Suite, build, and regression evidence
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Full suite | `npm test` | exit 0 — 29 files / 336 tests passed (baseline 28 / 308; +1 file, +28 tests: 6 for M4, 22 for M5) |
+| Production build | `npm run build` | exit 0 — 42 precache entries, `dist/sw.js` generated |
+| PWA build suite | `npm run test:build` | exit 0 — 1 file / 16 tests passed |
+| PRESERVE untouched | `git diff --stat 1f10a6c -- <preserve paths>` | empty for all 9 paths (performance.js/.test.js, quality.js/.test.js, InteractionManager.js, interactionManager.test.js, SceneManager.js, InfoPanel.js, InfoPanel.test.js) |
+| strings.js exception | `git diff 1f10a6c -- src/ui/strings.js` | +4 lines only: one `stripSelect` template function for the Korean `aria-label` (the sanctioned exception) |
+
+#### Decisions taken at run phase
+
+- **Selection seam**: plan.md §A.4 expected the sidebar's selection callback to be
+  wired in `src/main.js`. It is not — `src/main.js` contains no selection wiring
+  at all. The convergence point is `SolarSystemView.buildUI` (`:103-107`), so the
+  strip was given a `createPlanetStrip` injected factory matching the existing
+  `createPlanetList`/`createInteraction` style, and its `onSelect` points at the
+  same `this._select(key)`. plan.md §A.4 was stale on this point.
+- **Test file placement**: `src/ui/PlanetStrip.test.js`, co-located as plan.md §D
+  proposed and matching its two nearest siblings (`src/ui/InfoPanel.test.js`,
+  `src/ui/strings.test.js`). The M4 tests instead extended the pre-existing
+  `test/ui.test.js` / `test/timeControls.test.js`, which already own PlanetList
+  and TimeControls.
+- **No `stopPropagation` on the strip container**, unlike `PlanetList` and
+  `TimeControls`. Every `InteractionManager` and `OrbitControls` listener is bound
+  to `renderer.domElement` (`InteractionManager.js:62-67`), and the strip is a
+  sibling overlay — a strip tap has no bubbling path to the canvas, so the three
+  guard listeners those components carry would be no-ops here.
+- **Registry order taken straight through** (`PLANET_DATA` then `STAR_DATA`) with
+  no re-partition by category. `PLANET_DATA`'s own key order already lists the
+  Sun and planets before the dwarf planets, so this reproduces the sidebar's
+  grouping exactly while staying purely registry-driven.
+- **`ABOVE_TIME_CONTROLS_PX = 64`** is a named constant interpolated into the CSS
+  and re-derived by the test, so a future TimeControls height change surfaces as
+  a failing assertion rather than a silent overlap.
+
+#### Gaps (what was NOT verified here)
+
+- `index.html`'s `@media (max-width: 768px)` `min-height: 48px !important` is
+  asserted as **file text only**. jsdom never loads that stylesheet, so no
+  computed-value check is possible for it and it carries strictly weaker
+  evidence than the other AC-MOB-105 rows.
+- "The strip renders **above** TimeControls" (AC-MOB-301) is verified as a
+  declared CSS offset (`bottom >= 64px`), not as measured geometry — jsdom has
+  no layout engine, so no test in this suite proves the two bars do not overlap
+  on a real device.
+- No browser or device run was performed: real drag-vs-tap feel, 120Hz
+  smoothness, momentum scrolling of the strip, actual emoji glyph rendering, and
+  true safe-area behaviour on a notched device are all unverified here. That is
+  M6, which the delegation assigned to the orchestrator.
+- `scrollIntoView` is asserted only as "called with the right options" against a
+  spy; jsdom implements no scrolling, so the centring behaviour itself is
+  unverified.
+
+#### Commits (Route A — Hybrid Trunk, pushed directly to main)
+
+| Commit | Milestone | Subject |
+|--------|-----------|---------|
+| `b96fcd0` | M4 | `fix(SPEC-MOBILE-001): M4 kid-sized tap targets across list, caret and buttons` |
+| `3a6c279` | M5 | `feat(SPEC-MOBILE-001): M5 mobile planet icon strip as the phone-first selector` |
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 ```yaml
-run_complete_at: 2026-08-12T07:09:00Z
-run_commit_sha: be5ca321505afc41be518cf23be550ac15f81b88  # final implementation commit (M3)
-run_status: partial-milestones-complete   # M1-M3 done; M4-M5 open in a separate delegation
-ac_pass_count: 9      # AC-MOB-101,102,103,104,201,202,203,204,205
+run_complete_at: 2026-08-12T07:32:00Z
+run_commit_sha: 3a6c2798e90f929e751a83693f466a2c76d9aa7a  # final implementation commit (M5)
+run_status: complete            # M1-M5 done; M6 (regression + browser verification) is orchestrator-owned
+ac_pass_count: 15               # AC-MOB-101..105, 201..205, 301..305
 ac_fail_count: 0
-ac_deferred_count: 6  # AC-MOB-105 (M4), AC-MOB-301..305 (M5)
+ac_deferred_count: 0
 preserve_list_post_run_count: 9
-l44_pre_commit_fetch: "0 0"    # orchestrator pre-spawn fetch at 5664658
-l44_post_push_fetch: "0 0"     # observed after pushing be5ca32
+l44_pre_commit_fetch: "0 0"     # orchestrator pre-spawn fetch at 1f10a6c
+l44_post_push_fetch: "0 0"      # observed after pushing 3a6c279
 new_warnings_or_lints_introduced: 0
 cross_platform_build:
-  applicable: false            # browser-only ES modules; no OS build matrix
-  vite_build: pass             # npm run build exit 0
-  pwa_build_suite: pass        # npm run test:build exit 0, 16 tests
-total_run_phase_files: 5       # 2 new (quality.js, quality.test.js), 3 modified
+  applicable: false             # browser-only ES modules; no OS build matrix
+  vite_build: pass              # npm run build exit 0
+  pwa_build_suite: pass         # npm run test:build exit 0, 16 tests
+total_run_phase_files: 15       # git diff --name-only 5664658 3a6c279 -- src test index.html; M1-M3 5 + M4-M5 10, no overlap; 4 of the 15 are new
 m1_to_mN_commit_strategy: one-commit-per-milestone-pushed-directly-to-main
 ```
 
