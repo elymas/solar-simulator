@@ -207,6 +207,9 @@ export class ViewManager {
         this.renderCore.onAuroraShed = (shed) => {
           if (this.earthView.setAuroraShed) this.earthView.setAuroraShed(shed);
         };
+        this.renderCore.onMeteorsShed = (shed) => {
+          if (this.earthView.setMeteorsShed) this.earthView.setMeteorsShed(shed);
+        };
         this._setHash('#/earth');
       },
       finalState: VIEW_STATES.EARTH,
@@ -225,9 +228,10 @@ export class ViewManager {
         this.earthView.onExit();
         this.activeView = this.solarView;
         this.solarView.onEnter(VIEW_STATES.EARTH);
-        // Restore the solar ladder (no aurora) and drop the Earth aurora hook.
+        // Restore the solar ladder (no aurora/meteors) and drop the Earth shed hooks.
         if (this.renderCore.setDegradeSteps) this.renderCore.setDegradeSteps(DEGRADE_STEPS);
         this.renderCore.onAuroraShed = null;
+        this.renderCore.onMeteorsShed = null;
         this._setHash('#/');
       },
       finalState: VIEW_STATES.SOLAR,

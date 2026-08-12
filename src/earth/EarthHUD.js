@@ -17,6 +17,7 @@ export class EarthHUD {
     this.onFindNextEclipse = null;
     this.onToggleEclipse = null;
     this.onToggleAurora = null;
+    this.onToggleISS = null;
     this.onSpeedChange = null;
     this._collapsed = false;
     this._injectStyles();
@@ -207,6 +208,13 @@ export class EarthHUD {
       <div class="earth-hud-section">
         <button class="earth-hud-toggle" type="button" data-toggle="aurora">${STR.earthAuroraOn}</button>
       </div>
+      <div class="earth-hud-section">
+        <div class="earth-hud-note" data-field="meteor-notice" role="status" aria-live="polite"></div>
+      </div>
+      <div class="earth-hud-section">
+        <button class="earth-hud-toggle" type="button" data-toggle="iss">${STR.earthIssOn}</button>
+        <div class="earth-hud-note" data-field="iss-facts"></div>
+      </div>
       <button class="earth-hud-back" type="button">${STR.earthBack}</button>
     `;
     this.el.addEventListener('click', (e) => e.stopPropagation());
@@ -220,6 +228,9 @@ export class EarthHUD {
     this._eclipseToggle = this.el.querySelector('[data-toggle="eclipse"]');
     this._eclipseDetailEl = this.el.querySelector('[data-field="eclipse-detail"]');
     this._auroraToggle = this.el.querySelector('[data-toggle="aurora"]');
+    this._meteorNoticeEl = this.el.querySelector('[data-field="meteor-notice"]');
+    this._issToggle = this.el.querySelector('[data-toggle="iss"]');
+    this._issFactsEl = this.el.querySelector('[data-field="iss-facts"]');
     this._speedSlider = this.el.querySelector('[data-field="speed-slider"]');
     this._speedValueEl = this.el.querySelector('[data-field="speed-value"]');
 
@@ -244,6 +255,9 @@ export class EarthHUD {
     });
     this._auroraToggle.addEventListener('click', () => {
       if (this.onToggleAurora) this.onToggleAurora();
+    });
+    this._issToggle.addEventListener('click', () => {
+      if (this.onToggleISS) this.onToggleISS();
     });
     this._speedSlider.addEventListener('input', () => {
       const speed = parseFloat(this._speedSlider.value);
@@ -328,6 +342,30 @@ export class EarthHUD {
   /** @param {boolean} on */
   setAuroraEnabled(on) {
     if (this._auroraToggle) this._auroraToggle.textContent = on ? STR.earthAuroraOn : STR.earthAuroraOff;
+  }
+
+  /** @param {boolean} on */
+  setISSEnabled(on) {
+    if (this._issToggle) this._issToggle.textContent = on ? STR.earthIssOn : STR.earthIssOff;
+  }
+
+  /**
+   * Show the ISS's Korean kid facts (REQ-E3-203). This view has no InfoPanel, so
+   * the HUD is the facts surface — mirrors the eclipse-detail note above.
+   * @param {string[]} factsKo
+   */
+  showISSFacts(factsKo) {
+    if (this._issFactsEl) this._issFactsEl.textContent = (factsKo || []).join(' ');
+  }
+
+  /**
+   * Show the meteor-shower entry notice (REQ-E3-104): a Korean line derived
+   * mechanically from the shower table's koreanName, on the same aria-live
+   * note surface pattern as eclipse-detail/iss-facts above. Empty clears it.
+   * @param {string} text
+   */
+  setMeteorNotice(text) {
+    if (this._meteorNoticeEl) this._meteorNoticeEl.textContent = text || '';
   }
 
   /** @param {boolean} on */

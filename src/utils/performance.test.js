@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rollingFps, shouldDegrade } from './performance.js';
+import { rollingFps, shouldDegrade, FrameBudgetDegrader, EARTH_DEGRADE_STEPS } from './performance.js';
 
 describe('rollingFps', () => {
   it('returns 0 for an empty window', () => {
@@ -44,5 +44,23 @@ describe('shouldDegrade', () => {
     expect(
       shouldDegrade({ deltas: [1 / 60, 1 / 60, 1 / 60], windowSize, thresholdFps: 30, isMobile: true })
     ).toBe(false);
+  });
+});
+
+describe('EARTH_DEGRADE_STEPS — meteors join the ladder after aurora (REQ-E3-106)', () => {
+  it('is the 5-step ladder: aurora, meteors, bloom, lod, pixelRatio', () => {
+    expect(EARTH_DEGRADE_STEPS).toEqual(['aurora', 'meteors', 'bloom', 'lod', 'pixelRatio']);
+  });
+
+  it('sheds aurora, then meteors, then bloom in that order under sustained over-budget frames', () => {
+    const budgetMs = 1000 / 60;
+    const over = () => budgetMs + 5;
+    const d = new FrameBudgetDegrader({ budgetMs, overBudgetFrames: 30, steps: EARTH_DEGRADE_STEPS });
+    for (let i = 0; i < 29; i++) expect(d.record(over())).toBeNull();
+    expect(d.record(over())).toBe('aurora');
+    for (let i = 0; i < 29; i++) expect(d.record(over())).toBeNull();
+    expect(d.record(over())).toBe('meteors');
+    for (let i = 0; i < 29; i++) expect(d.record(over())).toBeNull();
+    expect(d.record(over())).toBe('bloom');
   });
 });

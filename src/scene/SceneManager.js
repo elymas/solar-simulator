@@ -200,6 +200,9 @@ export class SceneManager {
     // Set by ViewManager while the Earth view is active so the aurora sheds first
     // (SPEC-EARTH-002 REQ-650). Null in the solar view.
     this.onAuroraShed = null;
+    // Same pattern for the meteor shower streak pool, one step after aurora in
+    // the Earth ladder (SPEC-EARTH-003 REQ-E3-106). Null in the solar view.
+    this.onMeteorsShed = null;
   }
 
   /**
@@ -227,6 +230,14 @@ export class SceneManager {
         break;
       case 'restore:aurora':
         if (this.onAuroraShed) this.onAuroraShed(false);
+        break;
+      case 'meteors':
+        // Earth-view-only step, right after aurora (REQ-E3-106). SceneManager
+        // stays agnostic — EarthView owns the effect and registers this callback.
+        if (this.onMeteorsShed) this.onMeteorsShed(true);
+        break;
+      case 'restore:meteors':
+        if (this.onMeteorsShed) this.onMeteorsShed(false);
         break;
       case 'bloom':
         this.bloomPass.radius = 0;

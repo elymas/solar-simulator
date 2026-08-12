@@ -1,17 +1,27 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { EARTH_VIEW_DEFAULTS, EARTH_CONTROLS_DEFAULTS, FLIGHT_DEFAULTS } from '../utils/constants.js';
+import { EARTH_VIEW_DEFAULTS, EARTH_CONTROLS_DEFAULTS, FLIGHT_DEFAULTS, METEOR_DEFAULTS } from '../utils/constants.js';
 import { EarthRig } from './EarthRig.js';
 import { EarthHUD } from './EarthHUD.js';
 import { EclipseRig } from '../effects/EclipseRig.js';
 import { AuroraEffect, selectAuroraTier } from '../effects/AuroraEffect.js';
+import { MeteorShower } from '../effects/MeteorShower.js';
 import { AircraftLayer } from '../effects/AircraftLayer.js';
 import { FlightDataService, FLIGHT_STATE } from '../data/FlightDataService.js';
 import { detectEclipsesInRange, findNextEclipse } from '../utils/eclipseData.js';
+import { detectShowerEntries, isShowerActive } from '../utils/meteorData.js';
+import { ISSMarker, ISS_FACTS } from './ISSMarker.js';
+import { speak } from '../audio/tts.js';
+import { STR } from '../ui/strings.js';
+import { TOUCH_TAP_MAX_DRAG_PX } from '../controls/InteractionManager.js';
 
 // Sun direction shared between the rig terminator and this view's key light so the
 // lit hemisphere and the day/night blend agree.
 const SUN_DIRECTION = new THREE.Vector3(1, 0, 0.35).normalize();
+
+// issPosition (issOrbit.js) takes elapsed SIMULATION minutes; the shared clock
+// (_simApi.getSimTime()) reports elapsed SIMULATION days (SIM_EPOCH_MS convention).
+const MINUTES_PER_SIM_DAY = 24 * 60;
 
 /**
  * EarthView is the dedicated single-planet view. It owns its own Scene, an
@@ -34,6 +44,7 @@ export class EarthView {
    * @param {boolean} [opts.isLowEnd] - Low-end heuristic (SIM-001), selects aurora tier.
    * @param {Function} [opts.eclipseRigFactory]
    * @param {Function} [opts.auroraFactory]
+   * @param {Function} [opts.meteorFactory]
    * @param {Function} [opts.flightServiceFactory]
    */
   constructor({
@@ -46,6 +57,7 @@ export class EarthView {
     simApi,
     eclipseRigFactory,
     auroraFactory,
+    meteorFactory,
     flightServiceFactory,
   } = {}) {
     this.isMobile = isMobile;
@@ -59,6 +71,12 @@ export class EarthView {
     this._auroraFactory = auroraFactory
       || (() => new AuroraEffect({
         tier: selectAuroraTier({ isMobile, isLowEnd }),
+        earthRadius: EARTH_VIEW_DEFAULTS.earthRadius,
+        sunDirection: SUN_DIRECTION,
+      }));
+    this._meteorFactory = meteorFactory
+      || (() => new MeteorShower({
+        poolSize: isLowEnd ? METEOR_DEFAULTS.poolSizeConstrained : METEOR_DEFAULTS.poolSizeFull,
         earthRadius: EARTH_VIEW_DEFAULTS.earthRadius,
         sunDirection: SUN_DIRECTION,
       }));
@@ -79,7 +97,9 @@ export class EarthView {
     this.aircraftLayer = new THREE.Group(); this.aircraftLayer.name = 'aircraftLayer';
     this.eclipseLayer = new THREE.Group(); this.eclipseLayer.name = 'eclipseLayer';
     this.auroraLayer = new THREE.Group(); this.auroraLayer.name = 'auroraLayer';
-    this.scene.add(this.aircraftLayer, this.eclipseLayer, this.auroraLayer);
+    this.issLayer = new THREE.Group(); this.issLayer.name = 'issLayer';
+    this.meteorLayer = new THREE.Group(); this.meteorLayer.name = 'meteorLayer';
+    this.scene.add(this.aircraftLayer, this.eclipseLayer, this.auroraLayer, this.issLayer, this.meteorLayer);
 
     this._built = false;
     this._rig = null;
@@ -92,11 +112,27 @@ export class EarthView {
     this._aircraftLayer = null;
     this._eclipseRig = null;
     this._aurora = null;
+    this._meteors = null;
     this._flightService = null;
     this._prevSimDay = 0;
     this._auroraVisible = true;
     this._auroraShed = false;
     this._eclipseEnabled = true;
+
+    // F8 — meteor-shower HUD notice (SPEC-EARTH-003 REQ-E3-104). id of the
+    // shower currently "noticed" (armed only once per continuous active
+    // window); null means the gate is open for the next entry.
+    this._noticedShowerId = null;
+
+    // F11 — ISS (SPEC-EARTH-003). Defaults ON: one cheap marker, unlike the
+    // opt-in aircraft poll. _issRaycaster/_issPointer are reused every tap, not
+    // reallocated (same discipline as the position-update path).
+    this._issMarker = null;
+    this._issVisible = true;
+    this._issRaycaster = new THREE.Raycaster();
+    this._issPointer = new THREE.Vector2();
+    this._issClickHandler = null;
+    this._issPointerDownPos = null;
   }
 
   _initCamera() {
@@ -134,6 +170,16 @@ export class EarthView {
         this.controls.maxDistance = c.maxDistance;
         this.controls.enabled = false;
       }
+    }
+    // @MX:NOTE: [AUTO] The ISS marker is the only tappable target in this view —
+    // no PlanetFactory-bound InteractionManager exists here, so a small dedicated
+    // click listener drives its raycast instead of reusing that (planet-only) class.
+    if (renderer && renderer.domElement && typeof renderer.domElement.addEventListener === 'function' && !this._issClickHandler) {
+      this._issPointerDownHandler = (e) => this._onCanvasPointerDown(e);
+      this._issClickHandler = (e) => this._onCanvasClick(e);
+      this._issDomElement = renderer.domElement;
+      renderer.domElement.addEventListener('pointerdown', this._issPointerDownHandler);
+      renderer.domElement.addEventListener('click', this._issClickHandler);
     }
   }
 
@@ -173,10 +219,25 @@ export class EarthView {
     this.auroraLayer.add(this._aurora.group);
     this._applyAuroraVisible();
 
+    // F8 — meteor shower streak pool (SPEC-EARTH-003 REQ-E3-103/106).
+    this._meteors = this._meteorFactory();
+    this.meteorLayer.add(this._meteors.group);
+
+    // F11 — ISS: a single small emissive marker (REQ-E3-201/202).
+    this._issMarker = new ISSMarker();
+    this.issLayer.add(this._issMarker.object3d);
+    this._applyISSVisible();
+
     this._wireHudControls();
     this._hud.setSpeedDisplay(this._daysPerSecond);
     this._hud.setEclipseEnabled(this._eclipseEnabled);
+    this._hud.setISSEnabled(this._issVisible);
     this._prevSimDay = this._simApi ? this._simApi.getSimTime() : 0;
+    // REQ-E3-104: the Earth view opening DURING an active shower is itself a
+    // notice trigger, independent of the frame-to-frame crossing detection below
+    // (which only fires on a prevDay-inactive -> currDay-active transition and
+    // would never see this one, since _prevSimDay above is set to "now").
+    this._noticeActiveShower(isShowerActive(this._prevSimDay));
     this._built = true;
   }
 
@@ -189,6 +250,7 @@ export class EarthView {
     this._hud.onFindNextEclipse = () => this._findNextEclipse();
     this._hud.onToggleEclipse = () => this._toggleEclipse();
     this._hud.onToggleAurora = () => this._toggleAurora();
+    this._hud.onToggleISS = () => this._toggleISS();
     this._hud.onSpeedChange = (v) => { this._daysPerSecond = v; };
   }
 
@@ -246,6 +308,61 @@ export class EarthView {
     if (this._aurora) this._aurora.setVisible(this._auroraVisible && !this._auroraShed);
   }
 
+  _toggleISS() {
+    this._issVisible = !this._issVisible;
+    this._applyISSVisible();
+    if (this._hud) this._hud.setISSEnabled(this._issVisible);
+  }
+
+  _applyISSVisible() {
+    if (this._issMarker) this._issMarker.setVisible(this._issVisible);
+  }
+
+  /**
+   * Record where the pointer went down, so _onCanvasClick can tell an orbit-drag
+   * release apart from a real tap (InteractionManager._onPointerDown precedent).
+   * @param {{clientX: number, clientY: number}} event
+   */
+  _onCanvasPointerDown(event) {
+    this._issPointerDownPos = { x: event.clientX, y: event.clientY };
+  }
+
+  /**
+   * Raycast a canvas click against the ISS marker (REQ-E3-203). Gated on
+   * _issVisible so toggling the layer OFF also drops it from the effective
+   * raycast target set — a tap at the marker's former position hits nothing.
+   * Also gated on drag distance (TOUCH_TAP_MAX_DRAG_PX, shared with
+   * InteractionManager) so an orbit-drag that happens to release over the
+   * marker is not misread as a tap.
+   * @param {{clientX: number, clientY: number, target: *}} event
+   */
+  _onCanvasClick(event) {
+    if (!this._issMarker || !this._issVisible) return;
+    if (this.renderer && event.target !== this.renderer.domElement) return;
+    if (this._issPointerDownPos) {
+      const dx = event.clientX - this._issPointerDownPos.x;
+      const dy = event.clientY - this._issPointerDownPos.y;
+      this._issPointerDownPos = null;
+      if (Math.hypot(dx, dy) > TOUCH_TAP_MAX_DRAG_PX) return;
+    }
+    const w = this._win ? this._win.innerWidth : 1;
+    const h = this._win ? this._win.innerHeight : 1;
+    this._issPointer.set((event.clientX / w) * 2 - 1, -(event.clientY / h) * 2 + 1);
+    // The render loop normally keeps these matrices current every frame; force
+    // it here too so a click landing outside that cadence still raycasts against
+    // the marker's CURRENT position, not a stale (pre-move) one.
+    this.camera.updateMatrixWorld();
+    this._issMarker.object3d.updateMatrixWorld(true);
+    this._issRaycaster.setFromCamera(this._issPointer, this.camera);
+    if (this._issRaycaster.intersectObject(this._issMarker.object3d, false).length > 0) this._selectISS();
+  }
+
+  /** Present the ISS's Korean facts in the HUD and speak the mandated first one. */
+  _selectISS() {
+    if (this._hud) this._hud.showISSFacts(ISS_FACTS.factsKo);
+    speak(ISS_FACTS.factsKo[0]);
+  }
+
   /**
    * Shed/restore the aurora under frame-budget pressure (REQ-650). Called by the
    * degradation ladder before bloom while the Earth view is active.
@@ -254,6 +371,16 @@ export class EarthView {
   setAuroraShed(shed) {
     this._auroraShed = shed;
     this._applyAuroraVisible();
+  }
+
+  /**
+   * Shed/restore the meteor pool under frame-budget pressure (REQ-E3-106), the
+   * degrade step right after aurora. Mirrors setAuroraShed; unlike aurora there
+   * is no separate manual HUD toggle to combine with.
+   * @param {boolean} shed
+   */
+  setMeteorsShed(shed) {
+    if (this._meteors) this._meteors.setVisible(!shed);
   }
 
   /**
@@ -302,11 +429,79 @@ export class EarthView {
     }
 
     if (this._rig) this._rig.update(delta, speed);
+    this._detectShowers();
     this._detectEclipses();
+    // Single, unconditional owner of the (prevDay, currDay] window close: both
+    // detectors above may bail early (no simApi, no _eclipseRig) without ever
+    // reaching their own prevSimDay write, so the advance must not live inside
+    // either of them (see _detectShowers's docstring).
+    if (this._simApi) this._prevSimDay = this._simApi.getSimTime();
     this._updateAircraft(delta);
+    const simDay = this._simApi ? this._simApi.getSimTime() : 0;
+    if (this._issMarker) {
+      this._issMarker.update(simDay * MINUTES_PER_SIM_DAY);
+    }
     if (this._aurora) this._aurora.update(delta);
+    if (this._meteors) this._meteors.update(delta, simDay);
     if (this._eclipseRig) this._eclipseRig.update(delta);
     if (this.controls) this.controls.update();
+  }
+
+  /**
+   * Range-test the sim-time span this frame covered against the shower table
+   * (REQ-E3-102/104) — mirrors _detectEclipses's half-open crossing detection.
+   * Both detectors read the SAME (this._prevSimDay, curr] window this frame;
+   * update() advances this._prevSimDay to curr exactly once, after both
+   * detectors have run, regardless of which one (if either) bailed early —
+   * that single shared advance is also what keeps every shower's own re-arm
+   * state correct (see @MX:NOTE below): no per-shower bookkeeping is needed
+   * here beyond it.
+   */
+  _detectShowers() {
+    if (!this._simApi) return;
+    const curr = this._simApi.getSimTime();
+    if (curr === this._prevSimDay) return;
+    const entries = detectShowerEntries(this._prevSimDay, curr);
+    if (entries.length > 0) {
+      // @MX:NOTE: [AUTO] entries only answers "was a boundary crossed this
+      // frame" (REQ-E3-102) — a returned shower can already be over by `curr`
+      // (its whole window fell inside one frame, e.g. a huge or multi-year
+      // delta), so entries itself is never announced directly. What is
+      // actually in the sky right now is isShowerActive(curr), so that
+      // (possibly null, meaning nothing is announced) is what gets noticed,
+      // uniformly for the single- and multi-shower case alike.
+      // @MX:REASON: [AUTO] Announcing a shower that already ended would be a
+      // new defect. isShowerActive(curr) is the same fan_in-4 predicate every
+      // other "is a shower active" check routes through (see its own
+      // @MX:ANCHOR), so this stays consistent with _build/showerIntensity.
+      // _noticeActiveShower still bounds this to at most one notice per
+      // continuous active window (AC-E3-104): it no-ops on null and dedupes
+      // by id, so the other showers in `entries` are silently skipped here —
+      // this._prevSimDay advances to `curr` right after both detectors run,
+      // so each of THEIR crossings is still detected correctly and exactly
+      // once on whichever future frame the calendar genuinely reaches it.
+      this._noticeActiveShower(isShowerActive(curr));
+    } else if (!isShowerActive(curr)) {
+      // @MX:NOTE: [AUTO] Re-arm gate (REQ-E3-104 "not until exited and
+      // re-entered"): no shower is active right now, so drop the "already
+      // noticed" id — the next crossing (or view re-open) may notice again.
+      this._noticedShowerId = null;
+    }
+  }
+
+  /**
+   * Show + speak the meteor-shower notice, but at most once per continuous
+   * active window (REQ-E3-104), regardless of which trigger asked — a clock
+   * crossing (_detectShowers) or the Earth view opening mid-shower (_build).
+   * @param {{id:string,koreanName:string}|null} shower
+   */
+  _noticeActiveShower(shower) {
+    if (!shower) { this._noticedShowerId = null; return; }
+    if (shower.id === this._noticedShowerId) return;
+    this._noticedShowerId = shower.id;
+    const text = STR.earthMeteorNotice(shower.koreanName);
+    if (this._hud) this._hud.setMeteorNotice(text);
+    speak(text);
   }
 
   /**
@@ -319,7 +514,6 @@ export class EarthView {
     if (curr === this._prevSimDay) return;
     const hits = detectEclipsesInRange(this._prevSimDay, curr);
     if (hits.length) this._showEclipse(hits[hits.length - 1]);
-    this._prevSimDay = curr;
   }
 
   /**
@@ -400,12 +594,22 @@ export class EarthView {
       this.auroraLayer.remove(this._aurora.group);
       this._aurora.dispose();
     }
+    if (this._meteors) {
+      this.meteorLayer.remove(this._meteors.group);
+      this._meteors.dispose();
+    }
+    if (this._issMarker) {
+      this.issLayer.remove(this._issMarker.object3d);
+      this._issMarker.dispose();
+    }
     if (this._hud) this._hud.dispose();
     this._rig = null;
     this._hud = null;
     this._aircraftLayer = null;
     this._eclipseRig = null;
     this._aurora = null;
+    this._meteors = null;
+    this._issMarker = null;
     this._flightService = null;
     this._built = false;
   }
@@ -413,5 +617,9 @@ export class EarthView {
   dispose() {
     this._disposeAssets();
     if (this.controls && this.controls.dispose) this.controls.dispose();
+    if (this._issClickHandler && this._issDomElement && this._issDomElement.removeEventListener) {
+      this._issDomElement.removeEventListener('click', this._issClickHandler);
+      this._issDomElement.removeEventListener('pointerdown', this._issPointerDownHandler);
+    }
   }
 }

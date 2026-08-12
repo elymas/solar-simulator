@@ -58,15 +58,20 @@ export const STR = {
   earthEclipseOff: '가림 현상: 끔',
   earthAuroraOn: '오로라: 켬',
   earthAuroraOff: '오로라: 끔',
+  earthIssOn: 'ISS 보기: 켬',
+  earthIssOff: 'ISS 보기: 끔',
+  // Meteor-shower entry notice (REQ-E3-104). koreanName is the single source
+  // (meteorData.js SHOWER_TABLE.koreanName) — never hardcode a shower name here.
+  earthMeteorNotice: (koreanName) => `${koreanName}가 쏟아져요!`,
 
   // Earth HUD flight status. LIVE-with-zero-aircraft is a healthy state and must
   // stay worded apart from the error states (SPEC-EARTH-002 REQ-480/490).
   earthFlightOff: '꺼짐',
-  earthFlightLoading: '비행기를 찾고 있어요',
-  earthFlightLive: (count, agoSec) => `실시간 · 비행기 ${count}대 · ${Math.round(agoSec)}초 전`,
-  earthFlightLiveEmpty: '실시간 · 지금 이 하늘은 깨끗해요',
+  earthFlightLoading: '서울 하늘에서 비행기를 찾고 있어요',
+  earthFlightLive: (count, agoSec) => `서울 하늘 실시간 · 비행기 ${count}대 · ${Math.round(agoSec)}초 전`,
+  earthFlightLiveEmpty: '실시간 · 지금 서울 하늘은 깨끗해요',
   earthFlightRateLimited: '잠시 쉬는 중이에요 · 마지막 정보를 보여줘요',
-  earthFlightOffline: '비행기 정보를 지금은 볼 수 없어요',
+  earthFlightOffline: '지금은 서울 하늘 정보를 볼 수 없어요',
 
   // InfoPanel property labels (consumed by the kid-first panel rework)
   infoType: '종류',

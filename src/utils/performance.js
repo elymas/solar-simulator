@@ -33,11 +33,12 @@ export function shouldDegrade({ deltas, windowSize, thresholdFps, isMobile }) {
 // at every degradation level.
 export const DEGRADE_STEPS = ['bloom', 'lod', 'pixelRatio'];
 
-// @MX:NOTE: [AUTO] Earth-view ladder (SPEC-EARTH-002 REQ-650): the decorative aurora
-// sheds FIRST, before the SIM-001 bloom/lod/pixelRatio order. Only active while the
-// Earth view is the active view (ViewManager swaps the degrader's steps on enter/exit),
-// so the solar view keeps DEGRADE_STEPS unchanged.
-export const EARTH_DEGRADE_STEPS = ['aurora', 'bloom', 'lod', 'pixelRatio'];
+// @MX:NOTE: [AUTO] Earth-view ladder (SPEC-EARTH-002 REQ-650, extended by
+// SPEC-EARTH-003 REQ-E3-106): the decorative aurora sheds FIRST, then the meteor
+// shower streak pool, before the SIM-001 bloom/lod/pixelRatio order. Only active
+// while the Earth view is the active view (ViewManager swaps the degrader's steps
+// on enter/exit), so the solar view keeps DEGRADE_STEPS unchanged.
+export const EARTH_DEGRADE_STEPS = ['aurora', 'meteors', 'bloom', 'lod', 'pixelRatio'];
 
 /**
  * Frame-budget priority degrader (REQ-240). Pure state machine: feed it a frame
