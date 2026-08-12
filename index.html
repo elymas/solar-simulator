@@ -2,19 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Solar System 3D Simulator</title>
   <meta name="description" content="Interactive 3D Solar System Simulation - Explore planets, orbits, and astronomical data" />
   <meta name="theme-color" content="#0a0a0f" />
   <meta property="og:title" content="Solar System 3D Simulator" />
   <meta property="og:description" content="Explore the solar system in 3D" />
+  <!-- apple-mobile-web-app-capable is what iOS Safari still reads (REQ-PWA-102);
+       mobile-web-app-capable is the standardized replacement Chrome wants. Both
+       are needed: dropping the apple- one breaks iOS standalone launch, dropping
+       the standard one logs a deprecation warning on every Chrome load. -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180x180.png" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1FA90;</text></svg>" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-    rel="stylesheet"
-  />
   <style>
     * {
       margin: 0;
@@ -27,7 +29,7 @@
       height: 100%;
       overflow: hidden;
       background: #0a0a0f;
-      font-family: 'Inter', sans-serif;
+      font-family: 'Inter Variable', sans-serif;
       color: #e0e0e0;
     }
 
@@ -53,6 +55,9 @@
       .time-controls {
         width: calc(100% - 32px) !important;
         padding: 10px 16px !important;
+        /* Additive safe-area inset (home indicator, REQ-PWA-103): 0 on
+           devices/browsers without env() support, zero desktop regression. */
+        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
         gap: 12px !important;
       }
       #speed-slider {
@@ -67,6 +72,7 @@
       .time-controls {
         gap: 8px !important;
         padding: 8px 12px !important;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
       }
     }
 
@@ -74,8 +80,10 @@
     @media (max-width: 768px) {
       .planet-list {
         top: auto !important;
-        bottom: 70px !important;
-        left: 8px !important;
+        /* Additive safe-area insets (home indicator + landscape rounded
+           corner, REQ-PWA-103): 0 on devices/browsers without env() support. */
+        bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
+        left: calc(8px + env(safe-area-inset-left, 0px)) !important;
         transform: none !important;
         padding: 10px 8px !important;
         min-width: 130px !important;
@@ -104,15 +112,17 @@
     }
     @media (max-width: 480px) {
       .earth-hud {
-        right: 8px !important;
+        /* Additive safe-area insets (Dynamic Island + landscape rounded
+           corner, REQ-PWA-103): 0 on devices/browsers without env() support. */
+        right: calc(8px + env(safe-area-inset-right, 0px)) !important;
         min-width: 180px !important;
         padding: 10px 12px !important;
       }
       .earth-hud-toggle-btn {
-        top: 8px !important;
-        right: 8px !important;
+        top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+        right: calc(8px + env(safe-area-inset-right, 0px)) !important;
       }
-      .earth-hud { top: 52px !important; }
+      .earth-hud { top: calc(52px + env(safe-area-inset-top, 0px)) !important; }
     }
   </style>
 </head>

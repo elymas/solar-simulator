@@ -32,3 +32,19 @@ describe('EarthHUD (E8, REQ-330/340)', () => {
     expect(document.querySelector('.earth-hud')).toBeNull();
   });
 });
+
+describe('EarthHUD safe-area inset (REQ-PWA-103)', () => {
+  it('adds safe-area-inset-top/right to the panel, additive to the base offsets', () => {
+    new EarthHUD();
+    const styleText = document.getElementById('earth-hud-styles').textContent;
+    expect(styleText).toContain('top: calc(64px + env(safe-area-inset-top, 0px));');
+    expect(styleText).toContain('right: calc(16px + env(safe-area-inset-right, 0px));');
+  });
+
+  it('adds safe-area-inset-top/right to the toggle button', () => {
+    new EarthHUD();
+    const styleText = document.getElementById('earth-hud-styles').textContent;
+    expect(styleText).toContain('.earth-hud-toggle-btn {');
+    expect(styleText).toMatch(/earth-hud-toggle-btn \{[^}]*top: calc\(16px \+ env\(safe-area-inset-top, 0px\)\);/);
+  });
+});

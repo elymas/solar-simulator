@@ -1,3 +1,8 @@
+// Self-hosted fonts (REQ-PWA-105): replaces the Google Fonts CDN link
+// removed from index.html so text renders offline with no third-party origin.
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
+
 import { LoadingScreen } from './ui/LoadingScreen.js';
 import { SceneManager } from './scene/SceneManager.js';
 import { SolarSystemView } from './views/SolarSystemView.js';

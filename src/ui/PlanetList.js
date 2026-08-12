@@ -21,7 +21,9 @@ export class PlanetList {
       .planet-list {
         position: fixed;
         top: 50%;
-        left: 16px;
+        /* Additive safe-area inset (landscape rounded corner, REQ-PWA-103):
+           0 on devices/browsers without env() support, zero desktop regression. */
+        left: calc(16px + env(safe-area-inset-left, 0px));
         transform: translateY(-50%);
         background: rgba(26, 26, 46, 0.85);
         backdrop-filter: blur(10px);
@@ -30,7 +32,7 @@ export class PlanetList {
         border-radius: 12px;
         padding: 16px 12px;
         z-index: 100;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         min-width: 160px;
         max-height: calc(100vh - 100px);
         overflow-y: auto;
@@ -53,8 +55,10 @@ export class PlanetList {
       }
       .planet-list-toggle {
         position: fixed;
-        top: 16px;
-        left: 16px;
+        /* Additive safe-area insets (Dynamic Island + landscape rounded
+           corner, REQ-PWA-103): 0 on devices/browsers without env() support. */
+        top: calc(16px + env(safe-area-inset-top, 0px));
+        left: calc(16px + env(safe-area-inset-left, 0px));
         background: rgba(26, 26, 46, 0.85);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
@@ -106,7 +110,7 @@ export class PlanetList {
         border: none;
         border-radius: 8px;
         color: #ccc;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         font-size: 13px;
         cursor: pointer;
         transition: all 0.2s;

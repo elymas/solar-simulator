@@ -32,7 +32,7 @@ export class InfoPanel {
         transition: right 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
         z-index: 100;
         overflow-y: auto;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter Variable', sans-serif;
         color: #e0e0e0;
       }
       .info-panel.open {
@@ -83,7 +83,7 @@ export class InfoPanel {
       }
       .info-value {
         font-size: 14px;
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'JetBrains Mono Variable', monospace;
         color: #e0e0e0;
       }
     `;
