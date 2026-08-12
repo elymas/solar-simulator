@@ -1,13 +1,40 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SolarSystemView } from '../src/views/SolarSystemView.js';
+import { ALIGNMENT_PLANET_KEYS } from '../src/utils/alignment.js';
+import { ASTEROID_BELT, KUIPER_BELT } from '../src/effects/Belts.js';
+import { BELT_DATA } from '../src/planets/planetData.js';
+import { STR } from '../src/ui/strings.js';
+
+// Heliocentric longitudes (degrees) for the 8 planets, in ALIGNMENT_PLANET_KEYS
+// order. Evenly spread = no four inside any 30-degree window.
+const SCATTERED = [0, 45, 90, 135, 180, 225, 270, 315];
+const FORMED = [0, 6, 12, 18, 180, 225, 270, 315];
+const DISPERSED = [0, 20, 40, 60, 180, 225, 270, 315];
+
+/** Place a planet mesh on the XZ plane at the given heliocentric longitude. */
+function positionAt(position, deg, radius) {
+  const rad = (deg * Math.PI) / 180;
+  position.x = radius * Math.cos(rad);
+  position.y = 0;
+  position.z = radius * Math.sin(rad);
+}
 
 // Minimal stubs — no real WebGL/DOM layout needed for lifecycle + ownership logic.
-function makeStubs() {
-  const scene = { tag: 'scene' };
+function makeStubs({ qualityTier = 'full', longitudes = SCATTERED } = {}) {
+  const scene = { tag: 'scene', add: vi.fn() };
   const camera = { tag: 'camera' };
+  const belts = [ASTEROID_BELT, KUIPER_BELT].map((config) => ({
+    config,
+    mesh: { name: config.name },
+    update: vi.fn(),
+    setReduced: vi.fn(),
+    dispose: vi.fn(),
+  }));
   const sceneManager = {
     scene,
     camera,
+    qualityTier,
+    onBeltsShed: null,
     controls: { enabled: true, target: { copy: vi.fn() }, update: vi.fn() },
     renderer: { domElement: { addEventListener: vi.fn() } },
     focusPlanet: vi.fn(),
@@ -15,12 +42,22 @@ function makeStubs() {
     stepCamera: vi.fn(),
     setHoveredObject: vi.fn(),
   };
+  // All 8 planets, so the alignment frame hook has real positions to read. The
+  // comet joins them: PlanetFactory registers it like any other PLANET_DATA body.
+  const planets = {
+    moon: { mesh: { position: {}, getWorldPosition: vi.fn((v) => v) }, pivot: {}, data: { displayRadius: 3 } },
+    halley: { mesh: { position: { x: 700, y: 0, z: 0 } }, data: { displayRadius: 2 } },
+  };
+  for (const key of ALIGNMENT_PLANET_KEYS) {
+    planets[key] = { mesh: { position: { x: 0, y: 0, z: 0 } }, data: { displayRadius: key === 'earth' ? 8 : 5 } };
+  }
+  const setLongitudes = (degs) => {
+    ALIGNMENT_PLANET_KEYS.forEach((key, i) => positionAt(planets[key].mesh.position, degs[i], 100 + i * 50));
+  };
+  setLongitudes(longitudes);
+
   const planetFactory = {
-    planets: {
-      earth: { mesh: { position: {} }, data: { displayRadius: 8 } },
-      mars: { mesh: { position: { x: 1 } }, data: { displayRadius: 5 } },
-      moon: { mesh: { position: {}, getWorldPosition: vi.fn((v) => v) }, pivot: {}, data: { displayRadius: 3 } },
-    },
+    planets,
     update: vi.fn(),
     onFocus: vi.fn(),
     onDefocus: vi.fn(),
@@ -31,6 +68,7 @@ function makeStubs() {
   const planetStrip = { el: el(), onSelect: null, setActive: vi.fn(), clearActive: vi.fn() };
   const timeControls = { el: el(), updatePlayButton: vi.fn(), updateDate: vi.fn() };
   const interaction = { enabled: true, selectedPlanet: null, dispose: vi.fn() };
+  const eventBanner = { el: el(), show: vi.fn(), hide: vi.fn() };
 
   const keyListeners = [];
   const win = { addEventListener: (t, fn) => t === 'keydown' && keyListeners.push(fn) };
@@ -44,9 +82,14 @@ function makeStubs() {
     createPlanetStrip: () => planetStrip,
     createTimeControls: () => timeControls,
     createInteraction: () => interaction,
+    createBelts: () => belts,
+    createEventBanner: () => eventBanner,
     win,
   });
-  return { view, sceneManager, planetFactory, infoPanel, planetList, planetStrip, timeControls, interaction, emitKey };
+  return {
+    view, sceneManager, planetFactory, infoPanel, planetList, planetStrip,
+    timeControls, interaction, belts, eventBanner, emitKey, setLongitudes,
+  };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -170,6 +213,232 @@ describe('SolarSystemView mobile icon strip wiring (REQ-MOB-303, AC-MOB-303)', (
   });
 });
 
+// SPEC-EVENTS-001 M3. SolarSystemView owns the contents of the solar scene, so
+// the belts mount here — SceneManager owns only the render core and the degrader.
+describe('SolarSystemView belt field (REQ-EVT-201, REQ-EVT-202)', () => {
+  it('mounts both belts into the solar scene', () => {
+    const s = makeStubs();
+    for (const belt of s.belts) {
+      expect(s.sceneManager.scene.add).toHaveBeenCalledWith(belt.mesh);
+    }
+  });
+
+  it('drifts the belts on simulation time, alongside the planets', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.view.simApi.setTimeSpeed(10);
+    s.view.update(0.5);
+    for (const belt of s.belts) {
+      expect(belt.update).toHaveBeenCalledWith(s.view.simApi.getSimTime());
+    }
+  });
+
+  it('freezes the belts while the simulation is paused', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.view.simApi.togglePlay(); // pause
+    s.view.update(1);
+    for (const belt of s.belts) expect(belt.update).not.toHaveBeenCalled();
+  });
+});
+
+// SPEC-EVENTS-001 REQ-EVT-204 / AC-EVT-204. SolarSystemView owns the belts, so
+// it owns the shed action too; SceneManager only decides WHEN, exactly as it
+// does for the Earth view's aurora.
+describe('SolarSystemView belt shedding (REQ-EVT-204)', () => {
+  it('boots at the reduced instance count on a constrained-tier device', () => {
+    const s = makeStubs({ qualityTier: 'constrained' });
+    for (const belt of s.belts) expect(belt.setReduced).toHaveBeenCalledWith(true);
+  });
+
+  it('boots the full field on a full-tier device', () => {
+    const s = makeStubs({ qualityTier: 'full' });
+    for (const belt of s.belts) expect(belt.setReduced).not.toHaveBeenCalled();
+  });
+
+  it('registers the shed hook the frame-budget degrader calls', () => {
+    const s = makeStubs();
+    expect(typeof s.sceneManager.onBeltsShed).toBe('function');
+
+    s.sceneManager.onBeltsShed(true);
+    for (const belt of s.belts) expect(belt.setReduced).toHaveBeenCalledWith(true);
+
+    s.sceneManager.onBeltsShed(false);
+    for (const belt of s.belts) expect(belt.setReduced).toHaveBeenCalledWith(false);
+  });
+
+  // acceptance.md §3: a shed that lands while a belt entry is selected and
+  // framed must not crash and must not move the camera target. Instance count
+  // is a draw-range change, so nothing in the camera path can observe it.
+  it('does not disturb the framed camera target when belts shed mid-view', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.view._select('mars');
+    s.sceneManager.controls.target.copy.mockClear();
+    s.sceneManager.focusPlanet.mockClear();
+
+    expect(() => s.view.setBeltsShed(true)).not.toThrow();
+
+    expect(s.sceneManager.controls.target.copy).not.toHaveBeenCalled();
+    expect(s.sceneManager.focusPlanet).not.toHaveBeenCalled();
+    expect(s.sceneManager.resetCamera).not.toHaveBeenCalled();
+    expect(s.view._focusedKey).toBe('mars');
+  });
+});
+
+// SPEC-EVENTS-001 M6 / AC-EVT-103. The comet needs no branch of its own — it
+// rides in PLANET_DATA, so PlanetFactory builds it and the ordinary selection
+// path focuses and narrates it. This pins that, since "selectable like any
+// body" is the requirement.
+describe('SolarSystemView comet selection (REQ-EVT-103)', () => {
+  it('focuses and narrates the comet through the ordinary body path', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+
+    s.view._select('halley');
+
+    expect(s.infoPanel.show).toHaveBeenCalledWith('halley', s.planetFactory.planets.halley.data);
+    expect(s.sceneManager.focusPlanet).toHaveBeenCalledTimes(1);
+    expect(s.planetFactory.onFocus).toHaveBeenCalledWith('halley');
+    expect(s.planetList.setActive).toHaveBeenCalledWith('halley');
+    expect(s.planetStrip.setActive).toHaveBeenCalledWith('halley');
+    expect(s.view._focusedKey).toBe('halley');
+  });
+});
+
+// SPEC-EVENTS-001 M6 / AC-EVT-205. Belts are list- and strip-driven only: they
+// never enter the raycast set, so selecting one is a pure UI path.
+describe('SolarSystemView belt selection (REQ-EVT-205)', () => {
+  it('frames the belt band with the camera', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+
+    s.view._select('asteroidBelt');
+
+    expect(s.sceneManager.focusPlanet).toHaveBeenCalledTimes(1);
+    const [target] = s.sceneManager.focusPlanet.mock.calls[0];
+    const distance = Math.hypot(target.x, target.y, target.z);
+    expect(distance).toBeGreaterThanOrEqual(ASTEROID_BELT.innerRadius);
+    expect(distance).toBeLessThanOrEqual(ASTEROID_BELT.outerRadius);
+  });
+
+  it('frames each belt inside its own band', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+
+    s.view._select('kuiperBelt');
+
+    const [target] = s.sceneManager.focusPlanet.mock.calls[0];
+    const distance = Math.hypot(target.x, target.y, target.z);
+    expect(distance).toBeGreaterThanOrEqual(KUIPER_BELT.innerRadius);
+    expect(distance).toBeLessThanOrEqual(KUIPER_BELT.outerRadius);
+  });
+
+  it('opens the belt panel, which is what the narration reads from', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+
+    s.view._select('asteroidBelt');
+
+    expect(s.infoPanel.show).toHaveBeenCalledWith('asteroidBelt', BELT_DATA.asteroidBelt);
+    expect(s.planetList.setActive).toHaveBeenCalledWith('asteroidBelt');
+    expect(s.planetStrip.setActive).toHaveBeenCalledWith('asteroidBelt');
+  });
+
+  it('stops following the previously focused planet', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.view._select('mars');
+    s.sceneManager.controls.target.copy.mockClear();
+
+    s.view._select('asteroidBelt');
+    s.view.update(0.1);
+
+    // A band does not move, so nothing may keep dragging the camera target
+    // around after it is framed — least of all the planet left behind.
+    expect(s.view._focusedKey).toBeNull();
+    expect(s.sceneManager.controls.target.copy).not.toHaveBeenCalled();
+  });
+
+  // acceptance.md §3: a shed landing on a framed belt must not move the camera.
+  it('survives a degrader shed while the belt is framed', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.view._select('kuiperBelt');
+    s.sceneManager.focusPlanet.mockClear();
+
+    expect(() => s.sceneManager.onBeltsShed(true)).not.toThrow();
+    s.view.update(0.1);
+
+    expect(s.sceneManager.focusPlanet).not.toHaveBeenCalled();
+    expect(s.sceneManager.controls.target.copy).not.toHaveBeenCalled();
+    expect(s.sceneManager.resetCamera).not.toHaveBeenCalled();
+  });
+});
+
+// SPEC-EVENTS-001 M5. The detection hook lives here and not in main.js: main.js
+// is a 33-line bootstrap, and the render loop runs through ViewManager into
+// update(delta). Longitudes come from the positions PlanetFactory already wrote
+// this frame — the orbits are never solved twice.
+describe('SolarSystemView alignment event (REQ-EVT-303, REQ-EVT-304)', () => {
+  it('raises the banner once when the formation enters', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+
+    s.view.update(0.1);
+    expect(s.eventBanner.show).not.toHaveBeenCalled();
+
+    s.setLongitudes(FORMED);
+    s.view.update(0.1);
+    expect(s.eventBanner.show).toHaveBeenCalledTimes(1);
+    expect(s.eventBanner.show).toHaveBeenCalledWith(STR.eventAlignment);
+
+    s.view.update(0.1);
+    s.view.update(0.1);
+    expect(s.eventBanner.show).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-triggers only after the formation disperses past the exit window', () => {
+    const s = makeStubs({ longitudes: FORMED });
+    s.view.buildUI();
+    s.view.update(0.1);
+    expect(s.eventBanner.show).toHaveBeenCalledTimes(1);
+
+    s.setLongitudes(DISPERSED); // 60 degrees apart: past the 40 exit window
+    s.view.update(0.1);
+    expect(s.eventBanner.show).toHaveBeenCalledTimes(1);
+
+    s.setLongitudes(FORMED);
+    s.view.update(0.1);
+    expect(s.eventBanner.show).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not sample a paused sky', () => {
+    const s = makeStubs({ longitudes: FORMED });
+    s.view.buildUI();
+    s.view.simApi.togglePlay(); // pause
+    s.view.update(1);
+    expect(s.eventBanner.show).not.toHaveBeenCalled();
+  });
+
+  it('waits for the planets to exist before sampling', () => {
+    const s = makeStubs({ longitudes: FORMED });
+    s.view.buildUI();
+    delete s.planetFactory.planets.neptune; // textures still loading
+    expect(() => s.view.update(0.1)).not.toThrow();
+    expect(s.eventBanner.show).not.toHaveBeenCalled();
+  });
+
+  it('hides the banner with the rest of the overlay chrome', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.view.onExit();
+    expect(s.eventBanner.el.style.display).toBe('none');
+    s.view.onEnter(null);
+    expect(s.eventBanner.el.style.display).toBe('');
+  });
+});
+
 describe('SolarSystemView per-frame update (E3)', () => {
   it('advances sim time, follows the focused body, steps camera + controls', () => {
     const s = makeStubs();
@@ -238,5 +507,13 @@ describe('SolarSystemView dispose', () => {
     s.view.dispose();
     expect(s.interaction.dispose).toHaveBeenCalled();
     expect(disposeCore).toHaveBeenCalled();
+  });
+
+  it('releases the belt geometry and material it allocated', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.sceneManager.dispose = vi.fn();
+    s.view.dispose();
+    for (const belt of s.belts) expect(belt.dispose).toHaveBeenCalled();
   });
 });

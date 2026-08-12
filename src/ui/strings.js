@@ -18,6 +18,10 @@ export const STR = {
   // Planet list sidebar
   listTitle: '태양계',
   listDividerDwarf: '왜소행성',
+  listDividerComet: '혜성',
+  // The category both belts share. Korean has no short kid-word for "belt" as a
+  // class, and 소행성대 / 카이퍼 벨트 already say which band each row is.
+  listDividerBelt: '띠',
   listDividerStars: '별',
   listToggleTitle: '행성 목록 열고 닫기',
   listMoonToggleTitle: '위성 보기',
@@ -25,6 +29,10 @@ export const STR = {
   // Mobile icon strip. The visible label is already the body's Korean name, so
   // this only adds the verb a screen reader needs (SPEC-MOBILE-001 NFR a11y).
   stripSelect: (name) => `${name} 보기`,
+
+  // Celebration banner. One string, two channels: the same sentence is both the
+  // rendered banner and the spoken callout (SPEC-EVENTS-001 REQ-EVT-303).
+  eventAlignment: '행성들이 줄을 섰어요!',
 
   // Time controls bar
   timeSpeed: '속도',
@@ -92,6 +100,7 @@ export const STR = {
   infoDetailsToggle: '자세히 보기',
   infoReplay: '다시 듣기',
   infoValueDwarfPlanet: '왜소행성',
+  infoValueBelt: '작은 돌과 얼음 띠',
   infoValueRetrograde: '거꾸로 돌아요',
   infoValueNone: '몰라요',
   infoRetrogradeSuffix: ' (거꾸로)',

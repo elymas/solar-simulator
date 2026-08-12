@@ -1,4 +1,4 @@
-import { PLANET_DATA, STAR_DATA } from '../planets/planetData.js';
+import { PLANET_DATA, STAR_DATA, BELT_DATA } from '../planets/planetData.js';
 import { STR } from './strings.js';
 
 // The sidebar's own auto-hide breakpoint. The strip is the sidebar's mobile
@@ -115,12 +115,20 @@ export class PlanetStrip {
   _createDOM() {
     this.el = document.createElement('div');
     this.el.className = 'planet-strip';
-    // Every top-level body the sidebar knows: Sun, planets and dwarf planets,
-    // then the stars. Moons are deliberately absent (spec.md §6) — they stay
-    // reachable through the 3D scene and the sidebar. Reading the registry
-    // straight through is what lets a body added by a later SPEC show up here
-    // with no change to this file.
-    for (const [key, data] of [...Object.entries(PLANET_DATA), ...Object.entries(STAR_DATA)]) {
+    // Every top-level body the sidebar knows, in sidebar order: Sun, planets,
+    // dwarf planets and the comet, then the belts, then the stars. Moons are
+    // deliberately absent (spec.md §6) — they stay reachable through the 3D
+    // scene and the sidebar.
+    //
+    // The belts have to be named here because they are not in PLANET_DATA:
+    // they carry no mesh of their own in the picking registry (SPEC-EVENTS-001
+    // REQ-EVT-203). On a phone the sidebar is auto-hidden and this strip is the
+    // selector, so leaving them out would make them unreachable.
+    for (const [key, data] of [
+      ...Object.entries(PLANET_DATA),
+      ...Object.entries(BELT_DATA),
+      ...Object.entries(STAR_DATA),
+    ]) {
       this._addItem(key, data);
     }
   }

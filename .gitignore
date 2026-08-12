@@ -183,6 +183,12 @@ secret-*.*
 .moai/memory/
 .moai/worktrees/
 
+# Per-session ephemeral state: session UUIDs, PIDs, hostnames, absolute cwd
+# paths and tool-failure logs. Machine-specific, never shareable.
+.moai/state/
+.moai/harness/
+.moai/lessons-inbox.jsonl
+
 # ===========================================
 # Evolution Telemetry (local-only usage data)
 # Learnings and new-skills are git-tracked for team sharing.

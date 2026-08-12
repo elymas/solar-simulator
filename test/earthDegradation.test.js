@@ -10,8 +10,12 @@ describe('EARTH_DEGRADE_STEPS — aurora sheds FIRST (REQ-650, AC-AURORA-02)', (
     expect(EARTH_DEGRADE_STEPS.indexOf('aurora')).toBeLessThan(EARTH_DEGRADE_STEPS.indexOf('bloom'));
   });
 
-  it('leaves the solar default ladder untouched (no regression)', () => {
-    expect(DEGRADE_STEPS).toEqual(['bloom', 'lod', 'pixelRatio']);
+  it('leaves the solar ladder to its own first step (no cross-view regression)', () => {
+    // Each view sheds its own decoration first: aurora in Earth, belts in solar
+    // (SPEC-EVENTS-001 REQ-EVT-204). Neither ladder leaks into the other.
+    expect(DEGRADE_STEPS).toEqual(['belts', 'bloom', 'lod', 'pixelRatio']);
+    expect(DEGRADE_STEPS).not.toContain('aurora');
+    expect(EARTH_DEGRADE_STEPS).not.toContain('belts');
   });
 
   it('a degrader configured with earth steps sheds aurora on the first degradation', () => {

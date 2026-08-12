@@ -3,6 +3,7 @@ import { PLANET_DATA, MOON_DATA, STAR_DATA } from './planetData.js';
 import { TEXTURE_MAP, TEXTURE_HIRES_MAP } from '../utils/constants.js';
 import { OrbitalMechanics } from './OrbitalMechanics.js';
 import { TextureTierManager } from './TextureTierManager.js';
+import { CometTail } from '../effects/CometTail.js';
 
 /**
  * PlanetFactory creates and manages all celestial bodies in the solar system.
@@ -43,6 +44,34 @@ export class PlanetFactory {
     this._createAllPlanets();
     this._createOrbitLines();
     this._createStars();
+    this._createCometTail();
+  }
+
+  /**
+   * Attach the anti-sunward tail to whichever body is tagged category:'comet'
+   * (REQ-EVT-102). Nothing here is comet-name-specific, and a scene with no
+   * comet simply gets no tail.
+   */
+  _createCometTail() {
+    const key = Object.keys(PLANET_DATA).find((k) => PLANET_DATA[k].category === 'comet');
+    if (!key || !this.planets[key]) return;
+
+    this.cometTail = new CometTail(PLANET_DATA[key]);
+    this.cometTailKey = key;
+    this.scene.add(this.cometTail.points);
+    this._updateCometTail();
+  }
+
+  /**
+   * Re-aim the tail from the nucleus's and sun's current positions. Called once
+   * at build and once per frame; allocates nothing (see CometTail.update).
+   */
+  _updateCometTail() {
+    if (!this.cometTail) return;
+    this.cometTail.update(
+      this.planets[this.cometTailKey].mesh.position,
+      this.planets.sun.mesh.position
+    );
   }
 
   /**
@@ -294,7 +323,10 @@ export class PlanetFactory {
 
     for (const key of planetKeys) {
       const data = PLANET_DATA[key];
-      const positions = OrbitalMechanics.generateOrbitPath(data, 128);
+      // orbitSegments lets one body opt out of the shared 128 default; only
+      // Halley needs it (see planetData.js), and raising the default for
+      // everyone would cost 40 orbit lines their cheapness for nothing.
+      const positions = OrbitalMechanics.generateOrbitPath(data, data.orbitSegments ?? 128);
 
       if (positions.length === 0) continue;
 
@@ -376,6 +408,9 @@ export class PlanetFactory {
 
     // Update all satellite orbits
     this._updateSatellites(timeDays);
+
+    // Same tick as the nucleus move above, so the tail can never lag a frame.
+    this._updateCometTail();
 
     // Rotate Earth cloud layer slightly faster than Earth
     if (this.earthClouds) {

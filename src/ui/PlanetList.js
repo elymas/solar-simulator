@@ -1,4 +1,4 @@
-import { PLANET_DATA, MOON_DATA, STAR_DATA } from '../planets/planetData.js';
+import { PLANET_DATA, MOON_DATA, STAR_DATA, BELT_DATA } from '../planets/planetData.js';
 import { STR } from './strings.js';
 
 /**
@@ -278,6 +278,18 @@ export class PlanetList {
   }
 
   /**
+   * Add a section divider row.
+   * @param {HTMLElement} container - The items container.
+   * @param {string} label - Korean section label from STR.
+   */
+  _addDivider(container, label) {
+    const divider = document.createElement('div');
+    divider.className = 'planet-list-divider';
+    divider.textContent = label;
+    container.appendChild(divider);
+  }
+
+  /**
    * Expand or collapse a planet's moon group.
    * @param {string} planetKey - Parent planet key.
    * @param {boolean} expanded - Target state.
@@ -324,22 +336,31 @@ export class PlanetList {
     // an explicit divider + loop is required — mirrors the Stars section).
     const dwarfKeys = Object.keys(PLANET_DATA).filter((k) => PLANET_DATA[k].category === 'dwarf');
     if (dwarfKeys.length > 0) {
-      const dwarfDivider = document.createElement('div');
-      dwarfDivider.className = 'planet-list-divider';
-      dwarfDivider.textContent = STR.listDividerDwarf;
-      itemsContainer.appendChild(dwarfDivider);
-
+      this._addDivider(itemsContainer, STR.listDividerDwarf);
       for (const key of dwarfKeys) {
         this._addBodyWithMoons(itemsContainer, key, PLANET_DATA[key]);
       }
     }
 
-    // Add stars divider and star items
-    const divider = document.createElement('div');
-    divider.className = 'planet-list-divider';
-    divider.textContent = STR.listDividerStars;
-    itemsContainer.appendChild(divider);
+    // Comet section (REQ-EVT-103). Same shape as the dwarf section: the comet
+    // rides in PLANET_DATA because it is a Keplerian body PlanetFactory builds,
+    // and planetOrder above deliberately leaves it out of the planets.
+    const cometKeys = Object.keys(PLANET_DATA).filter((k) => PLANET_DATA[k].category === 'comet');
+    if (cometKeys.length > 0) {
+      this._addDivider(itemsContainer, STR.listDividerComet);
+      for (const key of cometKeys) {
+        this._addListItem(itemsContainer, key, PLANET_DATA[key], false);
+      }
+    }
 
+    // Belt section (REQ-EVT-205). These rows are the ONLY way to select a belt:
+    // the instanced rocks are kept out of the raycast set entirely.
+    this._addDivider(itemsContainer, STR.listDividerBelt);
+    for (const [key, data] of Object.entries(BELT_DATA)) {
+      this._addListItem(itemsContainer, key, data, false);
+    }
+
+    this._addDivider(itemsContainer, STR.listDividerStars);
     for (const [key, data] of Object.entries(STAR_DATA)) {
       this._addListItem(itemsContainer, key, data, false);
     }

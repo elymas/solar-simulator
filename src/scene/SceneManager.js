@@ -192,7 +192,7 @@ export class SceneManager {
     this._perfWindow = 90;
     this._perfThresholdFps = 30;
 
-    // Frame-budget priority degradation (REQ-240): bloom -> LOD -> pixel ratio.
+    // Frame-budget priority degradation (REQ-240): belts -> bloom -> LOD -> pixel ratio.
     this._budgetDegrader = new FrameBudgetDegrader({ budgetMs: this.isMobile ? 1000 / 30 : 1000 / 60 });
     this._baseBloomRadius = this.bloomPass.radius;
     this._basePixelRatio = this.renderer.getPixelRatio();
@@ -200,6 +200,11 @@ export class SceneManager {
     // Set by ViewManager while the Earth view is active so the aurora sheds first
     // (SPEC-EARTH-002 REQ-650). Null in the solar view.
     this.onAuroraShed = null;
+
+    // Set by SolarSystemView, which owns the belts, so the first solar shed step
+    // thins them out (SPEC-EVENTS-001 REQ-EVT-204). Unlike the aurora hook this
+    // is registered at construction, because the solar ladder is the default one.
+    this.onBeltsShed = null;
   }
 
   /**
@@ -213,9 +218,9 @@ export class SceneManager {
 
   /**
    * Apply the frame-budget priority degradation ladder (REQ-240). Shed one
-   * non-essential effect per step (bloom radius -> LOD upgrades -> pixel ratio),
-   * and restore in reverse when frame times recover. Camera controls and
-   * click/hover picking are never touched.
+   * non-essential effect per step (belts -> bloom radius -> LOD upgrades ->
+   * pixel ratio), and restore in reverse when frame times recover. Camera
+   * controls and click/hover picking are never touched.
    * @param {number} frameMs - Last frame duration in milliseconds.
    */
   _applyBudgetDegradation(frameMs) {
@@ -227,6 +232,14 @@ export class SceneManager {
         break;
       case 'restore:aurora':
         if (this.onAuroraShed) this.onAuroraShed(false);
+        break;
+      case 'belts':
+        // Solar-view-only step: the scenery belts thin out first (REQ-EVT-204).
+        // Same arrangement as the aurora — SolarSystemView owns the belts.
+        if (this.onBeltsShed) this.onBeltsShed(true);
+        break;
+      case 'restore:belts':
+        if (this.onBeltsShed) this.onBeltsShed(false);
         break;
       case 'bloom':
         this.bloomPass.radius = 0;

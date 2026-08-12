@@ -16,6 +16,9 @@ An interactive 3D simulation of the solar system built with Three.js, featuring 
 - **Planet Info Panel** — Click any body to view diameter, distance, orbital period, rotation period, axial tilt, and moon count
 - **Saturn's Rings** — Transparent ring texture with correct axial tilt
 - **Earth Detail** — Animated cloud layer rendered over the day-side texture
+- **Halley's Comet** — Real eccentricity (0.967) and retrograde inclination on a display-scaled orbit that dives inside Mercury and out past the dwarf planets, with a tail that always points away from the sun and grows toward perihelion
+- **Asteroid & Kuiper Belts** — Instanced rock fields between Mars and Jupiter and beyond Neptune, drifting at Kepler-derived per-rock speeds; scenery only, selectable as a whole from the planet list and mobile strip
+- **Alignment Celebration** — A banner and spoken callout when four or more planets fall within a 30° heliocentric wedge, with hysteresis so it cannot flicker at the boundary
 - **Bloom Post-Processing** — Sun glow via UnrealBloomPass for a cinematic look
 - **Starfield Background** — Milky Way panorama mapped to an inverted sphere
 - **Responsive Design** — Works on desktop and mobile; render quality is decided from device signals (pixel ratio, core count, memory), not a blanket mobile check, so high-end phones render at full sharpness

@@ -36,6 +36,8 @@ One `InstancedMesh` per belt; low-poly icosahedron rock (≤80 tris), flat-color
 
 Comet lives in planetData (new `COMET_DATA` array or a `type:'comet'` entry — run-phase pick when reading PlanetList's registry consumption; the "혜성" divider follows the existing "Dwarf Planets"/"Stars" divider pattern). Belt info entries are registry entries WITHOUT meshes-for-raycast (list/strip selectable only; camera frames radius band on select).
 
+**[Corrected at sync — this section assumed a registry that does not exist.]** `planetData.js` exports three separate maps (`PLANET_DATA`, `MOON_DATA`, `STAR_DATA`); `PlanetStrip.js:123` hardcoded `[...Object.entries(PLANET_DATA), ...Object.entries(STAR_DATA)]` and `PlanetList.js` hand-builds each section. SPEC-MOBILE-001 REQ-MOB-305 did **not** make the strip registry-driven. What actually happened: the comet was picked up automatically because the run-phase pick put it *in* `PLANET_DATA` (`category: 'comet'`, dwarf precedent) — not because the strip enumerates anything; the belts, which needed their own info-only `BELT_DATA` map to stay out of the raycast set, required an explicit edit to the strip's composition. That edit is now REQ-EVT-401 in `spec.md` §3.4.
+
 ## B. Trade-off Notes
 
 | Decision | Chosen | Rejected | Why |
@@ -62,8 +64,10 @@ Comet lives in planetData (new `COMET_DATA` array or a `type:'comet'` entry — 
 **New**
 - `src/effects/Belts.js` (+ `src/effects/Belts.test.js` — generator bounds/count/determinism)
 - `src/effects/CometTail.js` (+ tail-math tests; may fold into PlanetFactory if ≤~60 lines — run-phase call)
+  - **[As-built]** Kept as its own module even though it came in under the fold-in size. The pure `tailAxis`/`tailIntensity` math has to be testable renderer-free (AC-EVT-102), and folding it into `PlanetFactory` would have dragged that file's whole scene construction into a vector test.
 - `src/utils/alignment.js` (+ `src/utils/alignment.test.js`)
 - `src/ui/EventBanner.js` (+ test) — reusable for SPEC-EARTH-003 HUD notices if trivially shareable (soft goal, not a contract)
+- **[Added at run]** `src/planets/planetData.comet.test.js` — the M1 orbit sweep; a data-entry test with no module of its own to live in.
 
 **Modified**
 - `src/planets/planetData.js` (comet entry + belt info entries + their KIDS-shape facts)
@@ -72,7 +76,9 @@ Comet lives in planetData (new `COMET_DATA` array or a `type:'comet'` entry — 
 - `src/scene/SceneManager.js` / `src/views/...` (belt mount + shed callback wiring, mirroring the aurora-shed pattern at `SceneManager.js:190-192`)
 - `src/ui/PlanetList.js` ("혜성" divider + belt entries)
 - `src/controls/InteractionManager.js` (raycast target set confirmation — belts excluded)
-- `src/main.js` (frame hook: longitudes → detector → banner/TTS)
+- ~~`src/main.js`~~ → **`src/views/SolarSystemView.js`** (frame hook: longitudes → detector → banner/TTS). `src/main.js` is a 33-line bootstrap with no render loop; the loop runs `ViewManager` → `SolarSystemView.update(delta)`. The belt mount landed there too.
+- **[Added at run]** `src/ui/InfoPanel.js` — a `category === 'belt'` branch, six lines mirroring the dwarf branch. Unplanned but not optional: without it a belt fell through to the generic branch and rendered `지름 NaN km`, which AC-EVT-205 fails on.
+- **[Added at run]** `src/ui/TimeControls.js` — exports the logarithmic speed ceiling (`SPEED_LOG_MAX`, `MAX_TIME_SPEED`) so the AC-EVT-304 sweep proof *derives* `10^2.7` from the slider rather than copying the constant. A slider change now invalidates the proof loudly instead of silently. Rendered markup byte-identical.
 
 ## E. Test Strategy (TDD)
 
@@ -84,16 +90,24 @@ Comet lives in planetData (new `COMET_DATA` array or a `type:'comet'` entry — 
 
 | Risk | Mitigation |
 |------|------------|
-| Kepler solver non-convergence at e=0.967 | M1 verifies first (High priority, before dependent work); bounded-iteration fix inside solver contract; documented visual-compromise fallback only if unfixable |
+| ~~Kepler solver non-convergence at e=0.967~~ — **RESOLVED at M1 (`473497f`), did not materialize** | The existing 10-iteration Newton-Raphson solver converges untouched: residual `< 1e-6` at all 2000 samples of a full-period sweep, min r 23.10 / max r 1376.90. No bounded-iteration fix and no eccentricity-0.9 fallback were needed; M1 kept only the characterization test |
 | Belt matrix updates janky on weak devices | Quarter-cadence updates + 'belts' first-shed + constrained-tier reduced boot counts |
 | Alignment too rare (kid never sees it) at N=4/30° with display-scaled periods | Display periods differ from real ones, so alignment frequency is already display-domain; constants are named and tunable; acceptance only pins detector correctness, not astronomical frequency |
 | Alignment TTS fires during unrelated narration | Shared TTS channel's cancel-before-speak (KIDS-001 REQ-KIDS-203) arbitrates; callout uses `speak()` which respects mute |
-| "혜성" divider ordering confuses registry-driven strip | Strip reads registry order (MOBILE-001 REQ-MOB-305); comet appended after stars or before dwarfs — final order chosen at M6 with the list visible |
+| "혜성" divider ordering confuses registry-driven strip — **premise disproved: the strip is not registry-driven (§A.5)** | The strip has no dividers and renders a hand-composed order, so there was nothing to confuse. Order chosen at M6 with the list visible: `PLANET_DATA` (sun, planets, dwarfs, comet), then `BELT_DATA`, then `STAR_DATA` — matching the sidebar's 왜소행성 / 혜성 / 띠 / 별 sequence |
 
 ## G. Cross-SPEC Notes
 
 - `depends_on: SPEC-KIDS-001` (facts shape + TTS). If run before KIDS lands, M6 blocks — the depends_on gate handles this.
-- SPEC-MOBILE-001 strip auto-includes comet/belt entries (registry-driven). Run-order: implement after SPEC-MOBILE-001; REQ-EVT-204 consumes its constrained-tier definition and extends the degrader ladder it characterizes.
+- ~~SPEC-MOBILE-001 strip auto-includes comet/belt entries (registry-driven).~~ **[Corrected at sync]** It does not. REQ-MOB-305 made the strip registry-*shaped*, not registry-*driven*: `PlanetStrip.js:123` hardcoded its source maps. The comet rode in inside `PLANET_DATA`; the belts needed an explicit edit, now recorded as REQ-EVT-401. Any later SPEC adding a new body map must edit the strip deliberately. Run-order note stands: implement after SPEC-MOBILE-001; REQ-EVT-204 consumes its constrained-tier definition and extends the degrader ladder it characterizes.
 - SPEC-PLAY-001 celebration FX may later decorate the alignment banner; the banner exposes no API contract now (YAGNI).
 
 No open clarification markers — all decisions resolved with stated defaults.
+
+## H. As-Built Notes (decisions the plan left open, closed at run)
+
+Three micro-decisions this plan deferred to the run phase, recorded here with the evidence that settled them.
+
+- **Comet orbit-line resolution — `orbitSegments: 512` as a per-body data field.** `generateOrbitPath` samples uniformly in true anomaly, which at e=0.967 puts its widest chords at the aphelion apex, exactly where the ellipse is sharpest (curvature radius `a(1−e²)` = 45 units). Measured deviation at that apex: 128 segments cut the tip flat by 10.00 display units — five nucleus diameters of visible facet — while 512 cuts 0.77. The field is comet-only; the shared default stays 128 for the other ~40 orbit lines, which is one LineLoop draw call either way.
+- **Belt drift rates derived from Kepler's third law, not randomly drawn.** Per-instance angular velocity falls off with radius across the band, so the ring *shears* the way a real belt does instead of turning like a solid disc. A random draw would have produced the same "things move" impression while teaching the wrong mechanics — and the derived form costs nothing, since drift is one multiply per instance either way.
+- **`DEGRADE_STEPS` amended in place rather than adding a parallel solar constant.** `['belts','bloom','lod','pixelRatio']` replaced the old three-step array directly, because that array is already the solar ladder in fact: it is both the `FrameBudgetDegrader` default and the array `ViewManager.js:229` restores on Earth-view exit. A second `SOLAR_DEGRADE_STEPS` would have left two names for one ladder and a restore path pointing at the stale one. `EARTH_DEGRADE_STEPS` untouched.

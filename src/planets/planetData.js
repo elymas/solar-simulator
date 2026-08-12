@@ -323,6 +323,105 @@ export const PLANET_DATA = {
     moons: 1,
     discoveryYear: 2005,
   },
+  // Halley's Comet (SPEC-EVENTS-001 REQ-EVT-101). The only comet in the sim.
+  //
+  // It lives in PLANET_DATA rather than its own export because it is a
+  // Keplerian orbiter like everything else here: PlanetFactory's create /
+  // orbit-line / per-frame-position loops all read this map, so the whole mount
+  // is free. STAR_DATA is separate precisely because stars are NOT orbiters
+  // (azimuth/elevation placement, no period). category:'comet' marks it for the
+  // UI the same way category:'dwarf' marks the five above.
+  //
+  // DISPLAY SCALING — two numbers are scaled, both deliberately:
+  //
+  //   a: real 17.8 AU -> 700 display units, putting it on the same symbolic
+  //      scale as every other body here (Mercury 80 ... Eris 1150). The real
+  //      eccentricity is kept, so the shape falls out of it: perihelion
+  //      q = a(1-e) = 23.1 dives well inside Mercury's 80, qualitatively
+  //      matching real Halley's sub-Venus perihelion, and aphelion
+  //      Q = a(1+e) = 1376.9 reaches beyond Eris's 1150, matching its real
+  //      beyond-Neptune aphelion. That dive and retreat is the whole reason to
+  //      draw this body.
+  //
+  //   T: real 76 years -> 7.6 simulation years (2775.9 days). Every other body
+  //      keeps its real period; Halley alone is divided by 10, because at the
+  //      real period a child never sees a perihelion pass at kid-typical
+  //      simulation speeds — the pass would be off-screen behind hours of
+  //      waiting. The cost is that Halley's phase relative to the planets is
+  //      not physical. Accepted: the dive is the lesson, the phase is not.
+  halley: {
+    name: "Halley's Comet",
+    nameKo: '핼리 혜성',
+    emoji: '☄️',
+    factsKo: [
+      '76년에 한 번 지구 곁으로 찾아와요.',
+      '태양에 가까워지면 긴 꼬리가 자라나요.',
+      '꼬리는 언제나 태양 반대쪽으로 뻗어요.',
+    ],
+    sizeComparisonKo: '핼리 혜성의 얼음덩어리는 커다란 산만 해요!',
+    category: 'comet',
+    radius: 5.5,
+    displayRadius: 2,
+    distance: 17.8,
+    distanceDisplay: 700,
+    orbitalPeriod: 2775.9,
+    rotationPeriod: 52.8,
+    axialTilt: 0,
+    eccentricity: 0.967,
+    inclination: 162.3,
+    // Orbit-line resolution override. generateOrbitPath samples uniformly in
+    // true anomaly, which at e=0.967 puts its widest chords at the aphelion
+    // apex — exactly where the ellipse is sharpest (curvature radius
+    // a(1-e^2) = 45 units). The shared 128 default cuts that tip flat by ~10
+    // display units, five nucleus diameters of visible facet; 512 brings it
+    // under 1 unit and is still one LineLoop draw call. Comet-only: no other
+    // body is eccentric enough to need it.
+    orbitSegments: 512,
+    color: 0xcfe6f0,
+  },
+};
+
+// @MX:NOTE: [AUTO] The belts get their own map rather than joining PLANET_DATA or
+// STAR_DATA because both of those are mesh registries: PlanetFactory builds a
+// sphere for every entry in each, and every sphere it builds lands in
+// `planetFactory.planets`, which is exactly the set InteractionManager raycasts.
+// A belt entry in either map would therefore grow a phantom sphere AND re-open
+// the picking path that REQ-EVT-203 closes. BELT_DATA is info-only: the geometry
+// lives in Belts.js as one InstancedMesh, and only the list, the strip and the
+// InfoPanel read this.
+// @MX:SPEC: [AUTO] SPEC-EVENTS-001 REQ-EVT-203, REQ-EVT-205
+export const BELT_DATA = {
+  asteroidBelt: {
+    name: 'Asteroid Belt',
+    nameKo: '소행성대',
+    emoji: '🪨',
+    factsKo: [
+      '화성과 목성 사이에 있는 돌멩이 밭이에요.',
+      '작은 바위들이 아주 많이 모여 돌고 있어요.',
+      '가장 큰 세레스는 왜소행성이 되었어요.',
+    ],
+    sizeComparisonKo: '가장 큰 돌은 우리나라만 하고, 작은 건 자갈만 해요!',
+    category: 'belt',
+    // Real main-belt span in AU, shown as a range because a band has no single
+    // distance. The display-unit band (320-430) lives in Belts.js, which owns
+    // the geometry; this is the number the InfoPanel reads out to a child.
+    distance: '2.2 ~ 3.2',
+    color: 0x8b7d6b,
+  },
+  kuiperBelt: {
+    name: 'Kuiper Belt',
+    nameKo: '카이퍼 벨트',
+    emoji: '🧊',
+    factsKo: [
+      '해왕성보다 더 먼 바깥쪽 얼음 나라예요.',
+      '명왕성도 카이퍼 벨트에 살고 있어요.',
+      '혜성들이 태어나는 고향이기도 해요.',
+    ],
+    sizeComparisonKo: '소행성대보다 훨씬 넓고, 얼음덩어리로 가득해요!',
+    category: 'belt',
+    distance: '30 ~ 50',
+    color: 0x9fb8c8,
+  },
 };
 
 export const MOON_DATA = {

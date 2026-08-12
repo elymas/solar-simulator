@@ -297,6 +297,11 @@ export class InfoPanel {
       if (data.retrograde) {
         items.push({ label: STR.infoOrbit, value: STR.infoValueRetrograde });
       }
+    } else if (data.category === 'belt') {
+      // A band has no diameter, no spin and no tilt. Two honest rows here; the
+      // kid section above carries the rest (SPEC-EVENTS-001 REQ-EVT-205).
+      items.push({ label: STR.infoClassification, value: STR.infoValueBelt });
+      items.push({ label: STR.infoDistanceFromSun, value: `${data.distance} AU` });
     } else if (data.category === 'dwarf') {
       items.push({ label: STR.infoClassification, value: STR.infoValueDwarfPlanet });
       items.push({ label: STR.infoDiameter, value: `${(data.radius * 2).toLocaleString()} km` });

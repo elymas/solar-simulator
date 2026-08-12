@@ -13,6 +13,7 @@ const INFO_KEYS = [
   'infoOrbitalPeriod', 'infoEccentricity', 'infoOrbit', 'infoClassification',
   'infoDistanceFromSun', 'infoDiscovered', 'infoMoons',
   'infoValueDwarfPlanet', 'infoValueRetrograde', 'infoValueNone', 'infoRetrogradeSuffix',
+  'infoValueBelt',
 ];
 
 describe('STR completeness (REQ-KIDS-103)', () => {
@@ -43,6 +44,8 @@ describe('STR completeness (REQ-KIDS-103)', () => {
     expect(STR.listTitle).toBe('태양계');
     expect(STR.listDividerDwarf).toBe('왜소행성');
     expect(STR.listDividerStars).toBe('별');
+    expect(STR.listDividerComet).toBe('혜성'); // REQ-EVT-103 names it verbatim
+    expect(STR.listDividerBelt).toBe('띠');
     expect(STR.timeSpeed).toBe('속도');
     expect(STR.timeDate).toBe('날짜');
   });
