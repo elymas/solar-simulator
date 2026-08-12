@@ -76,8 +76,14 @@ export const STR = {
   // stay worded apart from the error states (SPEC-EARTH-002 REQ-480/490).
   earthFlightOff: '꺼짐',
   earthFlightLoading: '서울 하늘에서 비행기를 찾고 있어요',
-  earthFlightLive: (count, agoSec) => `서울 하늘 실시간 · 비행기 ${count}대 · ${Math.round(agoSec)}초 전`,
-  earthFlightLiveEmpty: '실시간 · 지금 서울 하늘은 깨끗해요',
+  // Never says "실시간". The data is a snapshot published by a scheduled job, and
+  // GitHub runs that job every 30-45 min in practice, so claiming live would be a
+  // lie a child cannot check. Minutes once past a minute — "2070초 전" is unreadable.
+  earthFlightLive: (count, agoSec) =>
+    `서울 하늘 · 비행기 ${count}대 · ${
+      agoSec < 60 ? `${Math.round(agoSec)}초` : `${Math.round(agoSec / 60)}분`
+    } 전`,
+  earthFlightLiveEmpty: '지금 서울 하늘은 깨끗해요',
   earthFlightRateLimited: '잠시 쉬는 중이에요 · 마지막 정보를 보여줘요',
   earthFlightOffline: '지금은 서울 하늘 정보를 볼 수 없어요',
   // adsb.fi's open-data terms require citing them with a link to their home

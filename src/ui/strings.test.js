@@ -80,6 +80,13 @@ describe('Seoul flight reference point copy (SPEC-EARTH-003 REQ-E3-302)', () => 
   it('names the Seoul sky in the loading/live/offline lines', () => {
     expect(STR.earthFlightLoading).toContain('서울');
     expect(STR.earthFlightLive(1, 1)).toContain('서울');
+
+    // The feed is a scheduled snapshot, not a live stream — the copy must not
+    // claim otherwise, and an age past a minute reads in minutes.
+    expect(STR.earthFlightLive(1, 1)).not.toContain('실시간');
+    expect(STR.earthFlightLiveEmpty).not.toContain('실시간');
+    expect(STR.earthFlightLive(3, 12)).toContain('12초 전');
+    expect(STR.earthFlightLive(3, 2070)).toContain('35분 전');
     expect(STR.earthFlightLiveEmpty).toContain('서울');
     expect(STR.earthFlightOffline).toContain('서울');
   });
