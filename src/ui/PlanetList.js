@@ -1,6 +1,12 @@
 import { PLANET_DATA, MOON_DATA, STAR_DATA, BELT_DATA } from '../planets/planetData.js';
 import { STR } from './strings.js';
 
+// Height of the top-left chip row the list must clear: the 44px list toggle
+// (REQ-MOB-105 kid-sized floor) plus its 16px offset plus an 8px gap. The
+// sticker badge sits on the same row at the same height, so clearing the toggle
+// clears both. Safe-area inset is added on top of this, never folded into it.
+const TOP_CHROME_PX = 68;
+
 /**
  * PlanetList renders a left sidebar with clickable celestial body items.
  * Clicking an item selects the corresponding planet and focuses the camera.
@@ -38,6 +44,30 @@ export class PlanetList {
         max-height: calc(100vh - 100px);
         overflow-y: auto;
         transition: opacity 0.3s, transform 0.3s;
+      }
+      /* The list is the one panel tall enough to collide with everything else,
+         so on compact chrome it stops being a centered floating card and becomes
+         a column pinned between the top chips and the bottom stack. Setting BOTH
+         top and bottom lets the box compute its own height, which is why there is
+         no max-height here: overflow-y already scrolls the overflow.
+         --planet-strip-h / --time-controls-h are published by those components
+         (both border-box, both already carrying their safe-area padding), so this
+         never double-counts an inset. The fallbacks are one-row estimates used
+         only before the first layout. */
+      @media (max-width: 768px), (max-height: 500px) {
+        .planet-list {
+          top: calc(${TOP_CHROME_PX}px + env(safe-area-inset-top, 0px));
+          bottom: calc(
+            var(--time-controls-h, calc(64px + env(safe-area-inset-bottom, 0px)))
+            + var(--planet-strip-h, 64px)
+            + 8px
+          );
+          max-height: none;
+          transform: none;
+        }
+        .planet-list.auto-hidden {
+          transform: translateX(-20px);
+        }
       }
       .planet-list::-webkit-scrollbar {
         width: 4px;
@@ -80,12 +110,15 @@ export class PlanetList {
       .planet-list-toggle:hover {
         background: rgba(22, 199, 255, 0.25);
       }
-      @media (max-width: 768px) {
+      /* Compact chrome: a narrow viewport OR a short one. A phone held sideways
+         is ~844x390 — wide enough to escape every max-width rule, but far too
+         short for the desktop layout, which is exactly how the landscape screen
+         ended up with every panel overlapping (found on a real device). */
+      @media (max-width: 768px), (max-height: 500px) {
         .planet-list {
           left: 8px;
           padding: 10px 8px;
           min-width: 140px;
-          max-height: calc(100vh - 120px);
           font-size: 12px;
         }
       }

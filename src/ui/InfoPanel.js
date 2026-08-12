@@ -46,17 +46,25 @@ export class InfoPanel {
   _injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
+      /* This panel is full-bleed on a phone, so it is the one surface that must
+         carry the safe-area insets itself — nothing else is between it and the
+         screen edge. Missing them is what pushed the close button underneath the
+         status bar / Dynamic Island on a real device, where iOS swallowed the
+         tap and the panel could not be closed at all. Insets are added to the
+         padding rather than to top/height so the panel's background still bleeds
+         edge to edge behind the island. */
       .info-panel {
         position: fixed;
         top: 0;
         right: -400px;
         width: 380px;
-        height: 100vh;
+        height: 100dvh;
         background: rgba(26, 26, 46, 0.95);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
         border-left: 1px solid rgba(22, 199, 255, 0.2);
-        padding: 30px 24px;
+        padding: calc(30px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px))
+                 calc(30px + env(safe-area-inset-bottom, 0px)) 24px;
         transition: right 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
         z-index: 100;
         overflow-y: auto;
@@ -67,9 +75,12 @@ export class InfoPanel {
         right: 0;
       }
       .info-panel-close {
+        /* Absolute (not fixed): the panel slides off-screen by animating its
+           right offset, and a fixed child would stay pinned to the viewport —
+           leaving a stray X floating over the scene while the panel is closed. */
         position: absolute;
-        top: 16px;
-        right: 16px;
+        top: calc(16px + env(safe-area-inset-top, 0px));
+        right: calc(16px + env(safe-area-inset-right, 0px));
         background: none;
         border: none;
         color: #888;
@@ -77,7 +88,15 @@ export class InfoPanel {
         cursor: pointer;
         transition: color 0.2s;
         line-height: 1;
+        /* Kid-sized hit area, Apple HIG 44pt floor (REQ-MOB-105): the glyph
+           alone was a ~28px target sitting in the hardest corner to hit. */
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         padding: 4px;
+        z-index: 1;
       }
       .info-panel-close:hover {
         color: #16c7ff;

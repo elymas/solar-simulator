@@ -44,8 +44,26 @@
       height: 100%;
     }
 
+    /* ============================================================
+       COMPACT CHROME — the responsive axis this app is actually sized by.
+
+       Every rule below used to key on max-width alone, which quietly assumed
+       "phone" == "narrow". A phone held sideways is about 844x390: wide enough
+       to clear every max-width rule and so inherit the DESKTOP layout, while
+       being far too short to hold it. On a real device that produced a landscape
+       screen where the top chips, the sidebar and the time bar all overlapped
+       and the date was force-wrapped mid-word.
+
+       So the trigger is narrow OR short:
+         (max-width: 768px)  — portrait phone / small window
+         (max-height: 500px) — any phone in landscape (390-430px tall)
+       A tablet in landscape is 768px+ tall and correctly keeps the desktop
+       layout. Keep the two conditions together on every rule in this sheet;
+       splitting them is what caused the bug.
+       ============================================================ */
+
     /* Responsive: Info Panel */
-    @media (max-width: 768px) {
+    @media (max-width: 768px), (max-height: 500px) {
       .info-panel {
         width: 100% !important;
         right: -100% !important;
@@ -56,13 +74,15 @@
     }
 
     /* Responsive: Time Controls */
-    @media (max-width: 768px) {
+    @media (max-width: 768px), (max-height: 500px) {
       .time-controls {
         width: calc(100% - 32px) !important;
         padding: 10px 16px !important;
-        /* Additive safe-area inset (home indicator, REQ-PWA-103): 0 on
-           devices/browsers without env() support, zero desktop regression. */
-        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+        /* max(), not sum: where the home indicator already reserves space, that
+           inset IS the bottom padding. Adding a further 10px on top of it is
+           what left a visible dead band under the date on a real device. On a
+           device with no inset the 10px still applies. */
+        padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
         gap: 12px !important;
       }
       #speed-slider {
@@ -70,28 +90,40 @@
       }
     }
 
-    @media (max-width: 480px) {
+    @media (max-width: 480px), (max-height: 500px) {
       .speed-label {
         display: none !important;
       }
       .time-controls {
         gap: 8px !important;
         padding: 8px 12px !important;
-        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+        padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)) !important;
+      }
+    }
+
+    /* Landscape phone only: vertical space is the scarce axis, so the bar must
+       stay one row. Its date is the piece that wraps first — it is the widest
+       single token and the last flex child — and a wrapped date both doubles the
+       bar's height and reads as broken. */
+    @media (max-height: 500px) {
+      .time-controls {
+        flex-wrap: nowrap !important;
+        gap: 10px !important;
+        padding: 6px 12px !important;
+        padding-bottom: max(6px, env(safe-area-inset-bottom, 0px)) !important;
+      }
+      .date-display, .sim-date, .date-label, .speed-control {
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
       }
     }
 
     /* Responsive: Planet List */
-    @media (max-width: 768px) {
+    /* Pinned between the top chip row and the bottom stack — see the matching
+       block in PlanetList.js for why both edges are set instead of a max-height. */
+    @media (max-width: 768px), (max-height: 500px) {
       .planet-list {
-        top: auto !important;
-        /* Tracks the height TimeControls publishes: the list auto-hides here
-           but the toggle button reopens it on a phone, where the bar wraps to
-           two rows (REQ-MOB-301). The fallback keeps the safe-area insets
-           additive (REQ-PWA-103): 0 without env() support. */
-        bottom: var(--time-controls-h, calc(70px + env(safe-area-inset-bottom, 0px))) !important;
         left: calc(8px + env(safe-area-inset-left, 0px)) !important;
-        transform: none !important;
         padding: 10px 8px !important;
         min-width: 130px !important;
       }
@@ -110,7 +142,7 @@
        already hides the panel by default under 768px — this sizing is for when a
        mobile user deliberately reopens it via the toggle button, not the primary
        mobile-fit mechanism. */
-    @media (max-width: 768px) {
+    @media (max-width: 768px), (max-height: 500px) {
       .earth-hud {
         min-width: 200px !important;
         max-width: calc(100vw - 32px) !important;
@@ -119,7 +151,7 @@
       }
       .earth-hud-title { font-size: 16px !important; }
     }
-    @media (max-width: 480px) {
+    @media (max-width: 480px), (max-height: 500px) {
       .earth-hud {
         /* Additive safe-area insets (Dynamic Island + landscape rounded
            corner, REQ-PWA-103): 0 on devices/browsers without env() support. */
@@ -132,6 +164,14 @@
         right: calc(8px + env(safe-area-inset-right, 0px)) !important;
       }
       .earth-hud { top: calc(52px + env(safe-area-inset-top, 0px)) !important; }
+    }
+    /* Landscape phone: the HUD would otherwise run past the bottom of a 390px
+       screen, so cap it against the viewport and let it scroll. */
+    @media (max-height: 500px) {
+      .earth-hud {
+        max-height: calc(100dvh - 72px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+        overflow-y: auto !important;
+      }
     }
   </style>
 </head>

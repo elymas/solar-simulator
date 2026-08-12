@@ -10,6 +10,11 @@ import { speak } from '../audio/tts.js';
 /** How long the banner stays up before dismissing itself. */
 export const BANNER_DISPLAY_MS = 6000;
 
+// Height of the top-left chip row (list toggle + sticker badge) this banner has
+// to clear. Same figure as PlanetList's TOP_CHROME_PX and for the same reason:
+// a 44px kid-sized control at a 16px offset, plus an 8px gap.
+const TOP_CHROME_PX = 68;
+
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 /**
@@ -38,10 +43,19 @@ export class EventBanner {
     style.textContent = `
       .event-banner {
         position: fixed;
-        /* Top-centre, clear of the Dynamic Island and of the sidebar toggle. */
-        top: calc(24px + env(safe-area-inset-top, 0px));
+        /* BELOW the top-left chip row, not level with it. Centring alone does
+           not clear those chips: on a phone the banner is wider than the gap
+           between them, so its left edge landed on top of the sticker badge
+           (found on a real device). Dropping a full chip row down is what
+           actually clears them, and it also frees the banner to use the full
+           width instead of being squeezed between them. */
+        top: calc(${TOP_CHROME_PX}px + env(safe-area-inset-top, 0px));
         left: 50%;
         transform: translateX(-50%);
+        max-width: calc(100vw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+        /* Korean wraps per syllable by default, which splits words mid-token
+           ("줄을 섰|어요"). keep-all breaks on spaces instead (REQ-KIDS-105). */
+        word-break: keep-all;
         display: none;
         align-items: center;
         gap: 10px;

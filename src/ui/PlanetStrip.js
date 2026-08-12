@@ -31,6 +31,7 @@ export class PlanetStrip {
     this._injectStyles();
     this._createDOM();
     this._applyViewport();
+    this._observeSize();
     window.addEventListener('resize', () => this._applyViewport());
   }
 
@@ -184,6 +185,35 @@ export class PlanetStrip {
     } else if (!mobile && this.el.isConnected) {
       this.el.remove();
     }
+    this._publishHeight();
+  }
+
+  /**
+   * Publish this strip's measured height so whatever sits above it can stack on
+   * top instead of guessing. Mirrors TimeControls._publishHeight, and exists for
+   * the same reason: the strip's height is content-dependent (icon size, safe-area
+   * padding, font metrics), so no constant follows it. PlanetList reads this to
+   * find where the bottom chrome starts — without it the list had no way to know
+   * the strip was there and grew straight through it (found on a real device).
+   */
+  _publishHeight() {
+    const root = document.documentElement;
+    // Off-screen (desktop): contribute nothing, so consumers collapse to just
+    // the time-controls bar rather than reserving space for an absent strip.
+    if (!this.el.isConnected) {
+      root.style.setProperty('--planet-strip-h', '0px');
+      return;
+    }
+    const height = this.el.offsetHeight;
+    // 0 means "not laid out yet" (or jsdom): leave the previous value alone
+    // rather than briefly collapsing consumers onto the bar.
+    if (height > 0) root.style.setProperty('--planet-strip-h', `${height}px`);
+  }
+
+  _observeSize() {
+    if (typeof ResizeObserver === 'undefined') return;
+    this._resizeObserver = new ResizeObserver(() => this._publishHeight());
+    this._resizeObserver.observe(this.el);
   }
 
   /**

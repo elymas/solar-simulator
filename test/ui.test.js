@@ -237,13 +237,37 @@ describe('index.html mobile media query carries the kid-sized floor (AC-MOB-105)
     expect(planetListBlock).toMatch(/\.planet-list-item\s*\{[^}]*min-height:\s*48px/);
   });
 
-  it('anchors the reopened planet-list to the measured bar height, not a constant', () => {
-    // The list auto-hides at <=768px but the toggle button reopens it there, so
-    // its bottom offset is reachable on a phone and must clear the same
-    // two-row-capable TimeControls bar the strip clears (REQ-MOB-301).
-    expect(planetListBlock).toMatch(
-      /\.planet-list\s*\{[^}]*bottom:\s*var\(--time-controls-h, calc\(\d+px \+ env\(safe-area-inset-bottom, 0px\)\)\)/,
-    );
+  it('carries the compact axis, so a landscape phone is not served the desktop layout', () => {
+    // A phone held sideways (~844x390) clears every max-width rule while being
+    // far too short for the desktop layout. Each responsive block must therefore
+    // trigger on narrow OR short; a block that lost the max-height half would
+    // silently regress landscape only, which no jsdom test can see.
+    const blocks = html.match(/@media[^{]+\{/g) || [];
+    const responsive = blocks.filter((b) => b.includes('max-width'));
+    expect(responsive.length).toBeGreaterThan(0);
+    for (const block of responsive) {
+      expect(block, `${block.trim()} must also trigger on a short viewport`).toMatch(/max-height/);
+    }
+  });
+});
+
+describe('PlanetList is pinned clear of both chrome stacks (real-device regression)', () => {
+  const source = readFileSync('src/ui/PlanetList.js', 'utf8');
+  const compact = source.slice(source.indexOf('@media (max-width: 768px), (max-height: 500px)'));
+
+  it('tracks BOTH published heights, so it cannot grow through the icon strip', () => {
+    // The original bug: the list anchored to --time-controls-h alone and knew
+    // nothing about the strip stacked on top of that bar, so on a phone it grew
+    // straight through the strip and off the top of the screen.
+    expect(compact).toMatch(/bottom:\s*calc\([^;]*--time-controls-h[^;]*--planet-strip-h/s);
+  });
+
+  it('starts below the top chip row instead of underneath it', () => {
+    expect(compact).toMatch(/top:\s*calc\(\$\{TOP_CHROME_PX\}px \+ env\(safe-area-inset-top, 0px\)\)/);
+  });
+
+  it('drops max-height once both edges are pinned, so the box sizes itself', () => {
+    expect(compact).toMatch(/max-height:\s*none/);
   });
 });
 
