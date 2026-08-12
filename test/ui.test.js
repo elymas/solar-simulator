@@ -193,6 +193,15 @@ describe('index.html mobile media query carries the kid-sized floor (AC-MOB-105)
   it('declares the >=48px row floor inside the <=768px planet-list block', () => {
     expect(planetListBlock).toMatch(/\.planet-list-item\s*\{[^}]*min-height:\s*48px/);
   });
+
+  it('anchors the reopened planet-list to the measured bar height, not a constant', () => {
+    // The list auto-hides at <=768px but the toggle button reopens it there, so
+    // its bottom offset is reachable on a phone and must clear the same
+    // two-row-capable TimeControls bar the strip clears (REQ-MOB-301).
+    expect(planetListBlock).toMatch(
+      /\.planet-list\s*\{[^}]*bottom:\s*var\(--time-controls-h, calc\(\d+px \+ env\(safe-area-inset-bottom, 0px\)\)\)/,
+    );
+  });
 });
 
 describe('InfoPanel dwarf branch (REQ-030, TASK-004)', () => {

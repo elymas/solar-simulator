@@ -85,9 +85,11 @@
     @media (max-width: 768px) {
       .planet-list {
         top: auto !important;
-        /* Additive safe-area insets (home indicator + landscape rounded
-           corner, REQ-PWA-103): 0 on devices/browsers without env() support. */
-        bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
+        /* Tracks the height TimeControls publishes: the list auto-hides here
+           but the toggle button reopens it on a phone, where the bar wraps to
+           two rows (REQ-MOB-301). The fallback keeps the safe-area insets
+           additive (REQ-PWA-103): 0 without env() support. */
+        bottom: var(--time-controls-h, calc(70px + env(safe-area-inset-bottom, 0px))) !important;
         left: calc(8px + env(safe-area-inset-left, 0px)) !important;
         transform: none !important;
         padding: 10px 8px !important;

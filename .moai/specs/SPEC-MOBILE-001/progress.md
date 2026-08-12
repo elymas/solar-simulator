@@ -204,6 +204,144 @@ remain PASS from M1-M3 and stayed green inside the 336-test run below.
 | `b96fcd0` | M4 | `fix(SPEC-MOBILE-001): M4 kid-sized tap targets across list, caret and buttons` |
 | `3a6c279` | M5 | `feat(SPEC-MOBILE-001): M5 mobile planet icon strip as the phone-first selector` |
 
+### M4 correction — AC-MOB-105 failed in a real browser
+
+M4 was recorded PASS above on jsdom evidence. A headed-Chromium measurement at
+`f0df097` shows AC-MOB-105 actually **FAILED at every phone width**. The M4-M5
+`AC matrix` row for AC-MOB-105 and the `#### AC-MOB-105 measurement method`
+subsection are left as written — they record what was true of the jsdom
+evidence at that time; this subsection records the correction.
+
+#### RED evidence (orchestrator browser measurement at `f0df097`)
+
+Reproduction is a real-browser measurement, not a test. jsdom cascades the
+declared `width: 44px` into `getComputedStyle` but runs no layout, so
+`flex-shrink` never executes and the computed value never becomes the real one
+— the M4 assertion `parseFloat(getComputedStyle(btn).width) >= 44` passes while
+the button renders at 28px. No jsdom test can reproduce this defect.
+
+| Viewport | `.control-btn` rendered width | AC-MOB-105 |
+|----------|-------------------------------|------------|
+| 375px | 24px | FAIL |
+| 402px (primary device) | 28px | FAIL |
+| 480px | 40px | FAIL |
+| 600px | 44px | pass |
+| 768px | 44px | pass |
+| 1280px | 44px | pass |
+
+Height measured a correct 44px at every width. Live values at 402px from
+`getComputedStyle(playPauseBtn)`: `width: "28.1406px"`, `flexShrink: "1"`.
+
+Cause: `.time-controls` is a flex container and `.control-btn` inherited the
+default `flex-shrink: 1`. Measured budget at 402px — bar `calc(100% - 32px)` =
+370, `padding: 12px` each side, `gap: 8px` × 4 → content budget 314px against
+360px of natural child width (3 × 44 + speed-control 140 + date-display 88).
+The 46px overflow was being paid out of the buttons.
+
+#### Fix
+
+| Change | File | Why |
+|--------|------|-----|
+| `.control-btn { flex-shrink: 0 }` | `src/ui/TimeControls.js` | Makes the declared 44px a floor rather than a starting point. |
+| `.time-controls { flex-wrap: wrap; justify-content: center }` | `src/ui/TimeControls.js` | Absorbs the overflow as a second row. Self-adjusting: ≥600px still lays out on one row unchanged; no per-width media query. |
+
+Every existing control is preserved — nothing hidden, removed, or shortened
+(the date display in particular stays), per the user's decision.
+
+#### Strip-offset decision — runtime measurement, not a media-query constant
+
+`PlanetStrip` anchored at a hard-coded `bottom: calc(64px + env(...))`, chosen
+against a one-row bar. With wrapping the bar grows to roughly 88-95px, so the
+constant would have put the bar's top above the strip's bottom and overlapped
+it by ~31px at 402px.
+
+Rejected: a media-query constant. It would re-hardcode a bar height — the same
+bug class being fixed — and it cannot hold. The wrap point is **content**-
+dependent, not viewport-dependent: `#sim-date` changes width as the simulation
+runs (`2026년 3월 30일` vs `2026년 12월 30일`) and `#speed-value` changes with the
+slider (`0.01x` vs `500x`). Either can cross the wrap threshold at a fixed
+viewport width, where no media query fires and a window `resize` listener never
+runs. A constant tuned at 320/375/402/480/600/768/1280 would hold at exactly
+those widths by coincidence and drift at every other width and every date.
+
+Chosen: `TimeControls._trackHeight()` publishes `this.el.offsetHeight` to the
+CSS custom property `--time-controls-h`, once at construction and again from a
+`ResizeObserver` on `.time-controls`. Consumers read
+`bottom: var(--time-controls-h, calc(<N>px + env(safe-area-inset-bottom, 0px)))`.
+
+Why the invariant holds across 320-1280px rather than at sampled widths: the
+strip's offset is the bar's own rendered border-box height, so the two are
+equal **by construction** — there is no width at which they can disagree,
+because no width-keyed value is involved. `ResizeObserver` fires on any box
+change whatever the trigger (viewport resize, text reflow, font load,
+orientation change), which is the superset of cases a `resize` listener misses.
+`offsetHeight` is border-box and so already includes
+`padding-bottom: calc(Npx + env(safe-area-inset-bottom))`; consumers therefore
+must not re-add the env() term, which is why it lives inside the `var()`
+fallback rather than outside it. A `0` height (jsdom, or pre-layout) is not
+published, leaving the fallback in place rather than pinning consumers flush to
+the screen edge.
+
+#### `.planet-list` (index.html:90) — treated, not skipped
+
+It **does** need the same treatment. `PlanetList._checkAutoHide()` only adds
+`auto-hidden` at ≤768px; `_toggleVisibility()` (the `.planet-list-toggle`
+button) removes it, so a phone user can reopen the list and its
+`bottom: calc(70px + env(...))` is reachable, not dead code. At a ~88px bar it
+would have overlapped by ~18px. Changed to the same
+`bottom: var(--time-controls-h, calc(70px + env(safe-area-inset-bottom, 0px))) !important`.
+Its sibling `max-height: calc(100vh - 120px)` was left alone: with the taller
+bar the list top rises to ~32px at 874px viewport height, still on-screen, and
+it is not part of this defect.
+
+#### Regression guard added (declaration-level — read the Gaps)
+
+| Test | File | Asserts |
+|------|------|---------|
+| `pins .control-btn against flex shrinking` | `test/timeControls.test.js` | `flex-shrink: 0` present in the `.control-btn` rule |
+| `lets the bar wrap to a second row instead of squeezing its children` | `test/timeControls.test.js` | `flex-wrap: wrap` present in the `.time-controls` rule |
+| `publishes the bar height as a CSS custom property on construction` | `test/timeControls.test.js` | `--time-controls-h` == stubbed `offsetHeight` |
+| `republishes on resize, so wrapping to two rows moves the strip with it` | `test/timeControls.test.js` | Re-publishes from a stubbed `ResizeObserver` callback |
+| `sits above the TimeControls bar…` (updated) | `src/ui/PlanetStrip.test.js` | Strip consumes `var(--time-controls-h, …)`; fallback still ≥64 |
+| `anchors the reopened planet-list to the measured bar height…` | `test/ui.test.js` | index.html `.planet-list` consumes the same var |
+
+The existing `>= 44` computed-style assertions were not weakened, loosened, or
+deleted. They remain correct as declaration checks; they were simply never
+sufficient alone.
+
+#### Suite, build, and regression evidence
+
+| Check | Result |
+|-------|--------|
+| `npm test` | 29 files / **341** tests passed, exit 0 (baseline 336 + 5 new) |
+| `npm run build` | exit 0, 42 precache entries |
+| `npm run test:build` | 1 file / 16 tests passed, exit 0 |
+| RED confirmation | 6 failed / 52 passed on the three touched files before the fix |
+
+Logs: `.moai/state/verify/spec-mobile-001-m4fix/`.
+
+#### Gaps (what was NOT verified here)
+
+- **The jsdom guard is declaration-level only.** It asserts that
+  `flex-shrink: 0` and `flex-wrap: wrap` are *declared* — it does not and
+  cannot assert that a button *renders* at 44px, because jsdom has no layout
+  engine. If a later stylesheet overrode these declarations at higher
+  specificity, every test here would still pass.
+- **The real proof is the orchestrator's post-fix browser re-verification** at
+  320 / 375 / 402 / 480 / 600 / 768 / 1280px. Until that measurement exists,
+  AC-MOB-105 is fixed-in-principle, not confirmed-fixed.
+- **No layout assertion exists for the no-overlap invariant** either. That the
+  strip never overlaps `.time-controls` follows from the offset being the bar's
+  own measured height, which is an argument, not a measurement. The same
+  browser re-verification is what would confirm it.
+- **`ResizeObserver` behaviour itself is stubbed**, not exercised. The test
+  proves the publish path runs when the callback fires; it does not prove the
+  browser fires that callback on a wrap.
+- **Real-device safe-area behaviour is unverified.** The claim that
+  `offsetHeight` already carries `env(safe-area-inset-bottom)` (and so must not
+  be double-added) is reasoned from the border-box model, not measured on a
+  notched device — headless Chromium reports the inset as 0.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 ```yaml

@@ -66,13 +66,16 @@ describe('PlanetStrip viewport gating (REQ-MOB-301/304, AC-MOB-301/304)', () => 
   it('sits above the TimeControls bar, clearing it plus the home indicator', () => {
     new PlanetStrip();
     // jsdom has no layout engine, so "above TimeControls" cannot be a geometric
-    // assertion. What is checkable is the declared offset: it must clear the
-    // mobile TimeControls bar (44px control button + 10px padding either side)
-    // and stay additive with the safe-area inset.
+    // assertion. What is checkable is the declared offset: it tracks the height
+    // TimeControls measures and publishes, because that height changes with
+    // content (the bar wraps to two rows on a phone) and no constant can follow
+    // it. The fallback, used only before the first publish, must still clear a
+    // one-row bar (44px control button + 10px padding either side) and stay
+    // additive with the safe-area inset.
     const match = styleSheets().match(
-      /\.planet-strip\s*\{[^}]*bottom:\s*calc\((\d+)px \+ env\(safe-area-inset-bottom, 0px\)\)/,
+      /\.planet-strip\s*\{[^}]*bottom:\s*var\(--time-controls-h, calc\((\d+)px \+ env\(safe-area-inset-bottom, 0px\)\)\)/,
     );
-    expect(match, 'strip declares an env()-additive bottom offset').not.toBeNull();
+    expect(match, 'strip tracks the published bar height with an env()-additive fallback').not.toBeNull();
     expect(Number(match[1])).toBeGreaterThanOrEqual(64);
   });
 

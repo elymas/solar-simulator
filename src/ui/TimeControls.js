@@ -16,6 +16,41 @@ export class TimeControls {
     this._injectStyles();
     this._createDOM();
     this._bindEvents();
+    this._trackHeight();
+  }
+
+  // @MX:NOTE: [AUTO] --time-controls-h is a cross-file contract: PlanetStrip and
+  // the index.html mobile .planet-list block both anchor their bottom offset to
+  // it. Renaming it silently drops them onto their fallbacks.
+  // @MX:SPEC: [AUTO] SPEC-MOBILE-001 REQ-MOB-301
+  /**
+   * Publish the bar's rendered height so anything stacked above it can track
+   * the real value. The bar wraps to two rows on a phone, and the wrap point
+   * depends on content (the date string and the speed readout both change
+   * width as the sim runs), not on viewport width alone — so a media-query
+   * constant would only ever be right by coincidence.
+   */
+  _trackHeight() {
+    this._publishHeight();
+    // Guarded for jsdom, which implements no ResizeObserver; the same guard
+    // covers any browser without it, which then keeps the CSS fallback.
+    if (typeof ResizeObserver === 'undefined') return;
+    this._resizeObserver = new ResizeObserver(() => this._publishHeight());
+    this._resizeObserver.observe(this.el);
+  }
+
+  /**
+   * Write the current bar height to the shared custom property.
+   */
+  _publishHeight() {
+    // offsetHeight is border-box, so it already carries the safe-area padding;
+    // consumers must not add env(safe-area-inset-bottom) on top of it again.
+    const height = this.el.offsetHeight;
+    // 0 means "not laid out yet" (or jsdom): leave the CSS fallback in place
+    // rather than pinning consumers flush to the screen edge.
+    if (height > 0) {
+      document.documentElement.style.setProperty('--time-controls-h', `${height}px`);
+    }
   }
 
   /**
@@ -31,6 +66,13 @@ export class TimeControls {
         transform: translateX(-50%);
         display: flex;
         align-items: center;
+        /* Wrap, never squeeze (REQ-MOB-105): at phone widths the five children
+           need ~360px of a ~314px budget, and the default flex-shrink was
+           paying that 46px out of the buttons — 44px became 28px at 402px.
+           Wrapping is self-adjusting: >=600px still lays out on one row
+           unchanged, narrower viewports move the overflow to a second row. */
+        flex-wrap: wrap;
+        justify-content: center;
         gap: 20px;
         background: rgba(26, 26, 46, 0.9);
         backdrop-filter: blur(10px);
@@ -52,7 +94,10 @@ export class TimeControls {
         border: 1px solid rgba(22, 199, 255, 0.3);
         color: #16c7ff;
         /* Kid-sized hit area, Apple HIG 44pt floor (REQ-MOB-105). Covers
-           play/pause, reset and the SPEC-KIDS-001 sound toggle alike. */
+           play/pause, reset and the SPEC-KIDS-001 sound toggle alike.
+           flex-shrink:0 is what makes the width a floor rather than a
+           starting point — without it the flex algorithm shrinks it. */
+        flex-shrink: 0;
         width: 44px;
         height: 44px;
         border-radius: 8px;

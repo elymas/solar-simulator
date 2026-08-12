@@ -135,6 +135,78 @@ describe('TimeControls kid-sized tap targets (REQ-MOB-105, AC-MOB-105)', () => {
   });
 });
 
+describe('TimeControls two-row wrap keeps buttons at 44px (REQ-MOB-105, AC-MOB-105)', () => {
+  // The >=44 computed-width check above passes in jsdom even while a real
+  // browser squeezes these buttons to 28px at 402px: jsdom cascades the
+  // declared 44px into getComputedStyle but runs no flex layout, so
+  // flex-shrink never applies and the computed value never becomes the real
+  // one. These are declaration-level guards on the two properties that stop
+  // the shrink — weaker than a layout assertion, but the strongest thing
+  // jsdom can hold. The real proof is a headed-browser measurement.
+  const styleText = () => document.head.querySelector('style').textContent;
+
+  it('pins .control-btn against flex shrinking', () => {
+    new TimeControls(stubSimApi());
+    expect(styleText()).toMatch(/\.control-btn\s*\{[^}]*flex-shrink:\s*0/);
+  });
+
+  it('lets the bar wrap to a second row instead of squeezing its children', () => {
+    new TimeControls(stubSimApi());
+    expect(styleText()).toMatch(/\.time-controls\s*\{[^}]*flex-wrap:\s*wrap/);
+  });
+});
+
+describe('TimeControls publishes its measured height (REQ-MOB-301)', () => {
+  const PROP = '--time-controls-h';
+  let restoreHeight = null;
+
+  // jsdom reports offsetHeight as 0 for every element, so the publish path
+  // needs a real number to carry.
+  const stubOffsetHeight = (px) => {
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => px });
+    return () => {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', original);
+      else delete HTMLElement.prototype.offsetHeight;
+    };
+  };
+
+  afterEach(() => {
+    restoreHeight?.();
+    restoreHeight = null;
+    document.documentElement.style.removeProperty(PROP);
+    delete globalThis.ResizeObserver;
+  });
+
+  it('publishes the bar height as a CSS custom property on construction', () => {
+    restoreHeight = stubOffsetHeight(95);
+    new TimeControls(stubSimApi());
+
+    expect(document.documentElement.style.getPropertyValue(PROP)).toBe('95px');
+  });
+
+  it('republishes on resize, so wrapping to two rows moves the strip with it', () => {
+    let observerCallback = null;
+    globalThis.ResizeObserver = class {
+      constructor(fn) { observerCallback = fn; }
+      observe() {}
+      disconnect() {}
+    };
+
+    restoreHeight = stubOffsetHeight(68);
+    new TimeControls(stubSimApi());
+    expect(document.documentElement.style.getPropertyValue(PROP)).toBe('68px');
+
+    // The bar wraps: same viewport, taller bar (a longer date string alone can
+    // trigger this), so a viewport-keyed constant would never see the change.
+    restoreHeight();
+    restoreHeight = stubOffsetHeight(95);
+    observerCallback();
+
+    expect(document.documentElement.style.getPropertyValue(PROP)).toBe('95px');
+  });
+});
+
 describe('TimeControls safe-area inset (REQ-PWA-103)', () => {
   it('adds a safe-area-inset-bottom padding term additive to the base bottom padding', () => {
     new TimeControls(stubSimApi());

@@ -6,9 +6,12 @@ import { STR } from './strings.js';
 // never none. A phone in landscape (874pt) is already past this.
 const MOBILE_MAX_WIDTH_PX = 768;
 
-// Clears the mobile TimeControls bar: a 44px control button plus its 10px
-// padding either side. The safe-area inset is added on top of this, not
-// folded into it, so the strip rides above the home indicator too.
+// Fallback only, used until TimeControls publishes its measured height:
+// a one-row bar, 44px control button plus its 10px padding either side. The
+// safe-area inset is added on top of this, not folded into it, so the strip
+// rides above the home indicator too. The published height already includes
+// that inset (it is a border-box measurement), which is why the env() term
+// lives inside the fallback and not outside the var().
 const ABOVE_TIME_CONTROLS_PX = 64;
 
 /**
@@ -41,10 +44,12 @@ export class PlanetStrip {
         position: fixed;
         left: 0;
         right: 0;
-        /* Stacked directly on top of the TimeControls bar; the safe-area inset
-           is additive (REQ-PWA-103) so the two never overlap the home
-           indicator or each other. */
-        bottom: calc(${ABOVE_TIME_CONTROLS_PX}px + env(safe-area-inset-bottom, 0px));
+        /* Stacked directly on top of the TimeControls bar, tracking the height
+           that bar measures and publishes — it wraps to two rows on a phone,
+           so its height is content-dependent and no constant follows it
+           (REQ-MOB-301). The fallback keeps the safe-area inset additive
+           (REQ-PWA-103) so the two never overlap the home indicator. */
+        bottom: var(--time-controls-h, calc(${ABOVE_TIME_CONTROLS_PX}px + env(safe-area-inset-bottom, 0px)));
         display: flex;
         gap: 8px;
         overflow-x: auto;
