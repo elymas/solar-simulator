@@ -128,4 +128,29 @@ PWA precache 42 entries.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- sync_complete_at: 2026-08-12T09:10:00Z
+- sync_status: audit-ready
+- lifecycle: spec-anchored (Level 2 — SPEC updated to as-built, originals preserved and annotated in place)
+- documents_updated: `spec.md`, `plan.md`, `acceptance.md`, `progress.md`, `CHANGELOG.md`, `README.md`
+- spec_status: draft → completed; spec version 0.1.0 → 0.2.0
+- open_items_from_§E.3: all three closed — `plan.md` §D file list corrected (`main.js` → `SolarSystemView.js`),
+  `plan.md` §A.5/§G registry assumption corrected, `spec.md` A-304 narrowed to the guarantee the sweep
+  test proves
+- requirements_added: REQ-EVT-401 (`spec.md` §3.4) — the phone-strip entries, a run-phase scope
+  addition made at the user's explicit approval and previously covered by no REQ
+- acceptance_added: AC-EVT-401
+- ac_covered: 16 / 16. The original 15 each cite their ID in at least one test; AC-EVT-401 is covered by
+  the named `PlanetStrip.test.js` case "carries the comet and both belts, the three bodies with no other
+  phone route", which predates the ID. Source was not touched at sync by design, so that test does not
+  yet carry the tag — the only follow-up this sync leaves behind
+- tests: 469 passed / 469, 34 files. Baseline before this SPEC 341 / 29 → 128 tests added, zero regressions
+- coverage: 89.08% statements, 92.07% lines against an 85% target. New modules: `alignment.js` 100%,
+  `EventBanner.js` 97.14%, `Belts.js` 96.15%, `CometTail.js` 90.90%
+- build: pass, PWA precache 42 entries
+- security_scan: skipped by its activation gate — no authentication, database, API-endpoint, user-input or
+  secret-bearing file is in the changeset, which is entirely 3D rendering, UI and pure math
+- source_code_changed: no (documentation only)
+- commits: 1 docs commit on `feat/spec-events-001`
+- pushed: no
+- merged: no
+- pr: none
