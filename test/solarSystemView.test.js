@@ -3,7 +3,9 @@ import { SolarSystemView } from '../src/views/SolarSystemView.js';
 
 // Minimal stubs — no real WebGL/DOM layout needed for lifecycle + ownership logic.
 function makeStubs() {
-  const scene = { tag: 'scene' };
+  // add/remove: the play layer (SPEC-PLAY-001) mounts its celebration pool and
+  // its rocket into the same scene during buildUI.
+  const scene = { tag: 'scene', add: vi.fn(), remove: vi.fn() };
   const camera = { tag: 'camera' };
   const sceneManager = {
     scene,

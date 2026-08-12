@@ -6,6 +6,10 @@ import { PlanetList } from '../ui/PlanetList.js';
 import { PlanetStrip } from '../ui/PlanetStrip.js';
 import { InteractionManager } from '../controls/InteractionManager.js';
 import { init as initTts, speakBody, cancel as cancelSpeech } from '../audio/tts.js';
+import { init as initSfx, unlockAudio } from '../audio/sfx.js';
+import { Celebration, SPARKLE, TWINKLE } from '../effects/Celebration.js';
+import { RocketJourney } from '../play/RocketJourney.js';
+import { emitPlayEvent } from '../play/playEvents.js';
 
 /**
  * SolarSystemView wraps the original solar-system app behind the frozen View
@@ -37,6 +41,8 @@ export class SolarSystemView {
     createPlanetStrip = () => new PlanetStrip(),
     createTimeControls = (api) => new TimeControls(api),
     createInteraction = (sm, pf) => new InteractionManager(sm.camera, sm.scene, sm.renderer, pf),
+    createCelebration = (opts) => new Celebration(opts),
+    createRocket = (opts) => new RocketJourney(opts),
     win = typeof window !== 'undefined' ? window : undefined,
   } = {}) {
     this.sceneManager = sceneManager;
@@ -46,7 +52,13 @@ export class SolarSystemView {
     this._createPlanetStrip = createPlanetStrip;
     this._createTimeControls = createTimeControls;
     this._createInteraction = createInteraction;
+    this._createCelebration = createCelebration;
+    this._createRocket = createRocket;
     this._win = win;
+
+    // Play layer (SPEC-PLAY-001 M3/M4), built with the UI in buildUI().
+    this._celebration = null;
+    this._rocket = null;
 
     this._simTime = 0;
     this._timeSpeed = 1;
@@ -99,6 +111,11 @@ export class SolarSystemView {
     // Binds the speech backend and restores the persisted mute state. Speaking
     // still only ever happens from a tap, so this starts no audio by itself.
     initTts();
+    // Strictly after initTts: sfx delegates its mute question to tts.js, whose
+    // module default is "unmuted" until init() has read the persisted setting.
+    // Priming the effects channel first would let the very first celebration
+    // sound in a household that had already turned "소리" off.
+    initSfx();
     const infoPanel = this._createInfoPanel();
     const planetList = this._createPlanetList();
     const planetStrip = this._createPlanetStrip();
@@ -114,6 +131,7 @@ export class SolarSystemView {
     infoPanel.onClose = () => this._deselect();
 
     this._ui = { infoPanel, planetList, planetStrip, timeControls, interaction };
+    this._buildPlayLayer();
     this._bindKeys();
     if (!this._active) {
       // A #/earth deep-link builds this UI (textures finish loading) while
@@ -126,6 +144,75 @@ export class SolarSystemView {
       interaction.enabled = false;
       if (this.sceneManager.controls) this.sceneManager.controls.enabled = false;
     }
+  }
+
+  /**
+   * Build the play layer (SPEC-PLAY-001): the pooled celebration and the rocket,
+   * plus the camera-arrival subscription that fires the celebration.
+   */
+  _buildPlayLayer() {
+    const reducedMotion = this._prefersReducedMotion();
+    this._celebration = this._createCelebration({ scene: this.sceneManager.scene, reducedMotion });
+    this._rocket = this._createRocket({
+      scene: this.sceneManager.scene,
+      getBody: (key) => this._getBody(key),
+      celebration: this._celebration,
+      reducedMotion,
+    });
+    this.sceneManager.onFocusArrive = () => this._onFocusArrive();
+  }
+
+  /**
+   * Same idiom as ViewManager's transition check, injectable window for tests.
+   * @returns {boolean}
+   */
+  _prefersReducedMotion() {
+    return !!(this._win && this._win.matchMedia && this._win.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  /**
+   * Live world position + display radius of a body, or null when the scene has
+   * no such body. The rocket calls this every frame for its destination.
+   * @param {string} key
+   * @returns {{position: THREE.Vector3, radius: number}|null}
+   */
+  _getBody(key) {
+    const planet = this.planetFactory.planets[key];
+    if (!planet) return null;
+    // World, not local: moons hang off an orbiting pivot.
+    const position = planet.mesh.getWorldPosition(new THREE.Vector3());
+    return { position, radius: planet.data.displayRadius };
+  }
+
+  /**
+   * The camera finished flying to the selected body (REQ-PLAY-301/302): one
+   * burst, one sound, at wherever the body has drifted to by now.
+   */
+  _onFocusArrive() {
+    if (!this._focusedKey || !this._celebration) return;
+    const target = this._getBody(this._focusedKey);
+    if (!target) return;
+    const isStar = Boolean(this.planetFactory.planets[this._focusedKey].isStar);
+    this._celebration.burst(target.position, isStar ? TWINKLE : SPARKLE, target.radius);
+  }
+
+  /**
+   * Whether the "로켓 발사" entry point should be offered for a body.
+   * @param {string} key
+   * @returns {boolean}
+   */
+  canLaunchRocket(key) {
+    return Boolean(this._rocket && this._rocket.canLaunch(key));
+  }
+
+  /**
+   * Launch the rocket journey to a body (REQ-PLAY-201). The entry-point button
+   * calls this; the view owns the scene, clock and cancel seams.
+   * @param {string} key
+   * @returns {boolean}
+   */
+  launchRocket(key) {
+    return Boolean(this._rocket && this._rocket.launch(key));
   }
 
   /**
@@ -157,12 +244,20 @@ export class SolarSystemView {
    * @param {string} key
    */
   _select(key) {
+    // One gesture, both audio channels (plan §A.6). unlockAudio() resumes the
+    // effects context and speakBody() below runs in the same tap call stack —
+    // the two things iOS each require. Ordering is load-bearing: a play() that
+    // beats resume() buys permanent silence for the session, not an error.
+    unlockAudio();
+    if (this._rocket) this._rocket.cancel(); // REQ-PLAY-204: a new pick ends the flight
     if (key === 'earth' && this._onEarthSelect) {
+      emitPlayEvent('select', { body: key });
       this._onEarthSelect();
       return;
     }
     const planet = this.planetFactory.planets[key];
     if (!planet) return;
+    emitPlayEvent('select', { body: key });
     // Both callers of _select are tap handlers, so this is a user-gesture call
     // stack — which is what lets iOS start speech at all (spec A-104). Narrate
     // the body the panel resolved, so moons/stars read their own facts.
@@ -181,6 +276,7 @@ export class SolarSystemView {
   _deselect() {
     if (!this._ui) return;
     cancelSpeech();
+    if (this._rocket) this._rocket.cancel(); // REQ-PLAY-204
     this._ui.infoPanel.hide();
     this._ui.planetList.clearActive();
     this._ui.planetStrip.clearActive();
@@ -221,6 +317,7 @@ export class SolarSystemView {
    */
   onEnter(fromState) {
     this._active = true;
+    emitPlayEvent('view-enter', { view: 'SOLAR' });
     this._setUiVisible(true);
     if (this._ui) this._ui.interaction.enabled = true;
     if (this.sceneManager.controls) this.sceneManager.controls.enabled = true;
@@ -229,6 +326,7 @@ export class SolarSystemView {
 
   onExit() {
     this._active = false;
+    if (this._rocket) this._rocket.cancel(); // REQ-PLAY-204: no flight across a view switch
     this._setUiVisible(false);
     if (this._ui) this._ui.interaction.enabled = false;
     if (this.sceneManager.controls) this.sceneManager.controls.enabled = false;
@@ -259,6 +357,10 @@ export class SolarSystemView {
 
     this.sceneManager.stepCamera(delta);
     this.sceneManager.controls.update();
+    // Play layer rides the app's one rAF: the rocket reads the wall clock itself
+    // (its flight must not follow the simulation speed), the pool returns to rest.
+    if (this._celebration) this._celebration.update(delta);
+    if (this._rocket) this._rocket.update();
     if (this._ui && this._ui.timeControls) this._ui.timeControls.updateDate(this._simTime);
   }
 
@@ -283,6 +385,8 @@ export class SolarSystemView {
 
   dispose() {
     if (this._ui && this._ui.interaction) this._ui.interaction.dispose();
+    if (this._rocket) this._rocket.dispose();
+    if (this._celebration) this._celebration.dispose();
     this.sceneManager.dispose();
   }
 }
