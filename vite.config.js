@@ -33,7 +33,13 @@ export default defineConfig({
         // texture set, icons, self-hosted font woff2 files, and the manifest
         // itself (REQ-PWA-104). Largest asset is ~1.1MB, under Workbox's
         // 2MiB default maximumFileSizeToCacheInBytes, so that stays default.
-        globPatterns: ['**/*.{js,css,html,png,jpg,jpeg,svg,woff2,webmanifest}'],
+        //
+        // mp3/json bring in the pre-recorded narration (scripts/build-tts.mjs)
+        // and its manifest. They are precached rather than runtime-cached on
+        // purpose: the recorded Korean voice IS the narration this app was tuned
+        // for, and leaving it to a runtime fetch would mean the first offline
+        // visit to any body falls back to the device voice instead.
+        globPatterns: ['**/*.{js,css,html,png,jpg,jpeg,svg,woff2,webmanifest,mp3,json}'],
         runtimeCaching: [
           {
             // Live aircraft data is never cached; FlightDataService's existing

@@ -13,6 +13,7 @@
 // be produced before resume() has run.
 
 import { isMuted } from './tts.js';
+import { unlock as unlockNarration } from './ttsAssets.js';
 
 /** Master level. Low on purpose: these fire next to a child's face on a tablet. */
 const PEAK_GAIN = 0.18;
@@ -66,6 +67,12 @@ export function init({ audioContext } = {}) {
  * @returns {boolean} true once effects are allowed to sound
  */
 export function unlockAudio() {
+  // The pre-recorded narration is a THIRD audio channel with the same iOS rule:
+  // an <audio> element may only play if one was started inside a gesture. This is
+  // the app's one "the child just tapped" moment, so it primes that too. Done
+  // first and unconditionally — an effects context that fails to build must not
+  // also cost the child the voice.
+  unlockNarration();
   if (unlocked) return true;
   if (!context) {
     try {

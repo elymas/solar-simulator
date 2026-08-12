@@ -7,6 +7,13 @@
 //
 // Narration is an enhancement, never a blocker: every path here degrades to
 // silence rather than throwing.
+//
+// TWO BACKENDS, ONE DOOR. Lines the build pre-recorded (ttsAssets.js) are played
+// as audio files; anything else still goes to the platform's speech engine. The
+// choice happens inside speak(), so every caller — and every rule below about
+// muting, cancelling and the voice-load race — applies to both identically.
+
+import * as assets from './ttsAssets.js';
 
 const MUTE_KEY = 'solar.muted';
 const SPEECH_LANG = 'ko-KR';
@@ -38,6 +45,9 @@ export function init({ synth: injectedSynth, storage: injectedStorage } = {}) {
   heldText = '';
   factCursor.clear();
   attachVoiceListener();
+  // Fire-and-forget: until it resolves, assets.play() answers "no" and every line
+  // takes the platform-voice path, which is exactly the pre-upgrade behaviour.
+  assets.init();
 }
 
 /** Speak a body's Korean name followed by one rotating fact (REQ-KIDS-202). */
@@ -57,7 +67,13 @@ export function speakBody(body) {
 // its own utterance instead would bypass mute and stack overlapping speech.
 /** Speak raw text. Cross-SPEC callouts route through here to inherit mute/cancel. */
 export function speak(text) {
-  if (!text || muted || !isAvailable()) return;
+  if (!text || muted) return;
+  // A recorded take wins: it is the Korean voice this app was tuned for, and it
+  // needs neither a platform voice nor the voice-load dance below. Checked before
+  // isAvailable() on purpose — a device with no speech engine at all can still
+  // play the files.
+  if (assets.play(text)) return;
+  if (!isAvailable()) return;
   // iOS Safari and Chrome populate voices asynchronously. Park the newest request
   // (never a queue) and flush it from the `voiceschanged` handler so the first tap
   // after load is not lost (REQ-KIDS-205). An engine that never loads a voice
@@ -81,6 +97,9 @@ export function speak(text) {
 
 export function cancel() {
   heldText = '';
+  // Both backends: a recorded take is just as much "speech in progress" as an
+  // utterance, and muting mid-sentence has to stop whichever one is running.
+  assets.stop();
   if (!isAvailable()) return;
   safeCancel();
 }
