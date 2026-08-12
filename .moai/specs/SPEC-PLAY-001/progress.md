@@ -438,8 +438,87 @@ These join the M5 residual table above; none are assertable in vitest.
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase>_
+```yaml
+backfilled_at_sync: true        # the run phase left this block pending; every value below is recomputed from the branch, not recalled
+run_commit_sha: b9fa3f4c        # final implementation commit (M6 evaluation fixes)
+run_status: complete            # M1-M6 done
+ac_pass_count: 19               # AC-PLAY-101..104, 201..205, 301..305, 401..405 — all automated
+ac_fail_count: 0
+ac_deferred_count: 0
+ac_total: 19                    # NOT 20 — see the count discrepancy note below
+manual_ac_outstanding: true     # acceptance.md §5 definition-of-done device pass not performed; residual tables in §E.2 (M5, M6)
+new_warnings_or_lints_introduced: 0
+cross_platform_build:
+  applicable: false             # browser-only ES modules; no OS build matrix
+  vite_build: pass              # npm run build exit 0
+total_run_phase_files: 30       # git diff --name-only 3b4f522 b9fa3f4 -- src test index.html; 22 of the 30 are new
+index_html_touched: false       # InfoPanel-local <style> hosted every new rule
+m1_to_mN_commit_strategy: one-commit-per-milestone-on-feat/spec-play-001-not-pushed
+```
+
+**Count discrepancy recorded, not silently corrected.** The M6 entry above transcribes
+the evaluator's Functionality basis as "19 of 20 ACs implemented and tested". This SPEC
+defines **19** REQs and acceptance.md defines **19** ACs (4 SIZE + 5 ROCKET + 5 FX +
+5 MISSION), verified by id enumeration over both files. The evaluator's denominator was
+off by one; its finding (AC-PLAY-404 broken) is unaffected. The M6 quotation is left as
+returned so the evaluation record stays faithful — this note is the correction.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+```yaml
+sync_complete_at: 2026-08-12T09:58:00Z   # UTC
+sync_commit_sha: pending-backfill-spec-play-001-sync   # backfilled in a follow-up commit; a commit cannot cite its own SHA
+sync_status: complete
+changelog_entry_position: "CHANGELOG.md [Unreleased] — Added (4 entries, one per play loop), all tagged (SPEC-PLAY-001)"
+frontmatter_status_transitions:
+  spec_md: "draft -> completed (version 0.1.0 -> 1.0.0; updated: unchanged, already 2026-08-12)"
+  plan_md: "no frontmatter block present — nothing to transition"
+  acceptance_md: "no frontmatter block present — nothing to transition"
+  progress_md: "no frontmatter block present — nothing to transition"
+readme_updated: true            # 4 Features bullets; Project Structure gained src/play/ (7 files) and src/audio/ (tts.js, sfx.js)
+spec_correction_applied: true   # see the v1.0.0 spec-correction HISTORY entry — illustrative string only, no REQ scope change
+traceability_verified: true     # all 19 REQ/AC ids resolve to a describe() block in a real test file; enumeration in the note below
+source_files_modified_during_sync: 0   # git diff b9fa3f4 -- src test index.html is empty
+tests_at_sync: "42 files / 580 tests passed (unchanged from b9fa3f4)"
+```
+
+### Traceability verification (REQ → AC → test)
+
+Each id below was resolved by searching for its literal `REQ-PLAY-nnn` / `AC-PLAY-nnn`
+reference inside a `describe()` or `it()` in a test file that the suite actually runs.
+No REQ resolves to a missing, skipped, or placeholder test.
+
+| REQ | AC | Test file(s) carrying the id |
+|-----|----|------------------------------|
+| REQ-PLAY-101 | AC-PLAY-101 | `src/play/SizeCompare.test.js`, `src/ui/InfoPanel.test.js`, `src/views/SolarSystemView.missions.test.js` |
+| REQ-PLAY-102 | AC-PLAY-102 | `src/play/SizeCompare.test.js` |
+| REQ-PLAY-103 | AC-PLAY-103 | `src/play/SizeCompare.test.js` |
+| REQ-PLAY-104 | AC-PLAY-104 | `src/play/SizeCompare.test.js` |
+| REQ-PLAY-201 | AC-PLAY-201 | `src/play/RocketJourney.test.js`, `src/play/travelFacts.test.js` |
+| REQ-PLAY-202 | AC-PLAY-202 | `src/play/RocketJourney.test.js`, `src/play/travelFacts.test.js` |
+| REQ-PLAY-203 | AC-PLAY-203 | `src/play/travelFacts.test.js`, `src/play/RocketJourney.test.js` |
+| REQ-PLAY-204 | AC-PLAY-204 | `src/play/RocketJourney.test.js`, `src/views/SolarSystemView.play.test.js` |
+| REQ-PLAY-205 | AC-PLAY-205 | `src/play/RocketJourney.test.js` |
+| REQ-PLAY-301 | AC-PLAY-301 | `src/scene/SceneManager.focus.test.js`, `src/effects/Celebration.test.js`, `src/views/SolarSystemView.play.test.js` |
+| REQ-PLAY-302 | AC-PLAY-302 | `src/effects/Celebration.test.js`, `src/views/SolarSystemView.play.test.js` |
+| REQ-PLAY-303 | AC-PLAY-303 | `src/audio/sfx.test.js` (mute gating + unlock ordering, carries the id); the wiring half also has a real test at `src/views/SolarSystemView.play.test.js:130`, filed under `describe('shared gesture unlock (plan §A.6)')` — a live test, but the only one covering a REQ id without naming it |
+| REQ-PLAY-304 | AC-PLAY-304 | `src/effects/Celebration.test.js`, `src/views/SolarSystemView.play.test.js` |
+| REQ-PLAY-305 | AC-PLAY-305 | `src/effects/Celebration.test.js` |
+| REQ-PLAY-401 | AC-PLAY-401 | `src/play/missions.test.js`, `src/play/StickerBook.test.js` |
+| REQ-PLAY-402 | AC-PLAY-402 | `src/play/missions.test.js`, `src/earth/EarthView.play.test.js`, `src/views/SolarSystemView.missions.test.js` |
+| REQ-PLAY-403 | AC-PLAY-403 | `src/play/stickers.test.js`, `src/play/StickerBook.test.js`, `src/play/missions.test.js` |
+| REQ-PLAY-404 | AC-PLAY-404 | `src/play/missions.test.js`, `src/views/SolarSystemView.missions.test.js` |
+| REQ-PLAY-405 | AC-PLAY-405 | `src/play/missions.test.js` |
+
+Two ids carry a conditional clause worth naming, since neither resolves to a plain
+assertion:
+
+- **AC-PLAY-305** ends "degrader registration present IF threshold exceeded". No
+  `'celebration'` step is registered, and that is the correct branch: the M3/M4
+  measurement above (0.041 ms of CPU for an entire burst) puts the cost below the
+  trivial threshold, so the antecedent is false. The evidence is the recorded
+  measurement, not a test.
+- **AC-PLAY-203** is typed `review + grep` rather than a behavioral assertion; it
+  resolves to source-level greps in `travelFacts.test.js` and `RocketJourney.test.js`
+  (absence of transfer-orbit vocabulary, presence of the honesty comment) plus the M6
+  duration-ordering test that parses spoken durations back out of the Korean.
