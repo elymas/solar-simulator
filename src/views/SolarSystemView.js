@@ -5,6 +5,7 @@ import { TimeControls } from '../ui/TimeControls.js';
 import { PlanetList } from '../ui/PlanetList.js';
 import { PlanetStrip } from '../ui/PlanetStrip.js';
 import { InteractionManager } from '../controls/InteractionManager.js';
+import { createSolarBelts } from '../effects/Belts.js';
 import { init as initTts, speakBody, cancel as cancelSpeech } from '../audio/tts.js';
 
 /**
@@ -27,6 +28,7 @@ export class SolarSystemView {
    * @param {Function} [opts.createPlanetStrip]
    * @param {Function} [opts.createTimeControls]
    * @param {Function} [opts.createInteraction]
+   * @param {Function} [opts.createBelts]
    * @param {Window} [opts.win]
    */
   constructor({
@@ -37,6 +39,7 @@ export class SolarSystemView {
     createPlanetStrip = () => new PlanetStrip(),
     createTimeControls = (api) => new TimeControls(api),
     createInteraction = (sm, pf) => new InteractionManager(sm.camera, sm.scene, sm.renderer, pf),
+    createBelts = () => createSolarBelts(),
     win = typeof window !== 'undefined' ? window : undefined,
   } = {}) {
     this.sceneManager = sceneManager;
@@ -47,6 +50,14 @@ export class SolarSystemView {
     this._createTimeControls = createTimeControls;
     this._createInteraction = createInteraction;
     this._win = win;
+
+    // Belts are scene contents, so they mount here rather than in SceneManager,
+    // which owns only the render core. They are deliberately NOT registered in
+    // planetFactory.planets: that registry is what InteractionManager builds its
+    // raycast target set from, and keeping a few thousand rocks out of it is how
+    // REQ-EVT-203 is satisfied — by construction, not by a filter.
+    this.belts = createBelts();
+    for (const belt of this.belts) sceneManager.scene.add(belt.mesh);
 
     this._simTime = 0;
     this._timeSpeed = 1;
@@ -242,6 +253,7 @@ export class SolarSystemView {
     if (this._isPlaying) {
       this._simTime += delta * this._timeSpeed;
       this.planetFactory.update(this._simTime, delta);
+      for (const belt of this.belts) belt.update(this._simTime);
     }
 
     if (this._focusedKey) {
@@ -283,6 +295,7 @@ export class SolarSystemView {
 
   dispose() {
     if (this._ui && this._ui.interaction) this._ui.interaction.dispose();
+    for (const belt of this.belts) belt.dispose();
     this.sceneManager.dispose();
   }
 }

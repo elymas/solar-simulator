@@ -2,12 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SolarSystemView } from '../src/views/SolarSystemView.js';
 
 // Minimal stubs — no real WebGL/DOM layout needed for lifecycle + ownership logic.
-function makeStubs() {
-  const scene = { tag: 'scene' };
+function makeStubs({ qualityTier = 'full' } = {}) {
+  const scene = { tag: 'scene', add: vi.fn() };
   const camera = { tag: 'camera' };
+  const belts = [
+    { mesh: { name: 'asteroidBelt' }, update: vi.fn(), setReduced: vi.fn(), dispose: vi.fn() },
+    { mesh: { name: 'kuiperBelt' }, update: vi.fn(), setReduced: vi.fn(), dispose: vi.fn() },
+  ];
   const sceneManager = {
     scene,
     camera,
+    qualityTier,
+    onBeltsShed: null,
     controls: { enabled: true, target: { copy: vi.fn() }, update: vi.fn() },
     renderer: { domElement: { addEventListener: vi.fn() } },
     focusPlanet: vi.fn(),
@@ -44,9 +50,10 @@ function makeStubs() {
     createPlanetStrip: () => planetStrip,
     createTimeControls: () => timeControls,
     createInteraction: () => interaction,
+    createBelts: () => belts,
     win,
   });
-  return { view, sceneManager, planetFactory, infoPanel, planetList, planetStrip, timeControls, interaction, emitKey };
+  return { view, sceneManager, planetFactory, infoPanel, planetList, planetStrip, timeControls, interaction, belts, emitKey };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -170,6 +177,35 @@ describe('SolarSystemView mobile icon strip wiring (REQ-MOB-303, AC-MOB-303)', (
   });
 });
 
+// SPEC-EVENTS-001 M3. SolarSystemView owns the contents of the solar scene, so
+// the belts mount here — SceneManager owns only the render core and the degrader.
+describe('SolarSystemView belt field (REQ-EVT-201, REQ-EVT-202)', () => {
+  it('mounts both belts into the solar scene', () => {
+    const s = makeStubs();
+    for (const belt of s.belts) {
+      expect(s.sceneManager.scene.add).toHaveBeenCalledWith(belt.mesh);
+    }
+  });
+
+  it('drifts the belts on simulation time, alongside the planets', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.view.simApi.setTimeSpeed(10);
+    s.view.update(0.5);
+    for (const belt of s.belts) {
+      expect(belt.update).toHaveBeenCalledWith(s.view.simApi.getSimTime());
+    }
+  });
+
+  it('freezes the belts while the simulation is paused', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.view.simApi.togglePlay(); // pause
+    s.view.update(1);
+    for (const belt of s.belts) expect(belt.update).not.toHaveBeenCalled();
+  });
+});
+
 describe('SolarSystemView per-frame update (E3)', () => {
   it('advances sim time, follows the focused body, steps camera + controls', () => {
     const s = makeStubs();
@@ -238,5 +274,13 @@ describe('SolarSystemView dispose', () => {
     s.view.dispose();
     expect(s.interaction.dispose).toHaveBeenCalled();
     expect(disposeCore).toHaveBeenCalled();
+  });
+
+  it('releases the belt geometry and material it allocated', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.sceneManager.dispose = vi.fn();
+    s.view.dispose();
+    for (const belt of s.belts) expect(belt.dispose).toHaveBeenCalled();
   });
 });

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { PlanetFactory } from '../src/planets/PlanetFactory.js';
 import { InteractionManager } from '../src/controls/InteractionManager.js';
+import { createSolarBelts } from '../src/effects/Belts.js';
 
 // Stub SceneManager: PlanetFactory only reaches for renderer.capabilities for anisotropy.
 const stubSceneManager = () => ({
@@ -26,6 +27,49 @@ describe('InteractionManager star hitbox (bug: hover near Earth shows Stephenson
     expect(starHit.geometry.parameters.radius).toBe(8);
     // The real display mesh (radius 300) must never be raycast directly.
     expect(clickable).not.toContain(factory.planets.stephenson2_18.mesh);
+  });
+});
+
+// SPEC-EVENTS-001 REQ-EVT-203 / AC-EVT-203. Belt instances must never enter the
+// picking path — thousands of rocks in a raycast target set would cost more than
+// everything else picking does put together.
+//
+// Exclusion here is structural, not a filter: _getClickableMeshes() is built by
+// iterating planetFactory.planets, and belts are scene objects that were never
+// registered there. These tests pin that property so a future "add every scene
+// mesh to the target list" refactor fails loudly instead of quietly.
+describe('InteractionManager excludes belt instances from picking (REQ-EVT-203)', () => {
+  const withBelts = () => {
+    const factory = new PlanetFactory(new THREE.Scene(), stubSceneManager());
+    const belts = createSolarBelts();
+    for (const belt of belts) factory.scene.add(belt.mesh);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100000);
+    const interaction = new InteractionManager(camera, factory.scene, stubRenderer(), factory);
+    return { factory, belts, interaction };
+  };
+
+  it('has no belt mesh in the raycast target set', () => {
+    const { belts, interaction } = withBelts();
+    const clickable = interaction._getClickableMeshes();
+    for (const belt of belts) {
+      expect(clickable, belt.mesh.name).not.toContain(belt.mesh);
+    }
+    expect(clickable.some((m) => m.isInstancedMesh)).toBe(false);
+  });
+
+  it('maps no belt mesh to a selectable key', () => {
+    const { belts, interaction } = withBelts();
+    for (const belt of belts) {
+      expect(interaction._meshToKeyMap.has(belt.mesh.uuid)).toBe(false);
+    }
+  });
+
+  it('derives the target set from the body registry, so scenery is excluded by construction', () => {
+    const { factory, belts, interaction } = withBelts();
+    // One target per registered body — no more. Belts are in the scene graph but
+    // not in the registry, which is exactly why they can never be picked.
+    expect(interaction._getClickableMeshes()).toHaveLength(Object.keys(factory.planets).length);
+    expect(factory.scene.children).toEqual(expect.arrayContaining(belts.map((b) => b.mesh)));
   });
 });
 
