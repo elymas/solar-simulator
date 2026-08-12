@@ -18,7 +18,9 @@ An interactive 3D simulation of the solar system built with Three.js, featuring 
 - **Earth Detail** — Animated cloud layer rendered over the day-side texture
 - **Bloom Post-Processing** — Sun glow via UnrealBloomPass for a cinematic look
 - **Starfield Background** — Milky Way panorama mapped to an inverted sphere
-- **Responsive Design** — Works on desktop and mobile; reduces rendering quality automatically on low-end devices
+- **Responsive Design** — Works on desktop and mobile; render quality is decided from device signals (pixel ratio, core count, memory), not a blanket mobile check, so high-end phones render at full sharpness
+- **Touch-Optimized Selection** — Tap-to-select behind a drag guard, so starting an orbit drag on a body never triggers an accidental selection
+- **Mobile Planet Strip** — A bottom, scrollable strip of tappable body icons is the primary selector on screens ≤768px, synced with the 3D scene and the sidebar
 - **Keyboard Shortcuts** — Space, R, and Escape for quick control
 - **PWA & Offline Support** — Installable to the home screen as "태양계 탐험", runs standalone with safe-area layout (Dynamic Island, home indicator), boots offline after the first visit with all textures and fonts cached
 
@@ -110,10 +112,12 @@ solar-simulator/
 │   │   └── InteractionManager.js  # Raycasting, hover, click, touch
 │   ├── ui/
 │   │   ├── InfoPanel.js       # Slide-in sidebar with planet data
+│   │   ├── PlanetStrip.js     # Mobile bottom icon strip (≤768px primary selector)
 │   │   ├── TimeControls.js    # Play/pause, speed slider, date display
 │   │   └── LoadingScreen.js   # Full-screen loading overlay
 │   └── utils/
-│       └── constants.js       # Camera defaults, bloom settings, texture paths
+│       ├── constants.js       # Camera defaults, bloom settings, texture paths
+│       └── quality.js         # Boot-time render quality tier from device signals
 ├── index.html
 ├── vite.config.js
 └── package.json
@@ -140,6 +144,15 @@ solar-simulator/
 | `Space` | Toggle play / pause |
 | `R` | Reset camera to default position |
 | `Escape` | Close planet info panel |
+
+### Touch (mobile, ≤768px)
+
+| Action | Result |
+|---|---|
+| Tap on a planet (finger moves ≤8px) | Select and open info panel |
+| Drag (any distance beyond 8px) | Orbit the camera; no selection change |
+| Tap the bottom icon strip | Select that body — same effect as tapping it in the 3D scene |
+| Tap on empty space | Close info panel |
 
 ### Time Controls (bottom bar)
 

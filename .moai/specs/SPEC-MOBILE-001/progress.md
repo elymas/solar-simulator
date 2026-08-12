@@ -433,7 +433,27 @@ m1_to_mN_commit_strategy: one-commit-per-milestone-pushed-directly-to-main
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+```yaml
+sync_complete_at: 2026-08-12T16:56:00Z
+sync_commit_sha: pending-backfill-spec-mobile-001-sync   # backfilled in a follow-up commit; a commit cannot cite its own SHA
+sync_status: complete
+changelog_entry_position: "CHANGELOG.md [Unreleased] — Added (1 entry) / Changed (2 entries) / Fixed (2 entries), all tagged (SPEC-MOBILE-001)"
+frontmatter_status_transitions:
+  spec_md: "in-progress -> completed (updated: unchanged, already 2026-08-12)"
+  plan_md: "no frontmatter block present — nothing to transition"
+  acceptance_md: "no frontmatter block present — nothing to transition"
+  progress_md: "no frontmatter block present — nothing to transition"
+mx_tag_validation:
+  files_checked: 9   # InteractionManager.js, SceneManager.js, quality.js, PlanetStrip.js, PlanetList.js, TimeControls.js, strings.js, SolarSystemView.js, index.html
+  tags_added: 0
+  tags_verified_existing: 1   # TimeControls.js:22-25 @MX:NOTE + @MX:SPEC (SPEC-MOBILE-001 REQ-MOB-301) for the --time-controls-h cross-file contract
+  gaps: "none — all new exports have fan_in=1 (below the fan_in_anchor=3 threshold), no JS warn_patterns (async/Promise.all) present, no untested public functions"
+readme_updated: true   # Features bullets (2 new + 1 revised), Touch controls table, Project Structure (PlanetStrip.js, quality.js)
+```
+
+### Known issue recorded (pre-existing, out of this SPEC's scope)
+
+The orchestrator's browser verification pass found a pre-existing desktop layout defect that SPEC-MOBILE-001 did not cause and does not own: between roughly 769-1270px viewport width, `.time-controls` is severely compressed (the "속도" and "날짜" labels break mid-word and the date wraps to three lines). Cause: `.time-controls` is `position: fixed` with only `left: 50%` + `transform: translateX(-50%)`, so its shrink-to-fit available width is half the viewport (450px at a 900px viewport) while its content's max-content width is 635px. This centering predates SPEC-MOBILE-001. Confirmed pre-existing by restoring `flex-shrink: 1` on the buttons in a live browser and re-measuring: the bar stayed 544×99, so the buttons were never the binding constraint. Not fixed here — it is a separate SPEC's work.
 
 ## §F Phase 4 Mode Selection
 
