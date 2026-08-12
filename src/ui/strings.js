@@ -80,6 +80,9 @@ export const STR = {
   earthFlightLiveEmpty: '실시간 · 지금 서울 하늘은 깨끗해요',
   earthFlightRateLimited: '잠시 쉬는 중이에요 · 마지막 정보를 보여줘요',
   earthFlightOffline: '지금은 서울 하늘 정보를 볼 수 없어요',
+  // adsb.fi's open-data terms require citing them with a link to their home
+  // page, so this credit ships with the aircraft feature — not optional polish.
+  earthFlightCredit: '비행기 정보: adsb.fi',
 
   // InfoPanel property labels (consumed by the kid-first panel rework)
   infoType: '종류',

@@ -60,8 +60,11 @@ export function deadReckon(ac, dt) {
 }
 
 /**
- * FlightDataService polls a keyless, CORS-enabled community ADS-B API (airplanes.live)
- * and exposes an explicit state machine (OFF/LOADING/LIVE/RATE_LIMITED/OFFLINE) plus a
+ * FlightDataService polls the aircraft snapshot published by .github/workflows/
+ * flights.yml (adsb.fi data, force-pushed to the `flight-data` branch and served
+ * by raw.githubusercontent.com, which is the only leg of this that sends a CORS
+ * header). The payload keeps adsb.fi's own `{ ac: [...] }` shape, plus a `now`
+ * timestamp that dates the snapshot. This service exposes an explicit state machine (OFF/LOADING/LIVE/RATE_LIMITED/OFFLINE) plus a
  * validated, capped, dead-reckoned aircraft list. All I/O (fetch/timers/navigator/clock)
  * is injected so the polling, backoff, offline short-circuit, and validation logic are
  * unit-testable with no real network or WebGL.
@@ -81,10 +84,7 @@ export class FlightDataService {
     clearTimeout: ct,
     navigator: nav,
     now,
-    baseUrl = FLIGHT_DEFAULTS.baseUrl,
-    lat = FLIGHT_DEFAULTS.lat,
-    lon = FLIGHT_DEFAULTS.lon,
-    radiusNm = FLIGHT_DEFAULTS.radiusNm,
+    snapshotUrl = FLIGHT_DEFAULTS.snapshotUrl,
     pollIntervalMs = FLIGHT_DEFAULTS.pollIntervalMs,
     backoffStartMs = FLIGHT_DEFAULTS.backoffStartMs,
     backoffMaxMs = FLIGHT_DEFAULTS.backoffMaxMs,
@@ -95,7 +95,7 @@ export class FlightDataService {
     this._clearTimeout = ct || ((id) => clearTimeout(id));
     this._nav = nav || (typeof navigator !== 'undefined' ? navigator : { onLine: true });
     this._now = now || (() => Date.now());
-    this._url = `${baseUrl}/${lat}/${lon}/${radiusNm}`;
+    this._url = snapshotUrl;
     this.pollIntervalMs = pollIntervalMs;
     this.backoffStartMs = backoffStartMs;
     this.backoffMaxMs = backoffMaxMs;
@@ -140,8 +140,8 @@ export class FlightDataService {
   // poll — otherwise a poll resolving after EarthView is disposed mid-flight would
   // reschedule the loop and leak a timer that keeps hitting a shared community API.
   // @MX:REASON: [AUTO] EarthView.onExit()/dispose calls this via the onStopPolling hook;
-  // a leaked interval polling airplanes.live after the view is gone is both a battery/
-  // rate drain and a use-after-dispose on torn-down render state.
+  // a leaked interval polling the snapshot after the view is gone is both a battery/
+  // bandwidth drain and a use-after-dispose on torn-down render state.
   stop() {
     this._running = false;
     this._generation += 1; // invalidate any in-flight poll's continuation
@@ -165,7 +165,9 @@ export class FlightDataService {
     }
 
     try {
-      const res = await this._fetch(this._url);
+      // Vary the URL once a minute: raw.githubusercontent caches for 300 s, and a
+      // sticky CDN copy would otherwise outlive several producer runs.
+      const res = await this._fetch(`${this._url}?t=${Math.floor(this._now() / 60000)}`);
       if (this._disposed(gen)) return;
       if (res && res.status === 429) return this._onFailure(FLIGHT_STATE.RATE_LIMITED);
       if (!res || !res.ok) return this._onFailure(FLIGHT_STATE.OFFLINE);
@@ -173,7 +175,11 @@ export class FlightDataService {
       const data = await res.json();
       if (this._disposed(gen)) return;
       this._applyAircraft(Array.isArray(data && data.ac) ? data.ac : []);
-      this.lastUpdatedAt = this._now();
+      // Trust the snapshot's own timestamp over the fetch clock. The file can be
+      // minutes old, and the HUD's "N seconds ago" must say so instead of
+      // resetting to zero every poll.
+      const stamped = Number(data && data.now);
+      this.lastUpdatedAt = Number.isFinite(stamped) && stamped > 0 ? stamped : this._now();
       this._backoffMs = 0;
       this._setState(FLIGHT_STATE.LIVE);
       this._scheduleNext(this.pollIntervalMs);

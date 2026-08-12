@@ -184,3 +184,37 @@ describe('FlightDataService lifecycle — no timer leak on stop (WARN guard, REQ
     expect(svc.getAircraft()).toEqual([]);
   });
 });
+
+describe('snapshot feed (GitHub Actions publisher, not a live API)', () => {
+  it('dates the data from the snapshot timestamp, not the fetch clock', async () => {
+    const stamped = 1700000000000;
+    const { svc } = makeService({
+      fetchFn: vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ ac: [], now: stamped }),
+      })),
+    });
+    await svc.start();
+    // The HUD's "N seconds ago" is derived from this; reporting the fetch time
+    // would claim a several-minute-old snapshot is fresh.
+    expect(svc.lastUpdatedAt).toBe(stamped);
+  });
+
+  it('falls back to the clock when a payload carries no timestamp', async () => {
+    const { svc } = makeService();
+    await svc.start();
+    expect(svc.lastUpdatedAt).toBe(1000);
+  });
+
+  it('varies the URL once a minute so a cached CDN copy cannot stick forever', async () => {
+    let t = 0;
+    const fetchFn = vi.fn(async () => okResponse([]));
+    const { svc, scheduler } = makeService({ fetchFn, now: () => t });
+    await svc.start();
+    t = 120000;
+    await scheduler.flush();
+    const [first, second] = fetchFn.mock.calls.map((c) => c[0]);
+    expect(second).not.toBe(first);
+  });
+});

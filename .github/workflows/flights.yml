@@ -1,0 +1,80 @@
+name: Flight snapshot
+
+# Publishes a small aircraft snapshot for the Earth view.
+#
+# Why a scheduled snapshot instead of the browser calling an ADS-B API directly:
+# every keyless community feed sends no CORS header, so a static Pages build
+# cannot fetch one. The obvious fix (a Cloudflare Worker proxy) turned out to be
+# a dead end too — adsb.fi and OpenSky both sit behind Cloudflare, and a Worker's
+# subrequest into another Cloudflare zone is answered 403 (WAF) or 522. A GitHub
+# runner has none of those problems, and raw.githubusercontent.com serves the
+# result with `access-control-allow-origin: *`.
+#
+# Cost of this choice: the data is as old as the last successful run. GitHub cron
+# fires on a best-effort basis, so treat the freshness as "several minutes", not
+# five. The client renders the snapshot's own timestamp, never the fetch time, so
+# the HUD never claims data is fresher than it is.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flight-snapshot
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and trim the ADS-B snapshot
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 5 --max-time 30 \
+            -A "solar-simulator/0.1 (+https://github.com/${GITHUB_REPOSITORY})" \
+            "https://opendata.adsb.fi/api/v3/lat/37.5/lon/126.9/dist/250" \
+            -o raw.json
+          # Keep only the six fields the client reads. The full payload is ~40 KB
+          # for ~60 aircraft and every byte of it crosses a phone's mobile data.
+          node -e '
+            const raw = require("./raw.json");
+            const src = Array.isArray(raw.ac) ? raw.ac : [];
+            const ac = src
+              .filter((a) => Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lon)))
+              .map((a) => ({
+                hex: String(a.hex ?? ""),
+                flight: String(a.flight ?? "").trim(),
+                lat: Number(a.lat),
+                lon: Number(a.lon),
+                alt_baro: Number(a.alt_baro) || 0,
+                track: Number(a.track) || 0,
+                gs: Number(a.gs) || 0,
+              }));
+            if (!ac.length) throw new Error("snapshot has no positioned aircraft");
+            require("fs").writeFileSync(
+              "flights.json",
+              JSON.stringify({ ac, now: Number(raw.now) || Date.now(), source: "adsb.fi" })
+            );
+            console.log("aircraft:", ac.length);
+          '
+
+      - name: Publish to the flight-data branch
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir out && mv flights.json out/
+          cd out
+          git init -q -b flight-data
+          git config user.name "flight-snapshot[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add flights.json
+          git commit -qm "flight snapshot $(date -u +%FT%TZ)"
+          # Force-push a single-commit orphan branch: the snapshot is replaced,
+          # never appended, so this branch cannot grow the repository over time.
+          git push -q --force \
+            "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" flight-data

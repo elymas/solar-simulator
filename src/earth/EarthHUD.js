@@ -154,6 +154,8 @@ export class EarthHUD {
         font-size: 12px;
       }
       .earth-hud-note { font-size: 11px; color: #888; font-style: italic; }
+      .earth-hud-credit { font-size: 10px; color: #777; text-decoration: none; }
+      .earth-hud-credit:hover { color: #16c7ff; }
       .earth-hud-speed-row {
         display: flex;
         align-items: center;
@@ -195,6 +197,7 @@ export class EarthHUD {
       <div class="earth-hud-section">
         <button class="earth-hud-toggle" type="button" data-toggle="aircraft">${STR.earthAircraftOff}</button>
         <div class="earth-hud-flight-status" data-field="flight-status" role="status" aria-live="polite" data-state="OFF">${STR.earthFlightOff}</div>
+        <a class="earth-hud-credit" data-field="flight-credit" href="https://adsb.fi/" target="_blank" rel="noopener noreferrer">${STR.earthFlightCredit}</a>
       </div>
       <div class="earth-hud-section">
         <select class="earth-hud-eclipse-select" data-field="eclipse-preset" aria-label="${STR.earthEclipseSelectLabel}">

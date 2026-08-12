@@ -123,9 +123,14 @@ describe('FLIGHT_DEFAULTS Seoul reference point (SPEC-EARTH-003 REQ-E3-301)', ()
   });
 
   it('leaves every other tuning field byte-identical to the pre-Seoul baseline', () => {
-    expect(FLIGHT_DEFAULTS.baseUrl).toBe('https://api.airplanes.live/v2/point');
+    // Live API calls are gone: the browser reads the snapshot published by
+    // .github/workflows/flights.yml, because no keyless ADS-B feed is callable
+    // from a browser and a Cloudflare Worker proxy cannot reach them either.
+    expect(FLIGHT_DEFAULTS.snapshotUrl).toMatch(
+      /^https:\/\/raw\.githubusercontent\.com\/.+\/flight-data\/flights\.json$/
+    );
     expect(FLIGHT_DEFAULTS.radiusNm).toBe(250);
-    expect(FLIGHT_DEFAULTS.pollIntervalMs).toBe(12000);
+    expect(FLIGHT_DEFAULTS.pollIntervalMs).toBe(60000);
     expect(FLIGHT_DEFAULTS.backoffStartMs).toBe(30000);
     expect(FLIGHT_DEFAULTS.backoffMaxMs).toBe(300000);
     expect(FLIGHT_DEFAULTS.maxInstances).toBe(500);
