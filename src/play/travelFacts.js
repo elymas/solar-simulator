@@ -8,9 +8,18 @@
 // speed in its `// 참고:` comment. Ages-5 wording rounds those durations, never
 // invents them (SPEC-KIDS-001 §8.1 rule 3).
 //
-// Reference basis for the bodies no spacecraft has visited (하우메아, 마케마케,
-// 에리스): New Horizons' post-Jupiter cruise of roughly 3.4 AU per year, applied to
-// each body's semi-major axis in planetData.js.
+// SHARED BASIS (기준) — every row is a one-way FAST-CRUISE duration: a direct
+// chemical-propulsion trajectory, the class Apollo/Mariner/Voyager/New Horizons
+// flew. Rows must not be sourced from a LOW-THRUST (저추력) 이온 추진 rendezvous
+// such as Dawn, which spirals out over years to ARRIVE SLOWLY ENOUGH TO ORBIT;
+// mixing the two classes into one table taught a child that Ceres is farther away
+// than Jupiter. For the bodies no spacecraft has visited (하우메아, 마케마케,
+// 에리스) the same basis is applied as New Horizons' post-Jupiter cruise of roughly
+// 3.4 AU per year against each body's semi-major axis in planetData.js.
+//
+// Consequence, asserted in travelFacts.test.js: spoken durations rise with
+// `distance` for every body beyond Earth's orbit, with one documented real-mission
+// exception (해왕성/명왕성 — a grand tour vs a direct flyby).
 
 import { PLANET_DATA, MOON_DATA } from '../planets/planetData.js';
 
@@ -26,10 +35,12 @@ export const TRAVEL_FACTS_KO = {
   venus: '금성까지는 넉 달쯤 날아가야 해요!', // 참고: 마리너 2호 110일 / 비너스 익스프레스 153일
   mercury: '수성까지는 다섯 달쯤 날아가야 해요!', // 참고: 마리너 10호 147일
   mars: '화성까지는 반년을 날아가야 해요!', // 참고: 퍼서비어런스 203일 / 마스 익스프레스 201일
-  ceres: '세레스까지는 네 해쯤 날아가야 해요!', // 참고: 던 탐사선, 베스타 경유 구간을 뺀 순항 기준
+  // 던(Dawn)의 4년은 이온 추진 랑데부라 이 표의 기준과 다름 — 같은 고속 순항 기준으로 다시 계산.
+  ceres: '세레스까지는 한 해 조금 넘게 날아가야 해요!', // 참고: 호만 전이 1.3년 (a=1.885 AU)
   jupiter: '목성까지는 한 해 반을 날아가야 해요!', // 참고: 보이저 1호 546일
   saturn: '토성까지는 세 해를 날아가야 해요!', // 참고: 보이저 1호 3년 2개월
   uranus: '천왕성까지는 여덟 해나 날아가야 해요!', // 참고: 보이저 2호 8년 5개월
+  // 해왕성 > 명왕성: 그랜드 투어와 직행 탐사의 차이 — 표에서 유일하게 허용된 역전.
   neptune: '해왕성까지는 열두 해나 날아가야 해요!', // 참고: 보이저 2호 12년 1개월
   pluto: '명왕성까지는 열 해 가까이 날아가야 해요!', // 참고: 뉴호라이즌스 9년 6개월
   haumea: '하우메아까지는 열세 해쯤 날아가야 해요!', // 참고: 43.1 AU / 연 3.4 AU 순항 환산

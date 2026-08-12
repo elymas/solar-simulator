@@ -233,17 +233,25 @@ export class SolarSystemView {
     // the reward into wallpaper, so the completion moment stays the once-a-day one.
     if (!matched.some((mission) => mission.firstToday)) return;
     this._stickerBook.refresh();
-    this._celebratePraise();
+    // The completing body travels IN the event (`select`/`rocket-arrived`/
+    // `size-compare` all carry one), which is what keeps the sparkle honest:
+    // reading `_focusedKey` here instead made the burst depend on statements that
+    // run after the emit, so it landed on the PREVIOUS pick — or nowhere at all on
+    // the first tap of a session.
+    this._celebratePraise(event.body);
   }
 
   /**
    * The reward: one fanfare, one spoken praise, one sparkle burst (REQ-PLAY-404).
    * Fires once per completion moment however many missions matched the event.
+   * @param {string} [bodyKey] - The body that completed the mission. Bodyless
+   *   completions (`view-enter`) fall back to whatever is focused; a body that is
+   *   not in the scene sparkles nowhere, and the fanfare still plays.
    */
-  _celebratePraise() {
+  _celebratePraise(bodyKey = this._focusedKey) {
     playFanfare();
     speak(STR.playPraise);
-    const target = this._focusedKey ? this._getBody(this._focusedKey) : null;
+    const target = bodyKey ? this._getBody(bodyKey) : null;
     if (target) this._praise.burst(target.position, SPARKLE, target.radius);
   }
 

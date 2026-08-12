@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { STR, formatKoUnit, formatKoDate } from './strings.js';
+import { PLANET_DATA, MOON_DATA } from '../planets/planetData.js';
 
 // AC-KIDS-103 grep gate: none of these may survive as a primary chrome label.
 const BANNED_LITERALS = ['Solar System', 'Dwarf Planets', 'Stars', 'Speed', 'Date', 'Diameter', 'Orbital Period'];
@@ -62,6 +63,75 @@ describe('STR completeness (REQ-KIDS-103)', () => {
       STR.earthFlightOff,
     ]);
     expect(distinct.size).toBe(5);
+  });
+});
+
+// acceptance.md §4 puts EVERY Korean string of the play layer under the
+// SPEC-KIDS-001 §8.1 checklist, but only mission prompts and the travel facts were
+// ever machine-checked. These cover the rest: the play chrome and the aria-labels,
+// which VoiceOver/TalkBack read aloud to the same child.
+describe('play strings meet the KIDS-001 §8.1 checklist (SPEC-PLAY-001)', () => {
+  const PLAY_KEYS = Object.keys(STR).filter((key) => key.startsWith('play'));
+
+  // The names a child actually meets, so a failure names the body it is wrong for.
+  const NAMES = [
+    ...Object.values(PLANET_DATA).map((b) => b.nameKo),
+    ...Object.values(MOON_DATA).flat().map((m) => m.nameKo),
+  ].filter(Boolean);
+
+  /** Every play string as it reaches the child: [key, rendered text, name?]. */
+  function rendered() {
+    const out = [];
+    for (const key of PLAY_KEYS) {
+      const value = STR[key];
+      if (typeof value !== 'function') out.push([key, value, null]);
+      // Same name in every slot: that puts the checks on all interpolation sites.
+      else for (const name of NAMES) out.push([key, value(name, name, name), name]);
+    }
+    return out;
+  }
+
+  // These are the play strings that are SPOKEN or read as sentences; the rest are
+  // button labels ('닫기'), for which 해요체 would be wrong.
+  const SENTENCES = ['playCompareCount', 'playCompareSame', 'playDayComplete', 'playStickerLocked', 'playPraise'];
+
+  it('covers the play layer at all', () => {
+    expect(PLAY_KEYS.length).toBeGreaterThan(8);
+  });
+
+  it('stays within the §8.1 length rule and uses no English', () => {
+    for (const [key, text, name] of rendered()) {
+      const where = name ? `${key}(${name})` : key;
+      expect(text.length, `${where} is longer than 45 Korean characters`).toBeLessThanOrEqual(45);
+      expect(text, `${where} must not use English`).not.toMatch(/[A-Za-z]/);
+    }
+  });
+
+  it('writes every spoken play string in 해요체', () => {
+    for (const [key, text, name] of rendered()) {
+      if (!SENTENCES.includes(key)) continue;
+      expect(text, `${key}(${name}) must end in 해요체`).toMatch(/[요][.!]?$/);
+    }
+  });
+
+  // strings.js states the module's own rule: the play strings are particle-free, so
+  // no 은/는 이/가 와/과 (으)로 selection logic is needed for a body name that is only
+  // known at runtime. A particle glued straight onto an interpolated name breaks it —
+  // `${name}으로` reads aloud as 달으로 / 세레스으로 / 에리스으로.
+  it('never glues a final-consonant-sensitive particle onto an interpolated name', () => {
+    const JOSA = ['은', '는', '이', '가', '와', '과', '을', '를', '로', '으로'];
+    for (const [key, text, name] of rendered()) {
+      if (!name) continue;
+      for (let at = text.indexOf(name); at !== -1; at = text.indexOf(name, at + 1)) {
+        const after = text.slice(at + name.length);
+        for (const josa of JOSA) {
+          expect(
+            after.startsWith(josa),
+            `${key} renders "${text}" — drop the ${josa} particle instead of choosing it for ${name}`
+          ).toBe(false);
+        }
+      }
+    }
   });
 });
 

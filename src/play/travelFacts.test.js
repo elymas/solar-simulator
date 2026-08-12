@@ -79,6 +79,80 @@ describe('TRAVEL_FACTS_KO (REQ-PLAY-202, AC-PLAY-202)', () => {
   });
 });
 
+// Durations are read back out of the Korean the child actually hears, not kept in
+// a parallel numeric table — a second table is exactly how the numbers and the
+// words drift apart, which is the defect these tests exist to catch.
+const NUMERAL = {
+  삼: 3, 넉: 4, 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6,
+  일곱: 7, 여덟: 8, 아홉: 9, 열: 10, 열두: 12, 열세: 13, 열네: 14, 스무: 20,
+};
+const UNIT_YEARS = { 일: 1 / 365, 달: 1 / 12, 해: 1 };
+
+/**
+ * The spoken one-way duration, in years. NaN when a fact is worded in a way this
+ * parser has not been taught — which fails a test rather than passing silently.
+ * @param {string} fact
+ * @returns {number}
+ */
+function spokenYears(fact) {
+  const tail = fact.slice(fact.indexOf('까지는') + '까지는'.length);
+  if (tail.includes('반년')) return 0.5;
+  const match = tail.match(/(\S+?)\s*(일|달|해)/);
+  const count = match ? NUMERAL[match[1]] : undefined;
+  if (count === undefined) return NaN;
+  return count * UNIT_YEARS[match[2]] + (/해\s*반/.test(tail) ? 0.5 : 0);
+}
+
+describe('duration ordering (REQ-PLAY-203, AC-PLAY-203)', () => {
+  // Beyond Earth's orbit only. Sunward of it, travel time is set by delta-v rather
+  // than by radial distance — Mercury sits closer to the Sun than Venus and still
+  // takes longer to reach — so ordering the inner system by `distance` would encode
+  // a falsehood instead of catching one.
+  const OUTWARD = Object.keys(TRAVEL_FACTS_KO)
+    .filter((key) => PLANET_DATA[key] && PLANET_DATA[key].distance > 1)
+    .sort((a, b) => PLANET_DATA[a].distance - PLANET_DATA[b].distance);
+
+  // Genuine real-mission inversions, listed one by one so a NEW inversion still
+  // fails. New Horizons flew a direct high-speed trajectory to Pluto (9y 6m);
+  // Voyager 2 reached Neptune on a grand-tour path of gravity assists (12y 1m).
+  const INVERSIONS = new Set(['neptune>pluto']);
+
+  it('reads a duration back out of every fact', () => {
+    for (const [key, fact] of Object.entries(TRAVEL_FACTS_KO)) {
+      expect(spokenYears(fact), `${key}: reword it or teach this test its numeral`).toBeGreaterThan(0);
+    }
+  });
+
+  it('never tells a child that a nearer body takes longer to reach', () => {
+    for (const near of OUTWARD) {
+      for (const far of OUTWARD) {
+        if (PLANET_DATA[near].distance >= PLANET_DATA[far].distance) continue;
+        if (INVERSIONS.has(`${near}>${far}`)) continue;
+        expect(
+          spokenYears(TRAVEL_FACTS_KO[near]),
+          `${near} (${PLANET_DATA[near].distance} AU) must not be spoken as farther in time than ${far} (${PLANET_DATA[far].distance} AU)`
+        ).toBeLessThanOrEqual(spokenYears(TRAVEL_FACTS_KO[far]));
+      }
+    }
+  });
+
+  it('keeps the exception list honest: every listed pair is still a real inversion', () => {
+    for (const pair of INVERSIONS) {
+      const [near, far] = pair.split('>');
+      expect(PLANET_DATA[near].distance).toBeLessThan(PLANET_DATA[far].distance);
+      expect(
+        spokenYears(TRAVEL_FACTS_KO[near]),
+        `${pair} no longer inverts — delete it from INVERSIONS rather than leave it masking a future defect`
+      ).toBeGreaterThan(spokenYears(TRAVEL_FACTS_KO[far]));
+    }
+  });
+
+  it('anchors the whole table to one trajectory basis, in the source comments', () => {
+    expect(SOURCE, 'the shared basis must be stated').toMatch(/기준|basis/i);
+    expect(SOURCE, 'the rejected low-thrust class must stay named').toMatch(/이온|저추력|low-thrust/i);
+  });
+});
+
 describe('travelFactKo', () => {
   it('returns the destination fact', () => {
     expect(travelFactKo('mars')).toBe(TRAVEL_FACTS_KO.mars);

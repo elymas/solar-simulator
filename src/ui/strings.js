@@ -107,7 +107,10 @@ export const STR = {
   playCompare: '크기 비교',
   playCompareLabel: (name) => `${name} 크기 비교하기`,
   playRocket: '로켓 발사',
-  playRocketLabel: (name) => `${name}으로 로켓 발사하기`,
+  // Particle-free like the comparison forms below: `${name}으로` is only correct
+  // for a consonant-final name that does not end in ㄹ, so a screen reader spoke
+  // 달으로 / 세레스으로 / 하우메아으로 / 마케마케으로 / 에리스으로 out loud.
+  playRocketLabel: (name) => `${name} 로켓 발사하기`,
   playClose: '닫기',
 
   // Size comparison. Both forms are deliberately particle-free: the count form

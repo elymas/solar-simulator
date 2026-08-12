@@ -12,6 +12,8 @@ import { PLANET_DATA } from '../planets/planetData.js';
 
 const DATE = new Date('2026-08-12T09:00:00');
 const NEXT_DAY = new Date('2026-08-13T09:00:00');
+/** A day whose rotation contains 'earth-home' — the mission Earth itself completes. */
+const EARTH_MISSION_DAY = new Date('2026-08-04T09:00:00');
 
 /** Fire the play event that completes a catalog mission, whatever its predicate. */
 function emitFor(mission) {
@@ -61,6 +63,7 @@ describe('SolarSystemView mission + play surfaces (SPEC-PLAY-001 M2/M5)', () => 
         earth: body('earth', new THREE.Vector3(200, 0, 0), { displayRadius: 8 }),
         saturn: body('saturn', new THREE.Vector3(0, 0, 600), { displayRadius: 9 }),
         mars: body('mars', new THREE.Vector3(0, 0, 300), { displayRadius: 5 }),
+        jupiter: body('jupiter', new THREE.Vector3(0, 0, 400), { displayRadius: 12 }),
       },
       update: vi.fn(),
       onFocus: vi.fn(),
@@ -139,6 +142,15 @@ describe('SolarSystemView mission + play surfaces (SPEC-PLAY-001 M2/M5)', () => 
   // give the burst a home can itself tick one off.
   const pendingMission = () => view._missionEngine().today().find((m) => !m.done);
 
+  // Today's first pending mission whose body this fixture's scene actually holds —
+  // the only kind that can be asserted to sparkle SOMEWHERE, since the burst lands
+  // on the completing body and a body absent from the scene has no position.
+  const pendingMissionInScene = () =>
+    view
+      ._missionEngine()
+      .today()
+      .find((m) => !m.done && m.predicate.type === 'select' && planetFactory.planets[m.predicate.bodies[0]]);
+
   describe('entry-point wiring (REQ-PLAY-101/201)', () => {
     it('opens the size comparison from the InfoPanel button, without touching the scene', () => {
       view._select('saturn');
@@ -177,11 +189,9 @@ describe('SolarSystemView mission + play surfaces (SPEC-PLAY-001 M2/M5)', () => 
 
   describe('praise flow (REQ-PLAY-404, AC-PLAY-404)', () => {
     it('celebrates, fanfares and speaks praise exactly once on completion', () => {
-      view._select('saturn'); // gives the burst somewhere to land
-      audio.oscillators = 0;
-      audio.spoken.length = 0;
-
-      emitFor(pendingMission());
+      // No pre-selection: the burst finds its home in the event itself, so a test
+      // that props one up with an earlier pick can no longer hide a missing burst.
+      emitFor(pendingMissionInScene());
 
       expect(audio.spoken).toEqual([STR.playPraise]);
       expect(audio.oscillators).toBeGreaterThan(0);
@@ -215,12 +225,9 @@ describe('SolarSystemView mission + play surfaces (SPEC-PLAY-001 M2/M5)', () => 
     });
 
     it('stays silent but fully visual with the shared 소리 toggle off (Scenario 4)', () => {
-      view._select('saturn');
       setMuted(true);
-      audio.oscillators = 0;
-      audio.spoken.length = 0;
 
-      const mission = pendingMission();
+      const mission = pendingMissionInScene();
       emitFor(mission);
 
       expect(audio.oscillators).toBe(0);
@@ -229,15 +236,76 @@ describe('SolarSystemView mission + play surfaces (SPEC-PLAY-001 M2/M5)', () => 
       expect(view._store.stickers()).toContain(mission.sticker);
     });
 
-    it('completes a mission reached through a real selection', () => {
+    it('completes a mission reached through a real selection, sparkling on that body', () => {
       const selectMission = missionsForDate('2026-08-12').find(
         (m) => m.predicate.type === 'select' && planetFactory.planets[m.predicate.bodies[0]]
       );
       if (!selectMission) return; // rotation-dependent; the seam tests cover the rest
+      const key = selectMission.predicate.bodies[0];
+      const burst = vi.spyOn(view._praise, 'burst');
 
-      view._select(selectMission.predicate.bodies[0]);
+      view._select(key);
 
       expect(view._store.stickers()).toContain(selectMission.sticker);
+      expect(burst).toHaveBeenCalledTimes(1);
+      expect(burst.mock.calls[0][0].z).toBeCloseTo(planetFactory.planets[key].mesh.position.z);
+    });
+
+    // The TTS channel keeps only the newest utterance, so a selection that also
+    // completes a mission must narrate the body FIRST and praise LAST — otherwise
+    // the body's fact talks over the praise it just triggered. M5 deviation 7 put
+    // `emitPlayEvent('select')` after `speakBody` for this reason; nothing locked
+    // it until now, and the burst fix lives in the same few lines.
+    it('narrates the body before the praise, so praise is the last thing heard', () => {
+      const mission = pendingMissionInScene();
+      audio.spoken.length = 0;
+
+      view._select(mission.predicate.bodies[0]);
+
+      expect(audio.spoken.length).toBeGreaterThan(1); // body fact + praise
+      expect(audio.spoken.at(-1)).toBe(STR.playPraise);
+    });
+
+    // Regression, evaluator MUST-FIX 1 (AC-PLAY-404, acceptance §2 Scenario 3):
+    // the burst target used to be read from `_focusedKey`, which `_select` assigns
+    // AFTER emitting the event — so the first tap of a session awarded the sticker
+    // and spoke the praise with no sparkle at all.
+    it('sparkles on the first selection of a session, with nothing focused before it', () => {
+      const mission = pendingMissionInScene();
+      expect(view._focusedKey).toBeNull();
+
+      view._select(mission.predicate.bodies[0]);
+
+      expect(view._store.stickers()).toContain(mission.sticker);
+      expect(view._praise.activeCount).toBeGreaterThan(0);
+    });
+
+    // The earth branch emits and returns before any of the focus bookkeeping, so
+    // it never had a `_focusedKey` of its own to celebrate on.
+    it('sparkles on Earth when the Earth pick itself completes a mission', () => {
+      now = EARTH_MISSION_DAY; // 'earth-home' is in this day's rotation
+      view.setEarthSelectHandler(() => {});
+      const burst = vi.spyOn(view._praise, 'burst');
+
+      view._select('earth');
+
+      expect(view._store.stickers()).toContain('home');
+      expect(burst).toHaveBeenCalledTimes(1);
+      expect(burst.mock.calls[0][0].x).toBeCloseTo(200); // earth sits at x=200
+    });
+
+    // Same defect, its other face: the stale `_focusedKey` put the burst on the
+    // PREVIOUS pick, so the child saw the reward land on the wrong planet.
+    it('sparkles on the completing body, not on the body picked before it', () => {
+      const burst = vi.spyOn(view._praise, 'burst');
+
+      view._select('mars'); // z=300, completes nothing in today's rotation
+      expect(burst).not.toHaveBeenCalled();
+
+      view._select('jupiter'); // z=400, completes find-biggest
+
+      expect(burst).toHaveBeenCalledTimes(1);
+      expect(burst.mock.calls[0][0].z).toBeCloseTo(400);
     });
   });
 
