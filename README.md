@@ -20,6 +20,7 @@ An interactive 3D simulation of the solar system built with Three.js, featuring 
 - **Starfield Background** — Milky Way panorama mapped to an inverted sphere
 - **Responsive Design** — Works on desktop and mobile; reduces rendering quality automatically on low-end devices
 - **Keyboard Shortcuts** — Space, R, and Escape for quick control
+- **PWA & Offline Support** — Installable to the home screen as "태양계 탐험", runs standalone with safe-area layout (Dynamic Island, home indicator), boots offline after the first visit with all textures and fonts cached
 
 ---
 
@@ -29,6 +30,8 @@ An interactive 3D simulation of the solar system built with Three.js, featuring 
 |---|---|---|
 | [Three.js](https://threejs.org/) | 3D rendering engine | r175 |
 | [Vite](https://vitejs.dev/) | Build tool and dev server | 6.x |
+| [vite-plugin-pwa](https://vite-pwa-org.netlify.app/) | PWA manifest and service worker generation | 1.x |
+| [@fontsource-variable](https://fontsource.org/) | Self-hosted variable fonts (Inter, JetBrains Mono) | 5.x |
 | Vanilla JavaScript | Application logic | ES modules |
 | GitHub Actions | CI/CD pipeline | - |
 | GitHub Pages | Static hosting | - |
@@ -68,6 +71,14 @@ npm run build
 
 Output is written to `dist/`. The `base` path is set to `/solar-simulator/` in `vite.config.js` for GitHub Pages compatibility.
 
+### Test Build Artifacts
+
+```bash
+npm run test:build
+```
+
+Builds the app and runs build-artifact assertions to verify PWA manifest, service worker configuration, precache entries, and safe-area CSS presence. Separate from the default test suite to keep CI fast.
+
 ### Deploy
 
 Push to the `main` branch. GitHub Actions automatically builds and deploys to GitHub Pages.
@@ -85,7 +96,8 @@ The workflow is defined in `.github/workflows/deploy.yml`.
 ```
 solar-simulator/
 ├── public/
-│   └── textures/          # 2K JPEG/PNG planet textures (~15 MB total)
+│   ├── textures/          # 2K JPEG/PNG planet textures (~15 MB total)
+│   └── icons/             # PWA icon set (192, 512, maskable variants, apple-touch-icon)
 ├── src/
 │   ├── main.js            # Application entry point, animation loop
 │   ├── scene/

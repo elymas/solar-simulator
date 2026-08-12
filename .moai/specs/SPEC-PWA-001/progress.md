@@ -107,8 +107,68 @@ Recommended follow-up: add the five texture assets, or drop the references, unde
 
 ## §E.3 Run-phase Audit-Ready Signal
 
-_<pending run-phase completion>_
+- run_complete_at: 2026-08-12
+- run_commit: d1ecbd8
+- run_status: audit-ready
+- spec_status_after_run: in-progress (device-side ACs unverified — see the verification boundary above)
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- sync_complete_at: 2026-08-12
+- sync_status: audit-ready
+- delivery: local commit only. No push, no PR, no merge — the user reserved those for W1-M.
+  `github.spec_git_workflow: main_direct` independently requires no PR, so nothing was skipped
+  against the configured strategy.
+
+### Sync-phase gate results
+
+| Check | Result |
+|-------|--------|
+| Tests | 202/202 default suite + 16/16 build-artifact |
+| Lint / format / type | No config exists in this project — graceful skip. vitest is the entire quality toolchain here. |
+| Security (`npm audit`) | 4 high (vite, nanoid, postcss, undici). All four are present in `HEAD~1`'s lockfile, so this SPEC introduced none. All are build-toolchain packages; the site deploys as static files, so there is no production runtime exposure. |
+| MX tags | Zero P1/P2 violations |
+| DB docs (Phase 0.08) | Skipped: `db.enabled: false` and no migration files changed |
+| Coverage | Lines 85.92% (target 85, met). Statements 82.58%, Branches 62.85%, Functions 76.14%. |
+
+Coverage gaps sit in code this SPEC did not touch (`TimeControls.js` 63.79% statements,
+`PlanetFactory.js` 75%). No tests were generated for them — that is outside SPEC-PWA-001's scope
+and would have been unrequested work. This SPEC's own surface is covered by the 5 safe-area unit
+tests and the 16 build-artifact assertions.
+
+### Documents synchronized
+
+Scope was set by the user at the Phase 1.6 gate: SPEC documents plus the README entries this
+change introduces, and explicitly NOT the README's accumulated drift.
+
+- `spec.md` — HISTORY entry, §1.2 brownfield facts annotated as-implemented, §4 Solution Approach
+  rewritten to the actual build, REQ-PWA-105's capability gate recorded as resolved to the
+  self-hosting branch, `status: draft -> in-progress`.
+- `plan.md` — §C milestone outcomes, new §H recording divergences D-5..D-9.
+- `acceptance.md` — per-AC verification status column; §5 Definition of Done split into met and
+  unmet. Device criteria are NOT marked passed.
+- `README.md` — PWA/offline feature entry, `vite-plugin-pwa` and `@fontsource-variable` in the tech
+  stack, `public/icons/` in the structure block, `npm run test:build` documented.
+
+### Corrections applied to the documentation agent's output
+
+Four factual errors were caught on review and fixed:
+
+1. `acceptance.md` AC-PWA-103 claimed "7 files carry env()". The real count is 4 — the 7 was the
+   font-rename file count. Corrected and the files named.
+2. `acceptance.md` AC-PWA-107 said the drill ran in **headless** Chromium. It ran **headed**;
+   headless cannot create a WebGL context on this machine, which is the whole reason headed was used.
+3. `acceptance.md` AC-PWA-108 paraphrased the route pattern as `/api\.airplanes\.live/`. The actual
+   config pattern is `/^https:\/\/api\.airplanes\.live\//`.
+4. `plan.md` D-5 attributed a font-rename plan to §A.3, which never mentions one, and D-7 cited the
+   197-test baseline as the current count instead of 202.
+
+### Pre-existing README drift left in place (out of the approved scope)
+
+- Project Structure block omits `earth/`, `effects/`, `views/`, `core/`, `data/`.
+- Textures listed as "~15 MB total"; the measured figure is 7.0 MB.
+- "No backend. No database. No runtime API calls." — SPEC-EARTH-002 added a live aircraft API.
+- Features list predates the Earth view and the eclipse work.
+- Two links point at `LICENSE`, which has never existed in this repository (since 9ff297a).
+
+A `/moai sync project` pass would be the right place to clear these together.
