@@ -178,4 +178,28 @@ describe('Halley mounts through the shared body pipeline', () => {
     factory.update(PLANET_DATA.halley.orbitalPeriod / 4, 1 / 60);
     expect(nucleus.position.distanceTo(start)).toBeGreaterThan(1);
   });
+
+  // REQ-EVT-102: the tail is mounted and driven by the same frame tick that
+  // moves the nucleus, so it can never lag a frame behind the comet.
+  it('mounts the tail into the scene', () => {
+    expect(factory.cometTail).toBeDefined();
+    expect(factory.scene.children).toContain(factory.cometTail.points);
+  });
+
+  it('keeps the tail on the nucleus and streaming away from the sun each frame', () => {
+    for (const fraction of [0, 0.1, 0.25, 0.5, 0.75]) {
+      factory.update(PLANET_DATA.halley.orbitalPeriod * fraction, 1 / 60);
+
+      const nucleus = factory.planets.halley.mesh.position;
+      const sun = factory.planets.sun.mesh.position;
+      expect(factory.cometTail.points.position.distanceTo(nucleus)).toBeCloseTo(0, 6);
+
+      const antiSunward = nucleus.clone().sub(sun).normalize();
+      const positions = factory.cometTail.points.geometry.attributes.position.array;
+      // Tip of the tail: the last point carries the largest `along` fraction.
+      const last = positions.length - 3;
+      const tip = new THREE.Vector3(positions[last], positions[last + 1], positions[last + 2]);
+      expect(tip.normalize().dot(antiSunward), `t=${fraction}T`).toBeGreaterThan(0.9);
+    }
+  });
 });
