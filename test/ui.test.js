@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { PLANET_DATA } from '../src/planets/planetData.js';
 import { PlanetList } from '../src/ui/PlanetList.js';
@@ -139,6 +140,58 @@ describe('PlanetList safe-area inset (REQ-PWA-103)', () => {
     const styleText = document.head.querySelector('style').textContent;
     expect(styleText).toContain('top: calc(16px + env(safe-area-inset-top, 0px));');
     expect(styleText).toContain('left: calc(16px + env(safe-area-inset-left, 0px));');
+  });
+});
+
+describe('PlanetList kid-sized tap targets (REQ-MOB-105, AC-MOB-105)', () => {
+  // jsdom has no layout engine — offsetHeight/clientWidth are always 0 — but it
+  // DOES cascade class rules from an injected <style> into getComputedStyle
+  // (the nameKo font-size test above relies on the same mechanism). Sizes are
+  // therefore declared as explicit min-height/width floors so the target is a
+  // real computed value here, not a style-text string match.
+  const px = (el, prop) => parseFloat(getComputedStyle(el)[prop]);
+
+  let list;
+  beforeEach(() => {
+    list = new PlanetList();
+  });
+
+  it('gives every top-level row a >=48px height floor', () => {
+    for (const key of ['sun', 'mars', 'pluto', 'siriusA']) {
+      expect(px(list._buttons[key], 'minHeight'), key).toBeGreaterThanOrEqual(48);
+    }
+  });
+
+  it('gives indented moon rows the same >=48px floor', () => {
+    expect(px(list._buttons.io, 'minHeight')).toBeGreaterThanOrEqual(48);
+  });
+
+  it('widens the moon-group caret to a >=32px hit area', () => {
+    const { caret } = list._moonGroups.jupiter;
+    expect(px(caret, 'width')).toBeGreaterThanOrEqual(32);
+    expect(px(caret, 'minHeight')).toBeGreaterThanOrEqual(32);
+  });
+
+  it('gives the sidebar toggle button a >=44x44 hit area', () => {
+    expect(px(list._toggleBtn, 'width')).toBeGreaterThanOrEqual(44);
+    expect(px(list._toggleBtn, 'height')).toBeGreaterThanOrEqual(44);
+  });
+});
+
+describe('index.html mobile media query carries the kid-sized floor (AC-MOB-105)', () => {
+  // index.html's <style> is never loaded into jsdom, so its @media (max-width:768px)
+  // block is unreachable through getComputedStyle. It is asserted as file text —
+  // the one target below that cannot be a computed-value check.
+  // Read from the project root (vitest's cwd); import.meta.url is an http://
+  // URL under the vite-served jsdom environment, so it cannot be used here.
+  const html = readFileSync('index.html', 'utf8');
+  const planetListBlock = html.slice(
+    html.indexOf('/* Responsive: Planet List */'),
+    html.indexOf('/* Responsive: Earth HUD'),
+  );
+
+  it('declares the >=48px row floor inside the <=768px planet-list block', () => {
+    expect(planetListBlock).toMatch(/\.planet-list-item\s*\{[^}]*min-height:\s*48px/);
   });
 });
 

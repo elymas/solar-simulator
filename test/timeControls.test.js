@@ -121,6 +121,20 @@ describe('TimeControls sound toggle (REQ-KIDS-207)', () => {
   });
 });
 
+describe('TimeControls kid-sized tap targets (REQ-MOB-105, AC-MOB-105)', () => {
+  // See test/ui.test.js for why sizes are declared as explicit width/height
+  // floors: jsdom cascades class rules into getComputedStyle but has no layout.
+  const px = (el, prop) => parseFloat(getComputedStyle(el)[prop]);
+
+  it('gives play, reset and sound buttons a >=44x44 hit area', () => {
+    const tc = new TimeControls(stubSimApi());
+    for (const [name, btn] of [['play', tc.playPauseBtn], ['reset', tc.resetBtn], ['mute', tc.muteBtn]]) {
+      expect(px(btn, 'width'), name).toBeGreaterThanOrEqual(44);
+      expect(px(btn, 'height'), name).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
 describe('TimeControls safe-area inset (REQ-PWA-103)', () => {
   it('adds a safe-area-inset-bottom padding term additive to the base bottom padding', () => {
     new TimeControls(stubSimApi());

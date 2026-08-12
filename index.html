@@ -96,6 +96,11 @@
       .planet-list-item {
         padding: 6px 8px !important;
         font-size: 12px !important;
+        /* The kid-sized floor (REQ-MOB-105) restated where the mobile values
+           live, so tightening the padding above can never silently shrink a row
+           below 48px. !important because this sheet parses before the
+           component-injected one and would otherwise lose the tie. */
+        min-height: 48px !important;
       }
     }
 

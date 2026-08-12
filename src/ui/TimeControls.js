@@ -51,8 +51,10 @@ export class TimeControls {
         background: rgba(22, 199, 255, 0.15);
         border: 1px solid rgba(22, 199, 255, 0.3);
         color: #16c7ff;
-        width: 40px;
-        height: 40px;
+        /* Kid-sized hit area, Apple HIG 44pt floor (REQ-MOB-105). Covers
+           play/pause, reset and the SPEC-KIDS-001 sound toggle alike. */
+        width: 44px;
+        height: 44px;
         border-radius: 8px;
         font-size: 18px;
         cursor: pointer;

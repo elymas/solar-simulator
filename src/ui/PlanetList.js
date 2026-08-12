@@ -66,8 +66,9 @@ export class PlanetList {
         border: 1px solid rgba(22, 199, 255, 0.15);
         border-radius: 8px;
         color: #16c7ff;
-        width: 36px;
-        height: 36px;
+        /* Kid-sized hit area, Apple HIG 44pt floor (REQ-MOB-105). */
+        width: 44px;
+        height: 44px;
         font-size: 18px;
         cursor: pointer;
         z-index: 101;
@@ -107,6 +108,10 @@ export class PlanetList {
         align-items: center;
         gap: 10px;
         padding: 8px 10px;
+        /* A real 48px-tall box (content vertically centred), not invisible
+           hit-slop — the kid-friendly floor for the primary selector rows
+           (REQ-MOB-105). Padding alone left these at ~33px. */
+        min-height: 48px;
         background: none;
         border: none;
         border-radius: 8px;
@@ -133,8 +138,13 @@ export class PlanetList {
       }
       .planet-list-caret {
         flex-shrink: 0;
-        width: 14px;
-        text-align: center;
+        /* 32px flex cell so the moon toggle is tappable by a small finger
+           (REQ-MOB-105); the glyph itself stays centred and small. */
+        width: 32px;
+        min-height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         color: #666;
         transition: transform 0.15s;
       }
