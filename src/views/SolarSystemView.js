@@ -58,6 +58,10 @@ export class SolarSystemView {
     // REQ-EVT-203 is satisfied — by construction, not by a filter.
     this.belts = createBelts();
     for (const belt of this.belts) sceneManager.scene.add(belt.mesh);
+    // A constrained-tier device (SPEC-MOBILE-001) never gets the full field at
+    // all — it boots where the degrader would have taken it anyway (REQ-EVT-204).
+    if (sceneManager.qualityTier === 'constrained') this.setBeltsShed(true);
+    sceneManager.onBeltsShed = (shed) => this.setBeltsShed(shed);
 
     this._simTime = 0;
     this._timeSpeed = 1;
@@ -100,6 +104,17 @@ export class SolarSystemView {
    */
   setEarthSelectHandler(fn) {
     this._onEarthSelect = fn;
+  }
+
+  /**
+   * Thin the belts out under frame-budget pressure, or fill them back in
+   * (REQ-EVT-204). This is a draw-range change only: it touches no camera, no
+   * selection and no geometry, so it is safe to fire at any moment — including
+   * while a body is focused and the camera is following it.
+   * @param {boolean} shed
+   */
+  setBeltsShed(shed) {
+    for (const belt of this.belts) belt.setReduced(shed);
   }
 
   /**

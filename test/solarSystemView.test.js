@@ -206,6 +206,50 @@ describe('SolarSystemView belt field (REQ-EVT-201, REQ-EVT-202)', () => {
   });
 });
 
+// SPEC-EVENTS-001 REQ-EVT-204 / AC-EVT-204. SolarSystemView owns the belts, so
+// it owns the shed action too; SceneManager only decides WHEN, exactly as it
+// does for the Earth view's aurora.
+describe('SolarSystemView belt shedding (REQ-EVT-204)', () => {
+  it('boots at the reduced instance count on a constrained-tier device', () => {
+    const s = makeStubs({ qualityTier: 'constrained' });
+    for (const belt of s.belts) expect(belt.setReduced).toHaveBeenCalledWith(true);
+  });
+
+  it('boots the full field on a full-tier device', () => {
+    const s = makeStubs({ qualityTier: 'full' });
+    for (const belt of s.belts) expect(belt.setReduced).not.toHaveBeenCalled();
+  });
+
+  it('registers the shed hook the frame-budget degrader calls', () => {
+    const s = makeStubs();
+    expect(typeof s.sceneManager.onBeltsShed).toBe('function');
+
+    s.sceneManager.onBeltsShed(true);
+    for (const belt of s.belts) expect(belt.setReduced).toHaveBeenCalledWith(true);
+
+    s.sceneManager.onBeltsShed(false);
+    for (const belt of s.belts) expect(belt.setReduced).toHaveBeenCalledWith(false);
+  });
+
+  // acceptance.md §3: a shed that lands while a belt entry is selected and
+  // framed must not crash and must not move the camera target. Instance count
+  // is a draw-range change, so nothing in the camera path can observe it.
+  it('does not disturb the framed camera target when belts shed mid-view', () => {
+    const s = makeStubs();
+    s.view.buildUI();
+    s.view._select('mars');
+    s.sceneManager.controls.target.copy.mockClear();
+    s.sceneManager.focusPlanet.mockClear();
+
+    expect(() => s.view.setBeltsShed(true)).not.toThrow();
+
+    expect(s.sceneManager.controls.target.copy).not.toHaveBeenCalled();
+    expect(s.sceneManager.focusPlanet).not.toHaveBeenCalled();
+    expect(s.sceneManager.resetCamera).not.toHaveBeenCalled();
+    expect(s.view._focusedKey).toBe('mars');
+  });
+});
+
 describe('SolarSystemView per-frame update (E3)', () => {
   it('advances sim time, follows the focused body, steps camera + controls', () => {
     const s = makeStubs();

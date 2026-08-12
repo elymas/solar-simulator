@@ -31,12 +31,20 @@ export function shouldDegrade({ deltas, windowSize, thresholdFps, isMobile }) {
 // Strict priority order for frame-budget degradation (REQ-240). Core interaction
 // (camera controls, click/hover picking) is deliberately absent — it is preserved
 // at every degradation level.
-export const DEGRADE_STEPS = ['bloom', 'lod', 'pixelRatio'];
+//
+// This is the SOLAR ladder: it is the FrameBudgetDegrader's default and the one
+// ViewManager restores on leaving the Earth view, so it is the ladder the solar
+// view actually runs. The belts join it at the head (SPEC-EVENTS-001
+// REQ-EVT-204): a few thousand instanced rocks are pure scenery, so halving them
+// costs a child nothing, while bloom, surface detail and resolution all change
+// how the real bodies look.
+export const DEGRADE_STEPS = ['belts', 'bloom', 'lod', 'pixelRatio'];
 
 // @MX:NOTE: [AUTO] Earth-view ladder (SPEC-EARTH-002 REQ-650): the decorative aurora
 // sheds FIRST, before the SIM-001 bloom/lod/pixelRatio order. Only active while the
-// Earth view is the active view (ViewManager swaps the degrader's steps on enter/exit),
-// so the solar view keeps DEGRADE_STEPS unchanged.
+// Earth view is the active view (ViewManager swaps the degrader's steps on enter/exit).
+// No 'belts' step here — the belts live in the solar scene, which the Earth view
+// does not render, so there is nothing to shed.
 export const EARTH_DEGRADE_STEPS = ['aurora', 'bloom', 'lod', 'pixelRatio'];
 
 /**
@@ -76,8 +84,8 @@ export class FrameBudgetDegrader {
   }
 
   /**
-   * Record one frame time. Returns the step applied ('bloom'|'lod'|'pixelRatio'),
-   * the step recovered ('restore:<step>'), or null when nothing changed.
+   * Record one frame time. Returns the step applied (a member of the active
+   * ladder), the step recovered ('restore:<step>'), or null when nothing changed.
    * @param {number} frameMs - Frame duration in milliseconds.
    * @returns {string|null}
    */

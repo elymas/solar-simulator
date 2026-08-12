@@ -66,6 +66,14 @@ export const KUIPER_BELT = {
   seed: 0x4b19e7b3,
 };
 
+/**
+ * Fraction of the field still drawn once the belts are shed (REQ-EVT-204, which
+ * asks for at least a 50% cut) and the count a `constrained`-tier device boots
+ * at. A ring that thins out still reads as a ring; hiding it outright would make
+ * the frame-budget degrader visibly delete a part of the solar system.
+ */
+export const REDUCED_INSTANCE_FRACTION = 0.4;
+
 // @MX:NOTE: [AUTO] Only 1/N of the instances have their matrix recomposed each
 // frame, so the field fully refreshes every N frames. At these angular speeds
 // the staggering is invisible, and it cuts the per-frame matrix work to a
@@ -145,6 +153,7 @@ export class Belt {
     this.config = config;
     this._data = generateBeltInstances(config);
     this._frame = 0;
+    this._reducedCount = Math.round(config.count * REDUCED_INSTANCE_FRACTION);
 
     // detail 0 => a 20-triangle icosahedron. Flat shading turns those 20 faces
     // into readable facets, which reads as "rock" at a fraction of the cost of
@@ -198,9 +207,17 @@ export class Belt {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
-  /** @param {boolean} visible */
-  setVisible(visible) {
-    this.mesh.visible = visible;
+  /**
+   * Thin the field out, or fill it back in (REQ-EVT-204). The transform buffer
+   * is always sized for the full count, so this only moves the draw range:
+   * nothing is rebuilt, no memory is freed or reallocated, and the step costs
+   * the same taken as given back. Instances that come back hold stale
+   * transforms for up to DRIFT_CADENCE frames until the round-robin reaches
+   * them, which at belt angular speeds is not a visible amount of rotation.
+   * @param {boolean} reduced
+   */
+  setReduced(reduced) {
+    this.mesh.count = reduced ? this._reducedCount : this.config.count;
   }
 
   dispose() {

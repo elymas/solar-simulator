@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import {
   ASTEROID_BELT,
   KUIPER_BELT,
+  REDUCED_INSTANCE_FRACTION,
   Belt,
   createSolarBelts,
   generateBeltInstances,
@@ -260,6 +261,77 @@ describe('Belt drift (REQ-EVT-201)', () => {
     const distances = instanceDistances(belt);
     expect(minOf(distances)).toBeGreaterThan(ASTEROID_BELT.innerRadius - ASTEROID_BELT.thickness - 1);
     expect(maxOf(distances)).toBeLessThan(ASTEROID_BELT.outerRadius + ASTEROID_BELT.thickness + 1);
+  });
+});
+
+// SPEC-EVENTS-001 REQ-EVT-204 / AC-EVT-204. InstancedMesh.count is free to
+// change, so the buffers are pre-sized at the full count once and shedding just
+// draws fewer of them. Nothing is rebuilt, which is what makes the step cheap
+// enough to take and give back repeatedly.
+describe('Belt instance shedding (REQ-EVT-204)', () => {
+  it('sheds at least half the instances', () => {
+    const belt = new Belt(ASTEROID_BELT);
+    belt.setReduced(true);
+    expect(belt.mesh.count).toBeLessThanOrEqual(ASTEROID_BELT.count * 0.5);
+    expect(belt.mesh.count).toBeGreaterThan(0);
+    expect(REDUCED_INSTANCE_FRACTION).toBeLessThanOrEqual(0.5);
+  });
+
+  it('restores the full field', () => {
+    const belt = new Belt(KUIPER_BELT);
+    belt.setReduced(true);
+    belt.setReduced(false);
+    expect(belt.mesh.count).toBe(KUIPER_BELT.count);
+  });
+
+  it('rebuilds no geometry on either shed or restore', () => {
+    const belt = new Belt(ASTEROID_BELT);
+    const { geometry, instanceMatrix } = belt.mesh;
+    const buffer = instanceMatrix.array;
+
+    belt.setReduced(true);
+    belt.setReduced(false);
+    belt.setReduced(true);
+
+    expect(belt.mesh.geometry).toBe(geometry);
+    expect(belt.mesh.instanceMatrix).toBe(instanceMatrix);
+    expect(belt.mesh.instanceMatrix.array).toBe(buffer);
+    // Still sized for the full field, ready to be drawn again for free.
+    expect(buffer).toHaveLength(ASTEROID_BELT.count * 16);
+  });
+
+  it('keeps drifting the rocks that are still drawn', () => {
+    const belt = new Belt(ASTEROID_BELT);
+    belt.setReduced(true);
+    const before = Float32Array.from(belt.mesh.instanceMatrix.array);
+    for (let f = 0; f < 4; f++) belt.update(2000);
+    const after = belt.mesh.instanceMatrix.array;
+    expect(after[12]).not.toBe(before[12]);
+  });
+
+  it('spends no time on instances it is no longer drawing', () => {
+    const belt = new Belt(ASTEROID_BELT);
+    belt.setReduced(true);
+    const active = belt.mesh.count;
+    const before = Float32Array.from(belt.mesh.instanceMatrix.array);
+    for (let f = 0; f < 4; f++) belt.update(2000);
+    const after = belt.mesh.instanceMatrix.array;
+
+    for (let i = active; i < ASTEROID_BELT.count; i++) {
+      expect(after[i * 16 + 12], `shed instance ${i} was still written`).toBe(before[i * 16 + 12]);
+    }
+  });
+
+  it('draws restored instances at the current time, not where they were shed', () => {
+    const belt = new Belt(ASTEROID_BELT);
+    belt.setReduced(true);
+    for (let f = 0; f < 4; f++) belt.update(2000);
+    belt.setReduced(false);
+    const stale = Float32Array.from(belt.mesh.instanceMatrix.array);
+    for (let f = 0; f < 4; f++) belt.update(2000);
+
+    const last = ASTEROID_BELT.count - 1;
+    expect(belt.mesh.instanceMatrix.array[last * 16 + 12]).not.toBe(stale[last * 16 + 12]);
   });
 });
 
