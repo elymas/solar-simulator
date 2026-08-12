@@ -1,8 +1,8 @@
 ---
 id: SPEC-KIDS-001
 title: "Korean-first UI, Korean TTS narration, and kid-friendly facts layer"
-version: "0.1.0"
-status: draft
+version: "1.0.0"
+status: completed
 created: 2026-08-12
 updated: 2026-08-12
 author: limbowl
@@ -17,6 +17,7 @@ related_specs: [SPEC-UI-001, SPEC-SIM-001, SPEC-EARTH-001, SPEC-EARTH-002]
 
 ## HISTORY
 
+- 2026-08-12 (v1.0.0): Run 완료 및 sync. 18개 REQ 전부 구현, 독립 평가 2차 PASS, `status: draft → completed`. 계획 대비 실제 구현이 달라진 지점과 다섯 개 후속 SPEC이 소비할 확정 계약을 §10에 기록. 원본 요구사항(§3)은 그대로 두고 차이만 주석으로 남긴다.
 - 2026-08-12 (v0.1.0): Initial draft. Covers proposal items 1 (Korean-first UI), 2 (Korean TTS narration), 3 (kid facts data + kid info panel). First SPEC of the kids/mobile epic; SPEC-EVENTS-001, SPEC-EARTH-003, and SPEC-PLAY-001 declare `depends_on` on this SPEC (TTS module + facts data shape).
 
 ---
@@ -48,6 +49,8 @@ This is the **first SPEC of the epic**. It owns two shared contracts consumed by
 
 1. **TTS module contract** — a narration API (speak / cancel / mute) consumed by SPEC-EVENTS-001 (alignment callout), SPEC-EARTH-003 (shower/ISS callouts), SPEC-PLAY-001 (praise, narration, shared sound toggle).
 2. **Kid-facts data shape** — `factsKo: string[]`, `sizeComparisonKo: string`, `emoji: string` fields on body data, reused by SPEC-EVENTS-001 (comet, belts) and SPEC-EARTH-003 (ISS).
+
+> 구현 후 확정된 두 계약의 정확한 시그니처, 소비자가 반드시 알아야 할 동작 특성, 그리고 공유 음소거 규약은 **§10.1**에 있다. 후속 SPEC 작성자는 코드를 역추적하지 말고 §10.1을 읽을 것.
 
 ## 2. Assumptions
 
@@ -182,3 +185,78 @@ Full file-touch list and milestone ordering: see plan.md.
 | 1 | Korean-first UI (primary Korean labels, delete nameKo-hiding CSS, translate all chrome) | REQ-KIDS-101, 102, 103, 104, 105 |
 | 2 | Korean TTS narration (wrapper module, selection speech, replay, mute, graceful no-op) | REQ-KIDS-201, 202, 203, 204, 205, 206, 207, 208 |
 | 3 | Kid facts data + kid info panel (factsKo/sizeComparisonKo/emoji, kid-first panel, expander) | REQ-KIDS-301, 302, 303, 304, 305 |
+
+---
+
+## 10. 구현 결과 (Implementation Record, 2026-08-12)
+
+§3의 REQ 18개는 전부 구현되었다. 이 절은 **실제로 만들어진 것**을 기록한다. §1~§9는 계획 시점의 기록으로 그대로 보존하며, 계획과 실제가 달라진 지점만 §10.2에 명시한다.
+
+### 10.1 후속 SPEC이 소비하는 확정 계약 (FROZEN)
+
+다섯 개 SPEC(SPEC-EVENTS-001, SPEC-EARTH-003, SPEC-PLAY-001, SPEC-MOBILE-001, SPEC-PWA-001)이 이 SPEC이 만든 것을 소비한다. 아래는 코드에서 확인된 실제 시그니처다.
+
+#### (a) TTS 모듈 API — `src/audio/tts.js`
+
+| 함수 | 시그니처 | 용도 |
+|------|----------|------|
+| `init` | `init({ synth, storage })` | 백엔드 주입. 두 인자 모두 생략하면 `window.speechSynthesis` / `window.localStorage`로 기본값 해석. 앱 부팅 시 1회 호출 |
+| `speakBody` | `speakBody(body)` | 천체 객체를 받아 `nameKo` + 회전하는 `factsKo` 한 줄을 읽음 |
+| `speak` | `speak(text)` | 원시 텍스트 발화. **후속 SPEC의 콜아웃은 전부 이 함수를 통과해야 한다** |
+| `cancel` | `cancel()` | 현재 발화 중단 + 대기 중인 요청 폐기 |
+| `setMuted` / `isMuted` | `setMuted(bool)` / `isMuted()` | 전역 음소거. `localStorage` 키 `solar.muted`에 영속 |
+| `isAvailable` | `isAvailable()` | 음성 엔진 사용 가능 여부. 🔊 어포던스 노출 판단 기준 |
+
+- [HARD] 소비자는 **자체 `SpeechSynthesisUtterance`를 만들지 않는다.** `speak()`를 호출하면 음소거 게이팅, 발화 전 취소(cancel-before-speak), 엔진 부재 시 무해한 no-op, 음성 목록 로딩 경합 처리를 전부 상속받는다. 직접 utterance를 만드는 소비자는 이 네 가지를 모두 우회한다.
+- 엔진 부재(`speechSynthesis` 없음) 시 모든 함수는 예외 없이 조용히 무시된다. 소비자 쪽에 방어 코드가 필요 없다.
+
+#### (b) 소비자가 반드시 알고 설계해야 할 동작 — 대기 슬롯 1칸
+
+플랫폼 음성 목록이 아직 비어 있는 동안(부팅 직후 짧은 구간), `speak()`는 **정확히 하나의 요청만 보관**한다. 이 구간에 두 번째 호출이 들어오면 앞의 요청은 큐에 쌓이지 않고 **버려진다**(최신 요청 우선).
+
+- 이것은 누락이 아니라 **의도된 결정**이다. 큐는 실제로 필요로 하는 소비자가 나타나기 전까지는 추측성 설계라고 판단해 채택하지 않았다.
+- SPEC-EVENTS-001과 SPEC-EARTH-003은 사용자 제스처가 아니라 **시각적 이벤트**에서 콜아웃을 발생시키므로, 이 구간에 부딪힐 가능성이 가장 높은 소비자다. 부팅 직후 자동 발생하는 콜아웃은 발화되지 않을 수 있다는 전제로 설계할 것.
+- 이 제약이 실제로 문제가 되는 소비자가 생기면, 그때 `tts.js`에 큐를 추가하는 것이 올바른 순서다.
+
+#### (c) 천체 데이터 형태 — `src/planets/planetData.js`
+
+```
+factsKo:          string[3]   // 각 45자 이하, 해요체
+sizeComparisonKo: string      // 아이가 그려볼 수 있는 구체적 비율/개수 한 문장
+emoji:            string      // 시각 앵커 1개
+```
+
+- 세 필드는 별도 레지스트리가 아니라 **천체 객체 위에 직접** 존재한다(plan.md §A.1). SPEC-EVENTS-001(혜성·소행성대)과 SPEC-EARTH-003(ISS)은 같은 형태의 객체를 공급하면 InfoPanel과 TTS가 그대로 동작한다 — 소비되는 것은 파일이 아니라 형태다.
+- `src/planets/planetData.facts.test.js`가 REQ-KIDS-301 필수 집합의 완전성, 45자 상한, 그리고 `radius`에서 기계적으로 유도 가능한 크기 비율의 수치 일치를 강제한다. 새 천체를 필수 집합에 추가하려면 이 테스트의 키 목록에 함께 등록할 것.
+
+#### (d) 공유 음소거 규약
+
+"소리" 토글은 **음성 전용이 아니다.** SPEC-PLAY-001의 효과음은 별도 컨트롤을 만들지 말고 `setMuted` / `isMuted`를 경유해야 한다. 레이블을 "말소리"가 아닌 "소리"로 정한 이유가 이것이다(plan.md §G).
+
+### 10.2 계획 대비 차이 (구현이 계획과 다른 지점)
+
+| # | 항목 | 계획 | 실제 | 사유 |
+|---|------|------|------|------|
+| 1 | 선택→발화 훅 위치 | plan.md §D는 `src/controls/InteractionManager.js` 또는 `src/main.js` 중 하나 | `src/views/SolarSystemView.js:161` `_select()` | 3D 탭과 행성 목록 클릭이 **둘 다** `_select`로 모이므로, 훅 하나가 두 호출 경로를 모두 덮는다. 두 곳에 거는 대신 한 곳. `_deselect()`가 발화를 취소한다 |
+| 2 | `InteractionManager.js` 수정 | 계획에 없던 파일 | 호버 툴팁을 한국어 우선으로 반전 | REQ-KIDS-101이 명시한 세 번째 표면(툴팁)이 영어 우선이었다. **1차 구현에서 누락**되었고 독립 평가에서 적발되어 보강했다. 툴팁 테스트가 아예 없었던 것이 누락 원인 |
+| 3 | Enceladus `nameKo` 수정 | **범위 밖** — 가정 A-101은 기존 `nameKo`가 전부 정확하다고 선언 | 엘셀라두스 → 엔셀라두스 | `speakBody`가 천체 이름을 **소리로** 읽게 되면서, 표시만 될 때는 무해했던 오타가 아이가 귀로 배우는 오류가 되었다. **의도적이고 문서화된 범위 예외**로 기록한다(묻어두지 않는다). A-101은 "표시 목적으로는 정확했다"로 한정해 읽어야 한다 |
+| 4 | `InfoPanel.js` DOM 구성 방식 | 어떤 REQ도 요구하지 않음 | 사실 목록과 과학 데이터 그리드를 `innerHTML`이 아닌 `createElement` + `textContent`로 구성 | plan.md §A.1이 SPEC-EVENTS-001과 SPEC-EARTH-003이 **같은 데이터 형태**를 공급한다고 약속했고, 그중 SPEC-EARTH-003은 **외부 API**에서 온다. 그 시점에 `innerHTML`은 XSS 싱크가 된다. 패널의 정적 골격은 여전히 `innerHTML`이며 천체 데이터가 들어가지 않는다 |
+| 5 | 의존성·디렉터리 | — | 신규 의존성 0개. 신규 디렉터리는 `src/audio/` 하나 | — |
+
+### 10.3 수동 검증 대기 (PASS로 올리지 않음)
+
+아래는 이 환경에서 **검증할 수 없었던** 항목이다. 통과로 반올림하지 않는다. 실기기 확인이 끝나기 전까지는 미검증 상태다.
+
+- 실제 음성 출력과 ko-KR 음성 품질
+- iOS Safari 첫 탭 제스처 경로(A-104 실증)
+- iOS에서의 이모지 글리프 렌더링(§8.1 체크리스트 6번). 테스트 Chromium은 흑백 대체 글리프로 그렸다 — 코드포인트는 정확하므로 폰트 문제이지 코드 결함이 아니다
+- 375px 뷰포트 시각 확인(AC-KIDS-102 두 번째 절)
+- 전체 facts 데이터셋에 대한 **한국어 모어 화자의 낭독 검수**(§8.1 체크리스트)
+- 선택→발화 통합 테스트의 **실행**. 해당 코드 경로는 코드 리딩과 헤디드 브라우저 세션으로 확인했으나, 자동화 테스트는 이 경로를 덮고 있지 않다
+
+### 10.4 커버리지 (측정값)
+
+- 저장소 전체 statement 커버리지 **84.81%** — 목표 85%에 미달.
+- 미달분은 전부 **이 SPEC이 건드리지 않은 파일**에서 발생한다: `EclipseRig` 약 65%, `PlanetFactory` 약 75%.
+- 이 SPEC이 추가한 `src/audio/tts.js`는 **95.09%**.
+- 즉 목표 미달은 이 SPEC의 부채가 아니라 기존 코드의 부채다. 해소는 해당 모듈을 다루는 SPEC의 몫으로 남긴다.

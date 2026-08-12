@@ -4,6 +4,7 @@ import { InfoPanel } from '../ui/InfoPanel.js';
 import { TimeControls } from '../ui/TimeControls.js';
 import { PlanetList } from '../ui/PlanetList.js';
 import { InteractionManager } from '../controls/InteractionManager.js';
+import { init as initTts, speakBody, cancel as cancelSpeech } from '../audio/tts.js';
 
 /**
  * SolarSystemView wraps the original solar-system app behind the frozen View
@@ -91,6 +92,9 @@ export class SolarSystemView {
    */
   buildUI() {
     if (this._ui) return;
+    // Binds the speech backend and restores the persisted mute state. Speaking
+    // still only ever happens from a tap, so this starts no audio by itself.
+    initTts();
     const infoPanel = this._createInfoPanel();
     const planetList = this._createPlanetList();
     const timeControls = this._createTimeControls(this.simApi);
@@ -151,7 +155,10 @@ export class SolarSystemView {
     }
     const planet = this.planetFactory.planets[key];
     if (!planet) return;
-    this._ui.infoPanel.show(key, planet.data);
+    // Both callers of _select are tap handlers, so this is a user-gesture call
+    // stack — which is what lets iOS start speech at all (spec A-104). Narrate
+    // the body the panel resolved, so moons/stars read their own facts.
+    speakBody(this._ui.infoPanel.show(key, planet.data));
     this._ui.planetList.setActive(key);
     this._ui.interaction.selectedPlanet = key;
     this._focusedKey = key;
@@ -164,6 +171,7 @@ export class SolarSystemView {
    */
   _deselect() {
     if (!this._ui) return;
+    cancelSpeech();
     this._ui.infoPanel.hide();
     this._ui.planetList.clearActive();
     this._ui.interaction.selectedPlanet = null;

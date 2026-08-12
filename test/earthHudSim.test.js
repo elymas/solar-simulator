@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { EarthHUD } from '../src/earth/EarthHUD.js';
-import { ECLIPSE_TABLE, ECLIPSE_DIAGRAM_INTRO, getEclipseTypeInfo } from '../src/utils/eclipseData.js';
+import { ECLIPSE_TABLE, ECLIPSE_DIAGRAM_INTRO, ECLIPSE_SCALE_NOTE, getEclipseTypeInfo } from '../src/utils/eclipseData.js';
+import { STR } from '../src/ui/strings.js';
 import { EARTH_VIEW_DEFAULTS } from '../src/utils/constants.js';
 
 afterEach(() => {
@@ -78,9 +79,9 @@ describe('EarthHUD eclipse controls (F6-3, REQ-510/540)', () => {
     expect(cb).toHaveBeenCalledTimes(1);
   });
 
-  it('shows an "illustrative / not to scale" label', () => {
+  it('shows the "not to scale" caveat in Korean', () => {
     const hud = new EarthHUD();
-    expect(hud.el.textContent.toLowerCase()).toContain('illustrative');
+    expect(hud.el.textContent).toContain(ECLIPSE_SCALE_NOTE);
   });
 
   it('defaults the detail text to the generic diagram explanation', () => {
@@ -100,9 +101,9 @@ describe('EarthHUD eclipse controls (F6-3, REQ-510/540)', () => {
     const hud = new EarthHUD();
     const btn = hud.el.querySelector('[data-toggle="eclipse"]');
     hud.setEclipseEnabled(false);
-    expect(btn.textContent).toBe('Eclipse: off');
+    expect(btn.textContent).toBe(STR.earthEclipseOff);
     hud.setEclipseEnabled(true);
-    expect(btn.textContent).toBe('Eclipse: on');
+    expect(btn.textContent).toBe(STR.earthEclipseOn);
   });
 
   it('setEclipseInfo describes the active eclipse by type, and reverts to the intro on null', () => {
@@ -154,13 +155,14 @@ describe('EarthHUD rotation-speed slider', () => {
     expect(typeof cb.mock.calls[0][0]).toBe('number');
   });
 
-  it('setSpeedDisplay(v) updates the value-display text to "X.XX d/s"', () => {
+  it('setSpeedDisplay(v) shows the Korean seconds-per-turn form (REQ-KIDS-105)', () => {
     const hud = new EarthHUD();
-    hud.setSpeedDisplay(1.5);
     const valueEl = hud.el.querySelector('[data-field="speed-value"]');
-    expect(valueEl.textContent).toBe('1.50 d/s');
-    hud.setSpeedDisplay(0.3);
-    expect(valueEl.textContent).toBe('0.30 d/s');
+    // 1.5 turns/sec -> a turn takes 0.7s; 0.05 (the default) -> 20s.
+    hud.setSpeedDisplay(1.5);
+    expect(valueEl.textContent).toBe('0.7초에 한 바퀴');
+    hud.setSpeedDisplay(0.05);
+    expect(valueEl.textContent).toBe('20초에 한 바퀴');
   });
 });
 

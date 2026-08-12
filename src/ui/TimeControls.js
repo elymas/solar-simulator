@@ -1,3 +1,6 @@
+import { setMuted, isMuted, isAvailable } from '../audio/tts.js';
+import { STR, formatKoDate } from './strings.js';
+
 /**
  * TimeControls provides a fixed bottom control bar with play/pause,
  * logarithmic speed slider, and simulation date display.
@@ -87,7 +90,9 @@ export class TimeControls {
         color: #888;
       }
       .sim-date {
-        font-family: 'JetBrains Mono', monospace;
+        /* Korean tail: the date now reads "2026년 3월 30일", and JetBrains Mono
+           carries no Hangul glyphs. */
+        font-family: 'JetBrains Mono', 'Apple SD Gothic Neo', 'Noto Sans KR', monospace;
         font-size: 14px;
         color: #e0e0e0;
       }
@@ -104,19 +109,20 @@ export class TimeControls {
     this.el.className = 'time-controls';
 
     this.el.innerHTML = `
-      <button id="play-pause-btn" class="control-btn" title="Play/Pause (Space)">
+      <button id="play-pause-btn" class="control-btn" title="${STR.timePlayPause}" aria-label="${STR.timePlayPause}">
         <span class="play-icon">&#9654;</span>
         <span class="pause-icon">&#9646;&#9646;</span>
       </button>
-      <button id="reset-btn" class="control-btn" title="Reset to Start (Home)">&#8634;</button>
+      <button id="reset-btn" class="control-btn" title="${STR.timeReset}" aria-label="${STR.timeReset}">&#8634;</button>
+      <button id="mute-btn" class="control-btn"></button>
       <div class="speed-control">
-        <label class="speed-label">Speed</label>
-        <input type="range" id="speed-slider" min="-2" max="2.7" step="0.01" value="0" />
+        <label class="speed-label">${STR.timeSpeed}</label>
+        <input type="range" id="speed-slider" min="-2" max="2.7" step="0.01" value="0" aria-label="${STR.timeSpeed}" />
         <span id="speed-value" class="speed-value">1x</span>
       </div>
       <div class="date-display">
-        <span class="date-label">Date</span>
-        <span id="sim-date" class="sim-date">2026-03-30</span>
+        <span class="date-label">${STR.timeDate}</span>
+        <span id="sim-date" class="sim-date">${formatKoDate(this.startDate)}</span>
       </div>
     `;
 
@@ -133,9 +139,11 @@ export class TimeControls {
     this.speedSlider = this.el.querySelector('#speed-slider');
     this.speedValueEl = this.el.querySelector('#speed-value');
     this.dateEl = this.el.querySelector('#sim-date');
+    this.muteBtn = this.el.querySelector('#mute-btn');
 
     // Set initial visual state
     this.updatePlayButton();
+    this.updateMuteButton();
   }
 
   /**
@@ -152,6 +160,11 @@ export class TimeControls {
       const speed = Math.pow(10, logValue);
       this.simApi.setTimeSpeed(speed);
       this._updateSpeedDisplay(speed);
+    });
+
+    this.muteBtn.addEventListener('click', () => {
+      setMuted(!isMuted());
+      this.updateMuteButton();
     });
 
     this.resetBtn.addEventListener('click', () => {
@@ -196,17 +209,28 @@ export class TimeControls {
   }
 
   /**
+   * Reflect the shared mute state (restored from localStorage by tts.init).
+   */
+  updateMuteButton() {
+    // No speech engine means nothing to toggle, so the control must not appear
+    // operable (REQ-KIDS-206) — same rule the InfoPanel replay button follows.
+    // ponytail: gated on speech alone; when SPEC-PLAY-001 lands, widen this one
+    // condition to "speech or SFX available" rather than adding an audio service.
+    this.muteBtn.hidden = !isAvailable();
+
+    const muted = isMuted();
+    this.muteBtn.textContent = muted ? '🔇' : '🔊';
+    this.muteBtn.setAttribute('aria-label', muted ? STR.timeSoundOff : STR.timeSoundOn);
+    this.muteBtn.title = this.muteBtn.getAttribute('aria-label');
+  }
+
+  /**
    * Update the date display based on current simulation time in days.
    * @param {number} simTimeDays - Simulation time elapsed in days.
    */
   updateDate(simTimeDays) {
     const msPerDay = 86400000;
     const currentDate = new Date(this.startDate.getTime() + simTimeDays * msPerDay);
-
-    const year = currentDate.getUTCFullYear();
-    const month = String(currentDate.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(currentDate.getUTCDate()).padStart(2, '0');
-
-    this.dateEl.textContent = `${year}-${month}-${day}`;
+    this.dateEl.textContent = formatKoDate(currentDate);
   }
 }

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { EarthView } from '../src/earth/EarthView.js';
 import { ECLIPSE_TABLE } from '../src/utils/eclipseData.js';
+import { STR } from '../src/ui/strings.js';
 
 function makeSimApi({ time = 0, speed = 1, playing = true } = {}) {
   let t = time; let s = speed; let p = playing;
@@ -118,7 +119,7 @@ describe('EarthView F6 eclipse simulation on/off toggle', () => {
 
     view._hud.onToggleEclipse();
     expect(eclipseRig.hide).toHaveBeenCalledTimes(1);
-    expect(view._hud.el.querySelector('[data-toggle="eclipse"]').textContent).toBe('Eclipse: off');
+    expect(view._hud.el.querySelector('[data-toggle="eclipse"]').textContent).toBe(STR.earthEclipseOff);
   });
 
   it('while off, manual preset selection still moves the clock but does not show the rig', () => {
@@ -155,7 +156,7 @@ describe('EarthView F6 eclipse simulation on/off toggle', () => {
 
     view._hud.onSelectEclipse(ECLIPSE_TABLE[0]);
     expect(eclipseRig.show).toHaveBeenCalledWith(ECLIPSE_TABLE[0]);
-    expect(view._hud.el.querySelector('[data-toggle="eclipse"]').textContent).toBe('Eclipse: on');
+    expect(view._hud.el.querySelector('[data-toggle="eclipse"]').textContent).toBe(STR.earthEclipseOn);
   });
 });
 

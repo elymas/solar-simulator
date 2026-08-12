@@ -66,3 +66,40 @@ describe('InteractionManager drag-vs-click (bug: orbit-drag snapped camera back 
     expect(interaction.selectedPlanet).toBeNull();
   });
 });
+
+describe('InteractionManager tooltip is Korean-first (REQ-KIDS-101, AC-KIDS-101)', () => {
+  const hover = (key) => {
+    const factory = new PlanetFactory(new THREE.Scene(), stubSceneManager());
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100000);
+    const interaction = new InteractionManager(camera, factory.scene, stubRenderer(), factory);
+    interaction._showTooltip(key, 100, 100);
+    return interaction._tooltip;
+  };
+  const size = (el) => parseFloat(getComputedStyle(el).fontSize);
+
+  it('puts the Korean name first and the English name second', () => {
+    const tip = hover('mars');
+    const spans = tip.querySelectorAll('span');
+    expect(spans[0].textContent).toBe('화성');
+    expect(spans[1].textContent).toBe('Mars');
+  });
+
+  // Queried by class, not position, so this stays meaningful whatever the order.
+  it('renders the Korean name strictly larger than the English secondary', () => {
+    const tip = hover('mars');
+    const ko = tip.querySelector('.planet-tooltip-nameko');
+    const en = tip.querySelector('.planet-tooltip-name');
+    expect(size(ko)).toBeGreaterThan(size(en));
+  });
+
+  it('does not repeat the word when nameKo equals the English name', () => {
+    const factory = new PlanetFactory(new THREE.Scene(), stubSceneManager());
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100000);
+    const interaction = new InteractionManager(camera, factory.scene, stubRenderer(), factory);
+    factory.planets.mars.data = { name: 'Mars', nameKo: 'Mars' };
+    interaction._showTooltip('mars', 100, 100);
+
+    expect(interaction._tooltip.querySelectorAll('span')).toHaveLength(1);
+    expect(interaction._tooltip.textContent).toBe('Mars');
+  });
+});

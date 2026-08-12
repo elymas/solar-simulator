@@ -1,3 +1,5 @@
+import { STR } from './strings.js';
+
 /**
  * LoadingScreen displays a full-screen loading overlay with progress bar
  * while textures and assets are being loaded.
@@ -40,8 +42,8 @@ export class LoadingScreen {
         font-size: 48px;
         font-weight: 300;
         color: #e0e0e0;
-        letter-spacing: 8px;
-        text-transform: uppercase;
+        /* Tighter than the former English wordmark: Hangul reads as gappy at 8px. */
+        letter-spacing: 4px;
         margin-bottom: 8px;
       }
       .loading-subtitle {
@@ -98,12 +100,12 @@ export class LoadingScreen {
     this.el.className = 'loading-screen';
     this.el.innerHTML = `
       <div class="loading-content">
-        <h1 class="loading-title">Solar System</h1>
-        <p class="loading-subtitle">3D Simulator</p>
+        <h1 class="loading-title">${STR.loadingTitle}</h1>
+        <p class="loading-subtitle">${STR.loadingSubtitle}</p>
         <div class="loading-bar-container">
           <div class="loading-bar" id="loading-bar"></div>
         </div>
-        <p class="loading-text" id="loading-text">Loading textures... 0%</p>
+        <p class="loading-text" id="loading-text">${STR.loadingProgress(0)}</p>
       </div>
     `;
 
@@ -121,7 +123,7 @@ export class LoadingScreen {
   updateProgress(loaded, total) {
     const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
     this._barEl.style.width = `${pct}%`;
-    this._textEl.textContent = `Loading textures... ${pct}%`;
+    this._textEl.textContent = STR.loadingProgress(pct);
   }
 
   /**

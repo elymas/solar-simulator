@@ -1,4 +1,5 @@
 import { PLANET_DATA, MOON_DATA, STAR_DATA } from '../planets/planetData.js';
+import { STR } from './strings.js';
 
 /**
  * PlanetList renders a left sidebar with clickable celestial body items.
@@ -155,12 +156,20 @@ export class PlanetList {
         border-radius: 50%;
         flex-shrink: 0;
       }
-      .planet-item-name {
-        flex: 1;
-      }
+      /* Korean is the primary label: first in the row and visually dominant. */
       .planet-item-name-ko {
+        flex: 1;
+        font-size: 14px;
+      }
+      .planet-item-name {
         font-size: 11px;
         color: #666;
+      }
+      .moon-item .planet-item-name-ko {
+        font-size: 12px;
+      }
+      .moon-item .planet-item-name {
+        font-size: 10px;
       }
     `;
     document.head.appendChild(style);
@@ -191,17 +200,22 @@ export class PlanetList {
     dot.className = 'planet-dot';
     dot.style.background = this._colorToCSS(data.color || data.emissive || 0xffffff);
 
-    const name = document.createElement('span');
-    name.className = 'planet-item-name';
-    name.textContent = data.name;
-
-    const nameKo = document.createElement('span');
-    nameKo.className = 'planet-item-name-ko';
-    nameKo.textContent = data.nameKo || '';
+    const primaryText = data.nameKo || data.name || '';
+    const primary = document.createElement('span');
+    primary.className = 'planet-item-name-ko';
+    primary.textContent = primaryText;
 
     btn.appendChild(dot);
-    btn.appendChild(name);
-    btn.appendChild(nameKo);
+    btn.appendChild(primary);
+
+    // Secondary English label only when it reads differently — a body whose
+    // nameKo matches its English name would otherwise show the word twice.
+    if (data.name && data.name !== primaryText) {
+      const secondary = document.createElement('span');
+      secondary.className = 'planet-item-name';
+      secondary.textContent = data.name;
+      btn.appendChild(secondary);
+    }
 
     btn.addEventListener('click', () => {
       if (this.onSelect) {
@@ -232,7 +246,7 @@ export class PlanetList {
     const caret = document.createElement('span');
     caret.className = 'planet-list-caret';
     caret.innerHTML = '&#9656;';
-    caret.title = 'Toggle moons';
+    caret.title = STR.listMoonToggleTitle;
     caret.addEventListener('click', (e) => {
       e.stopPropagation();
       this._setMoonGroupExpanded(key, moonGroup.classList.contains('collapsed'));
@@ -275,7 +289,7 @@ export class PlanetList {
 
     const title = document.createElement('h3');
     title.className = 'planet-list-title';
-    title.textContent = 'Solar System';
+    title.textContent = STR.listTitle;
     this.el.appendChild(title);
 
     const itemsContainer = document.createElement('div');
@@ -298,7 +312,7 @@ export class PlanetList {
     if (dwarfKeys.length > 0) {
       const dwarfDivider = document.createElement('div');
       dwarfDivider.className = 'planet-list-divider';
-      dwarfDivider.textContent = 'Dwarf Planets';
+      dwarfDivider.textContent = STR.listDividerDwarf;
       itemsContainer.appendChild(dwarfDivider);
 
       for (const key of dwarfKeys) {
@@ -309,7 +323,7 @@ export class PlanetList {
     // Add stars divider and star items
     const divider = document.createElement('div');
     divider.className = 'planet-list-divider';
-    divider.textContent = 'Stars';
+    divider.textContent = STR.listDividerStars;
     itemsContainer.appendChild(divider);
 
     for (const [key, data] of Object.entries(STAR_DATA)) {
@@ -323,7 +337,7 @@ export class PlanetList {
     this._toggleBtn = document.createElement('button');
     this._toggleBtn.className = 'planet-list-toggle';
     this._toggleBtn.innerHTML = '&#9776;';
-    this._toggleBtn.title = 'Toggle planet list';
+    this._toggleBtn.title = STR.listToggleTitle;
     this._toggleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this._toggleVisibility();

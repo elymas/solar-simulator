@@ -114,11 +114,13 @@ export class InteractionManager {
       .planet-tooltip.visible {
         opacity: 1;
       }
-      .planet-tooltip-name {
+      /* Korean is the primary label, English the secondary one (REQ-KIDS-101),
+         matching the planet list and the InfoPanel header. */
+      .planet-tooltip-nameko {
         color: #16c7ff;
         font-weight: 500;
       }
-      .planet-tooltip-nameko {
+      .planet-tooltip-name {
         color: #888;
         font-size: 11px;
         margin-left: 6px;
@@ -145,7 +147,18 @@ export class InteractionManager {
     const name = data.name || key;
     const nameKo = data.nameKo || '';
 
-    this._tooltip.innerHTML = `<span class="planet-tooltip-name">${name}</span>${nameKo ? `<span class="planet-tooltip-nameko">${nameKo}</span>` : ''}`;
+    // Korean leads. The English secondary is dropped when it would just repeat
+    // the primary, so a star whose nameKo is its English name shows one word.
+    const primary = nameKo || name;
+    const secondary = primary === name ? '' : name;
+    const span = (className, text) => {
+      const el = document.createElement('span');
+      el.className = className;
+      el.textContent = text; // never innerHTML: body text may come from an API later
+      return el;
+    };
+    this._tooltip.replaceChildren(span('planet-tooltip-nameko', primary));
+    if (secondary) this._tooltip.append(span('planet-tooltip-name', secondary));
     this._tooltip.style.left = `${clientX}px`;
     this._tooltip.style.top = `${clientY - 12}px`;
     this._tooltip.classList.add('visible');
