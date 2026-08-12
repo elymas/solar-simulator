@@ -150,9 +150,18 @@ describe('TimeControls two-row wrap keeps buttons at 44px (REQ-MOB-105, AC-MOB-1
     expect(styleText()).toMatch(/\.control-btn\s*\{[^}]*flex-shrink:\s*0/);
   });
 
-  it('lets the bar wrap to a second row instead of squeezing its children', () => {
+  it('lets the bar wrap to a second row at phone widths only', () => {
     new TimeControls(stubSimApi());
-    expect(styleText()).toMatch(/\.time-controls\s*\{[^}]*flex-wrap:\s*wrap/);
+    const css = styleText();
+    const breakpoint = css.indexOf('@media (max-width: 768px)');
+    expect(breakpoint, 'the sheet declares a <=768px block').toBeGreaterThan(-1);
+
+    // Scoping is the assertion, not a detail of it. Above 768px the bar has no
+    // explicit width, so it is shrink-to-fit: an unscoped wrap there latches —
+    // the wrapped layout narrows the container, which keeps it wrapped, and
+    // widening the window never recovers one row.
+    expect(css.slice(0, breakpoint), 'no unscoped wrap above the breakpoint').not.toMatch(/flex-wrap\s*:/);
+    expect(css.slice(breakpoint)).toMatch(/\.time-controls\s*\{[^}]*flex-wrap:\s*wrap/);
   });
 });
 

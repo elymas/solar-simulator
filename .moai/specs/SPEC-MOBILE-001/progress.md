@@ -342,6 +342,74 @@ Logs: `.moai/state/verify/spec-mobile-001-m4fix/`.
   be double-added) is reasoned from the border-box model, not measured on a
   notched device — headless Chromium reports the inset as 0.
 
+#### Follow-up finding — desktop wrap hysteresis introduced by `ca5e158`
+
+The orchestrator's browser re-verification of `ca5e158` confirmed the phone-width
+fix (44×44 buttons at every width 320-1280; strip never overlaps the bar) and
+found one desktop regression, violating acceptance.md §5 Definition of Done
+("No regression on desktop").
+
+Orchestrator measurement, headed Chromium at `ca5e158`, dev server:
+
+| Path | bar width | bar height | rows |
+|------|-----------|------------|------|
+| Fresh load at 1280px | 635 | 69 | 1 |
+| Resize 1280 → 402 | 370 | 88 | 2 (correct) |
+| Resize 402 → 1280 (back) | 640 | **108** | **2 — stuck** |
+
+The bar never recovers one row. Cause: `flex-wrap: wrap` was declared
+unconditionally. Above 768px `.time-controls` is `position: fixed` with no
+explicit width, so its used width is **shrink-to-fit** — derived from content.
+That makes an unscoped wrap a one-way door: once the flex algorithm wraps, the
+container's shrink-to-fit width is recomputed from the wrapped layout, which is
+itself narrow enough to keep it wrapped. Below 768px this cannot happen, because
+`index.html:59` gives the bar `width: calc(100% - 32px) !important`, making the
+width viewport-derived rather than content-derived and breaking the feedback
+loop.
+
+Fix: `flex-wrap: wrap` and `justify-content: center` moved into a
+`@media (max-width: 768px)` block inside the TimeControls injected stylesheet.
+Desktop keeps the default `nowrap` and its original single-row layout.
+`justify-content: center` moved with the wrap because it only serves the short
+second row — on a shrink-to-fit single row it is a no-op, so desktop CSS is now
+equivalent to its pre-`ca5e158` state. **The mobile-only scoping is what
+prevents the hysteresis**: the loop requires a content-derived container width,
+which exists only above the breakpoint, where wrap no longer applies.
+
+`.control-btn { flex-shrink: 0 }` left unconditional — correct at every width,
+and no desktop change (desktop was already rendering 44px).
+
+`--time-controls-h` publication under `nowrap`: `_publishHeight()` reads
+`this.el.offsetHeight` with no reference to wrap state, and the two publish
+tests pass in jsdom, where the wrap declaration is not in effect at all — i.e.
+they exercise the desktop-equivalent path. The desktop *value* (69px one-row)
+is browser-measured by the orchestrator, not by this suite.
+
+Guard updated. `lets the bar wrap to a second row at phone widths only` now
+splits the stylesheet at the breakpoint and asserts both halves: no
+`flex-wrap:` declaration above it, and the `.time-controls` wrap below it.
+Scoping is the assertion, because an unscoped `flex-wrap` is now itself the
+bug. The `flex-shrink: 0` assertion is unchanged.
+
+RED for this follow-up: `git show ca5e158:src/ui/TimeControls.js` has 0 `@media`
+blocks and an unscoped `flex-wrap: wrap` at line 74, so both new assertions fail
+against it (`08-red-followup.log`).
+
+| Check | Result |
+|-------|--------|
+| `npm test` | 29 files / 341 tests passed, exit 0 (unchanged count — assertion rewritten, not added) |
+| `npm run build` | exit 0 |
+| `npm run test:build` | 16 tests passed, exit 0 |
+| Bundle check | `@media (max-width: 768px){.time-controls{flex-wrap:wrap;justify-content:center}}` present in `dist/assets/` |
+
+Gaps for this follow-up: the guard remains **declaration-level** — it proves the
+wrap is mobile-scoped in the source, not that the hysteresis is gone in a
+browser. jsdom applies no media queries and has no layout, so neither the
+one-row desktop layout nor the resize round-trip (1280 → 402 → 1280) is
+verifiable in this suite. Both are the orchestrator's browser re-verification.
+The `justify-content` no-op-on-desktop claim is reasoned from shrink-to-fit
+sizing, not measured.
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 ```yaml

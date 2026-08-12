@@ -66,13 +66,7 @@ export class TimeControls {
         transform: translateX(-50%);
         display: flex;
         align-items: center;
-        /* Wrap, never squeeze (REQ-MOB-105): at phone widths the five children
-           need ~360px of a ~314px budget, and the default flex-shrink was
-           paying that 46px out of the buttons — 44px became 28px at 402px.
-           Wrapping is self-adjusting: >=600px still lays out on one row
-           unchanged, narrower viewports move the overflow to a second row. */
-        flex-wrap: wrap;
-        justify-content: center;
+        /* No flex-wrap here on purpose — see the <=768px block below. */
         gap: 20px;
         background: rgba(26, 26, 46, 0.9);
         backdrop-filter: blur(10px);
@@ -146,6 +140,24 @@ export class TimeControls {
         font-family: 'JetBrains Mono Variable', 'Apple SD Gothic Neo', 'Noto Sans KR', monospace;
         font-size: 14px;
         color: #e0e0e0;
+      }
+      /* Wrap, never squeeze (REQ-MOB-105): at phone widths the five children
+         need ~360px of a ~314px budget, and the default flex-shrink was paying
+         that 46px out of the buttons — 44px became 28px at 402px.
+
+         Scoped to <=768px, and it must stay scoped. Above that breakpoint the
+         bar has no explicit width, so its used width is shrink-to-fit — width
+         derived from content. An unscoped wrap there is a one-way door: once
+         the flex algorithm wraps, the shrink-to-fit width is recomputed from
+         the wrapped layout, which is itself narrow enough to keep it wrapped,
+         so widening the window never unwraps it. Below 768px index.html gives
+         the bar width: calc(100% - 32px), making the width viewport-derived
+         rather than content-derived, which breaks that feedback loop. */
+      @media (max-width: 768px) {
+        .time-controls {
+          flex-wrap: wrap;
+          justify-content: center;
+        }
       }
     `;
     document.head.appendChild(style);
