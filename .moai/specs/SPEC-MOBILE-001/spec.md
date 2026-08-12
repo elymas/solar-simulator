@@ -2,7 +2,7 @@
 id: SPEC-MOBILE-001
 title: "Touch selection correctness, kid-sized tap targets, DPR quality policy, and mobile planet icon strip"
 version: "0.1.0"
-status: draft
+status: in-progress
 created: 2026-08-12
 updated: 2026-08-12
 author: limbowl

@@ -67,6 +67,45 @@ describe('InteractionManager drag-vs-click (bug: orbit-drag snapped camera back 
   });
 });
 
+// SPEC-MOBILE-001 M1 — reproduction-first evidence (AC-MOB-101). The touch path
+// selected on `touchstart`, so a child planting a finger on a body to spin the
+// camera selected and flew to it before the drag had even begun.
+describe('InteractionManager touch selection (SPEC-MOBILE-001)', () => {
+  // jsdom TouchEvent construction is unreliable, and the guard logic — not the DOM
+  // plumbing — is the unit under test, so hand-built events go straight to the
+  // handler seam. Shapes mirror the real ones: on touchend the lifted finger is in
+  // changedTouches and `touches` holds only the fingers still down.
+  const touchSetup = () => {
+    const factory = new PlanetFactory(new THREE.Scene(), stubSceneManager());
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100000);
+    const renderer = stubRenderer();
+    const interaction = new InteractionManager(camera, factory.scene, renderer, factory);
+    const at = (x, y) => ({ clientX: x, clientY: y });
+    const start = (...pts) => ({ target: renderer.domElement, touches: pts.map(([x, y]) => at(x, y)) });
+    const end = (x, y, remaining = []) => ({
+      target: renderer.domElement,
+      touches: remaining.map(([rx, ry]) => at(rx, ry)),
+      changedTouches: [at(x, y)],
+    });
+    return { interaction, start, end };
+  };
+
+  it('does not select a body when a single-finger drag passes over it (the defect)', () => {
+    const { interaction, start, end } = touchSetup();
+    interaction._raycastPlanet = () => 'mars';
+    const selected = [];
+    interaction.onSelect = (key) => { selected.push(key); };
+
+    interaction._onTouchStart(start([100, 100]));
+    // The defect lived here: selection fired on touchstart, before the finger moved.
+    expect(selected).toEqual([]);
+
+    interaction._onTouchEnd(end(130, 100)); // 30px orbit drag, then lift
+    expect(selected).toEqual([]);
+    expect(interaction.selectedPlanet).toBeNull();
+  });
+});
+
 describe('InteractionManager tooltip is Korean-first (REQ-KIDS-101, AC-KIDS-101)', () => {
   const hover = (key) => {
     const factory = new PlanetFactory(new THREE.Scene(), stubSceneManager());
