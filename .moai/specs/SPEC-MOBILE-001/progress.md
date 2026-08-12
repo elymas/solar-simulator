@@ -435,7 +435,7 @@ m1_to_mN_commit_strategy: one-commit-per-milestone-pushed-directly-to-main
 
 ```yaml
 sync_complete_at: 2026-08-12T16:56:00Z
-sync_commit_sha: pending-backfill-spec-mobile-001-sync   # backfilled in a follow-up commit; a commit cannot cite its own SHA
+sync_commit_sha: 8414e77c4716ae8f6a526997034c93654c90060b   # backfilled — placeholder was pending-backfill-spec-mobile-001-sync
 sync_status: complete
 changelog_entry_position: "CHANGELOG.md [Unreleased] — Added (1 entry) / Changed (2 entries) / Fixed (2 entries), all tagged (SPEC-MOBILE-001)"
 frontmatter_status_transitions:
