@@ -7,6 +7,7 @@ import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { COLOR_PALETTE, CAMERA_DEFAULTS, CONTROLS_DEFAULTS, BLOOM_DEFAULTS, LIGHTING_DEFAULTS } from '../utils/constants.js';
 import { shouldDegrade, FrameBudgetDegrader } from '../utils/performance.js';
+import { decideQualityTier } from '../utils/quality.js';
 
 /**
  * SceneManager handles the Three.js scene, renderer, camera, controls,
@@ -155,25 +156,34 @@ export class SceneManager {
   }
 
   /**
-   * Detect mobile or low-end devices and reduce rendering quality
-   * to maintain acceptable frame rates.
+   * Apply the boot-time quality policy and arm the runtime degraders.
    */
   _detectPerformance() {
+    // REQ-MOB-201/202: the user agent still picks the degrader's frame-budget
+    // target and gates the legacy fps monitor below, but it no longer caps render
+    // quality — doing so blurred every high-end phone permanently.
     this.isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const isLowEnd = navigator.hardwareConcurrency <= 4;
-    this.lowEnd = this.isMobile || isLowEnd;
 
-    // REQ-230: low-end devices cap texture resolution (skip the hi-res tier) and
-    // disable geometry LOD upgrades. PlanetFactory reads these flags on focus.
-    this.textureCapEnabled = this.lowEnd;
-    this.lodUpgradesDisabled = this.lowEnd;
+    // REQ-MOB-205: one pure decision from what the device actually reports.
+    const quality = decideQualityTier({
+      devicePixelRatio: window.devicePixelRatio,
+      hardwareConcurrency: navigator.hardwareConcurrency,
+      deviceMemory: navigator.deviceMemory,
+    });
+    this.qualityTier = quality.tier;
+    this.lowEnd = quality.tier === 'constrained';
+
+    // REQ-230: capped devices skip the hi-res texture tier and disable geometry
+    // LOD upgrades. PlanetFactory reads these flags on focus.
+    this.textureCapEnabled = quality.textureCapEnabled;
+    this.lodUpgradesDisabled = quality.lodUpgradesDisabled;
     this.lodBudgetDisabled = false;
 
-    if (this.lowEnd) {
-      this.renderer.setPixelRatio(1);
-      this.composer.setPixelRatio(1);
-      this.bloomPass.strength = 0.4;
-      this.bloomPass.radius = 0.15;
+    this.renderer.setPixelRatio(quality.pixelRatio);
+    this.composer.setPixelRatio(quality.pixelRatio);
+    if (quality.bloomOverride) {
+      this.bloomPass.strength = quality.bloomOverride.strength;
+      this.bloomPass.radius = quality.bloomOverride.radius;
     }
 
     // Live degradation (REQ-018): sustained sub-30fps on mobile drops post-processing.
