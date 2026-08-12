@@ -206,3 +206,94 @@ describe('InfoPanel replay button (REQ-KIDS-204, REQ-KIDS-206)', () => {
     expect(speakBody).not.toHaveBeenCalled();
   });
 });
+
+describe('InfoPanel play entry points (SPEC-PLAY-001 REQ-PLAY-101/201)', () => {
+  it('offers "크기 비교" for a body with a real diameter', () => {
+    const panel = new InfoPanel();
+    panel.show('mars', marsData);
+
+    const button = panel.el.querySelector('.kid-compare');
+    expect(button.hidden).toBe(false);
+    expect(button.textContent).toBe(STR.playCompare);
+    expect(button.getAttribute('aria-label')).toMatch(/[가-힣]/);
+  });
+
+  it('hides "크기 비교" for a body with nothing comparable (data-driven)', () => {
+    const panel = new InfoPanel();
+    // Every field except the real diameter — eligibility must key off that alone.
+    panel.show('mystery', {
+      name: 'Mystery',
+      nameKo: '수수께끼',
+      orbitalPeriod: 1,
+      rotationPeriod: 1,
+      axialTilt: 0,
+    });
+
+    expect(panel.el.querySelector('.kid-compare').hidden).toBe(true);
+  });
+
+  it('passes the body key and its resolved data to onCompare', () => {
+    const panel = new InfoPanel();
+    const onCompare = vi.fn();
+    panel.onCompare = onCompare;
+    panel.show('mars', marsData);
+
+    panel.el.querySelector('.kid-compare').click();
+
+    expect(onCompare).toHaveBeenCalledTimes(1);
+    expect(onCompare.mock.calls[0][0]).toBe('mars');
+    expect(onCompare.mock.calls[0][1]).toMatchObject({ nameKo: '화성' });
+  });
+
+  it('hides "로켓 발사" until a launch rule says otherwise (Earth, stars)', () => {
+    const panel = new InfoPanel();
+    panel.canLaunch = (key) => key === 'mars';
+
+    panel.show('mars', marsData);
+    expect(panel.el.querySelector('.kid-rocket').hidden).toBe(false);
+
+    panel.show('earth', earthData);
+    expect(panel.el.querySelector('.kid-rocket').hidden).toBe(true);
+  });
+
+  it('defaults to no rocket button when no view has wired the launch rule', () => {
+    const panel = new InfoPanel();
+    panel.show('mars', marsData);
+
+    expect(panel.el.querySelector('.kid-rocket').hidden).toBe(true);
+  });
+
+  it('passes the body key to onRocket', () => {
+    const panel = new InfoPanel();
+    const onRocket = vi.fn();
+    panel.canLaunch = () => true;
+    panel.onRocket = onRocket;
+    panel.show('mars', marsData);
+
+    panel.el.querySelector('.kid-rocket').click();
+
+    expect(onRocket).toHaveBeenCalledWith('mars');
+  });
+
+  it('sizes both entry points for a thumb (SPEC-MOBILE-001 REQ-MOB-105)', () => {
+    const panel = new InfoPanel();
+    panel.canLaunch = () => true;
+    panel.show('mars', marsData);
+
+    for (const selector of ['.kid-compare', '.kid-rocket']) {
+      const style = getComputedStyle(panel.el.querySelector(selector));
+      expect(parseFloat(style.minHeight), selector).toBeGreaterThanOrEqual(44);
+      expect(parseFloat(style.minWidth), selector).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  it('places them in the kid view, ahead of the scientific expander', () => {
+    const panel = new InfoPanel();
+    panel.show('mars', marsData);
+
+    const compare = panel.el.querySelector('.kid-compare');
+    const details = panel.el.querySelector('.kid-details-toggle');
+    // Node.DOCUMENT_POSITION_FOLLOWING === 4
+    expect(compare.compareDocumentPosition(details) & 4).toBeTruthy();
+  });
+});
