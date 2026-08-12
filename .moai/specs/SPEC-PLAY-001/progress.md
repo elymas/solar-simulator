@@ -440,7 +440,7 @@ These join the M5 residual table above; none are assertable in vitest.
 
 ```yaml
 backfilled_at_sync: true        # the run phase left this block pending; every value below is recomputed from the branch, not recalled
-run_commit_sha: b9fa3f4c        # final implementation commit (M6 evaluation fixes)
+run_commit_sha: b9fa3f4191ac0fc2dc7fb93dadfdfa4b22ce222f  # final implementation commit (M6 evaluation fixes)
 run_status: complete            # M1-M6 done
 ac_pass_count: 19               # AC-PLAY-101..104, 201..205, 301..305, 401..405 — all automated
 ac_fail_count: 0
@@ -467,7 +467,7 @@ returned so the evaluation record stays faithful — this note is the correction
 
 ```yaml
 sync_complete_at: 2026-08-12T09:58:00Z   # UTC
-sync_commit_sha: pending-backfill-spec-play-001-sync   # backfilled in a follow-up commit; a commit cannot cite its own SHA
+sync_commit_sha: 3706d9c761ab34a323563847878c04b6f4630598   # backfilled — placeholder was pending-backfill-spec-play-001-sync
 sync_status: complete
 changelog_entry_position: "CHANGELOG.md [Unreleased] — Added (4 entries, one per play loop), all tagged (SPEC-PLAY-001)"
 frontmatter_status_transitions:
