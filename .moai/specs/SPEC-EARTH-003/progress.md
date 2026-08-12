@@ -116,4 +116,12 @@ SPEC-MOBILE-001 landed.
 
 ## §E.4 Sync-phase Audit-Ready Signal
 
-_<pending sync-phase>_
+- sync_started_at: 2026-08-12T09:50:30Z
+- sync_status: audit-ready
+- sync_commit_sha: _<to be backfilled after commit>_
+- documentation_updates:
+  - spec.md: section 9 implementation record added (9.1 frozen contracts, 9.2 plan-vs-actual divergence, 9.3 unverified items, 9.4 coverage); frontmatter `status: draft → implemented`, `version: 0.1.0 → 1.0.0`, HISTORY entry added
+  - acceptance.md: AC matrix annotated with Status column (✅ PASS automated, ⏳ PARTIAL manual device); Definition of Done clarified (AC-E3-103 and device pass remain OPEN)
+  - progress.md: this section E.4 completed
+  - CHANGELOG.md: entry added under Unreleased § Added
+  - README.md: no changes needed (features listed at high level; Earth-view specifics documented in SPEC, not enumerated in README)

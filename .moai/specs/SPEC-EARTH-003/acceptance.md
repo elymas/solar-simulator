@@ -2,20 +2,20 @@
 
 ## 1. AC Matrix (1:1 with REQs)
 
-| AC | REQ | Criterion (testable) | Verification |
-|----|-----|----------------------|--------------|
-| AC-E3-101 | REQ-E3-101 | SHOWER_TABLE contains ≥4 entries (Quadrantids, Lyrids, Perseids, Geminids) with ranges/peaks/Korean names exactly per spec §1.3; Quadrantids range is start>end (wrap-encoded) | vitest (table shape) |
-| AC-E3-102 | REQ-E3-102 | Activity predicate wrap-correct (Dec 30 ✓, Jan 5 ✓, Jan 20 ✗ for Quadrantids); intensity(peak)=1.0, monotonic taper to 0 at range edges; entry detection over (prevDay, currDay] catches a range entry at ANY step size (1-day and 400-day steps tested) without double-fire | vitest |
-| AC-E3-103 | REQ-E3-103 | While active + Earth view: streaks spawn from a fixed pool (≤12; ≤6 constrained), spawn rate at peak > rate at range edge (spy on spawn calls with fake clock); pool objects recycled (no growth) | vitest (pool logic) + manual visual |
-| AC-E3-104 | REQ-E3-104 | Crossing INTO Perseids range → HUD notice "페르세우스 유성우가 쏟아져요!" + exactly one `speak()`; opening Earth view mid-shower → same notice; no repeat until exit+re-entry; multi-year 500x jump → at most one notice per shower | vitest (jsdom + TTS spy) |
-| AC-E3-105 | REQ-E3-105 | With `prefers-reduced-motion`: zero streak spawns; notice still renders | vitest (matchMedia stub) |
-| AC-E3-106 | REQ-E3-106 | EARTH_DEGRADE_STEPS === ['aurora','meteors','bloom','lod','pixelRatio']; over-budget frames shed aurora first, then meteors (pool reduced/hidden) before bloom; constrained tier boots pool at 6 | vitest (performance.test.js extension) |
-| AC-E3-201 | REQ-E3-201 | `issPosition`: pure; period 92 sim-minutes closes orbit (pos(t) ≈ pos(t+92min) within epsilon); max |geodetic latitude| ≈ 51.6° (±0.5°); radius constant above surface and above the aircraft altitude band | vitest (numeric) |
-| AC-E3-202 | REQ-E3-202 | EarthHUD renders ISS toggle (aircraft-toggle pattern); default ON; toggling hides/shows the marker | vitest (jsdom) |
-| AC-E3-203 | REQ-E3-203 | Tapping the ISS marker presents Korean facts (first fact "우주인이 사는 우주 정거장이에요!") and triggers one `speak()`; facts object passes the KIDS-001 §8.1 checklist | vitest (spy) + checklist |
-| AC-E3-204 | REQ-E3-204 | Grep: no fetch/XHR/URL in ISS module; code comment documents the circular-orbit simplification | grep + review |
-| AC-E3-301 | REQ-E3-301 | `FLIGHT_DEFAULTS.lat === 37.5 && lon === 126.9`; all other FLIGHT_DEFAULTS fields byte-identical; comment states Seoul rationale | vitest (constants) + review |
-| AC-E3-302 | REQ-E3-302 | HUD flight copy renders the Korean region wording; LIVE/LOADING/OFFLINE/RATE_LIMITED semantics and empty-sky vs error distinction unchanged (existing SPEC-EARTH-002 characterization tests green) | vitest + existing suite |
+| AC | REQ | Criterion (testable) | Status | Note |
+|----|-----|----------------------|--------|------|
+| AC-E3-101 | REQ-E3-101 | SHOWER_TABLE contains ≥4 entries (Quadrantids, Lyrids, Perseids, Geminids) with ranges/peaks/Korean names exactly per spec §1.3; Quadrantids range is start>end (wrap-encoded) | ✅ PASS | vitest table-shape test green (automated) |
+| AC-E3-102 | REQ-E3-102 | Activity predicate wrap-correct (Dec 30 ✓, Jan 5 ✓, Jan 20 ✗ for Quadrantids); intensity(peak)=1.0, monotonic taper to 0 at range edges; entry detection over (prevDay, currDay] catches a range entry at ANY step size (1-day and 400-day steps tested) without double-fire | ✅ PASS | **Correction to the criterion text:** the 1-day and 400-day steps named above do NOT prove the "ANY step size" property. 400 exceeds the 365.25-day multi-year branch, so that case never exercised the entry logic at all — the property was false under a green suite until the run phase caught it (see spec.md §9.2 and progress.md §E.2 defect 1). The real test is a sub-year window that fully contains a shower's range, e.g. 2026-11-30 → 2026-12-20 swallowing Geminids. Now verified by vitest predicate/intensity/entry tests plus brute-force fuzzing against a fine-grained oracle (1000 windows across three sampling strategies, 0 mismatches). |
+| AC-E3-103 | REQ-E3-103 | While active + Earth view: streaks spawn from a fixed pool (≤12; ≤6 constrained), spawn rate at peak > rate at range edge (spy on spawn calls with fake clock); pool objects recycled (no growth) | ⏳ PARTIAL | Pool logic verified by vitest (automated); **visual appearance (streak look, night-side placement) requires device pass** |
+| AC-E3-104 | REQ-E3-104 | Crossing INTO Perseids range → HUD notice "페르세우스 유성우가 쏟아져요!" + exactly one `speak()`; opening Earth view mid-shower → same notice; no repeat until exit+re-entry; multi-year 500x jump → at most one notice per shower | ✅ PASS | vitest jsdom + TTS spy (automated); all behaviors verified |
+| AC-E3-105 | REQ-E3-105 | With `prefers-reduced-motion`: zero streak spawns; notice still renders | ✅ PASS | vitest matchMedia stub (automated) |
+| AC-E3-106 | REQ-E3-106 | EARTH_DEGRADE_STEPS === ['aurora','meteors','bloom','lod','pixelRatio']; over-budget frames shed aurora first, then meteors (pool reduced/hidden) before bloom; constrained tier boots pool at 6 | ✅ PASS | performance.test.js order test green; vitest verifies step order and constrained boot size (automated) |
+| AC-E3-201 | REQ-E3-201 | `issPosition`: pure; period 92 sim-minutes closes orbit (pos(t) ≈ pos(t+92min) within epsilon); max |geodetic latitude| ≈ 51.6° (±0.5°); radius constant above surface and above the aircraft altitude band | ✅ PASS | vitest numeric orbit tests (automated); period closure and inclination band verified |
+| AC-E3-202 | REQ-E3-202 | EarthHUD renders ISS toggle (aircraft-toggle pattern); default ON; toggling hides/shows the marker | ✅ PASS | vitest jsdom toggle render test green (automated) |
+| AC-E3-203 | REQ-E3-203 | Tapping the ISS marker presents Korean facts (first fact "우주인이 사는 우주 정거장이에요!") and triggers one `speak()`; facts object passes the KIDS-001 §8.1 checklist | ✅ PASS | vitest tap/speak spy + facts checklist validation (automated) |
+| AC-E3-204 | REQ-E3-204 | Grep: no fetch/XHR/URL in ISS module; code comment documents the circular-orbit simplification | ✅ PASS | Grep gate on meteorData.js / issOrbit.js / ISSMarker.js / MeteorShower.js: zero matches for fetch/XHR/URL; code comments present |
+| AC-E3-301 | REQ-E3-301 | `FLIGHT_DEFAULTS.lat === 37.5 && lon === 126.9`; all other FLIGHT_DEFAULTS fields byte-identical; comment states Seoul rationale | ✅ PASS | vitest constants test green; diff reviewed (automated) |
+| AC-E3-302 | REQ-E3-302 | HUD flight copy renders the Korean region wording; LIVE/LOADING/OFFLINE/RATE_LIMITED semantics and empty-sky vs error distinction unchanged (existing SPEC-EARTH-002 characterization tests green) | ✅ PASS | vitest + existing SPEC-EARTH-002 suite green (automated) |
 
 ## 2. Given-When-Then Scenarios
 
@@ -58,7 +58,10 @@
 
 ## 5. Definition of Done
 
-- All AC-E3-1xx/2xx/3xx PASS; manual Earth-view pass on device (streak look, ISS visibility, Seoul aircraft live smoke from the deploy origin).
-- depends_on gate satisfied (SPEC-KIDS-001 completed) before run-phase entry.
-- Simplifications documented in code comments (annual-recurrence idealization, circular ISS orbit).
-- No open clarification markers were declared.
+- ✅ All AC-E3-1xx/2xx/3xx PASS on automated test (vitest + grep gate), with two exceptions:
+  - ⏳ AC-E3-103 visual verification (streak appearance on device) — **OPEN**, pending device pass
+  - ⏳ Device pass on streak look, ISS visibility, Seoul aircraft live smoke — **OPEN**
+- ✅ `depends_on` gate satisfied (SPEC-KIDS-001 completed before run-phase entry, confirmed).
+- ✅ Simplifications documented in code comments (annual-recurrence idealization, circular ISS orbit, streak night-side gating).
+- ✅ No open clarification markers were declared.
+- ✅ Run-phase quality gates: TRUST 5 PASS, evaluator-active PASS (cycle 2), 422 tests passing, npm run build succeeds.
