@@ -101,20 +101,27 @@
       }
     }
 
+    /* The date never wraps, at any width. It is the widest single token in the
+       bar and the last flex child, so it is what gives first whenever the bar is
+       squeezed — in landscape, and on a desktop the moment the info panel opens
+       and takes 380px off the viewport. A date broken mid-value ("2026년 4월 14 /
+       일") reads as a bug wherever it happens, so this is not scoped to a
+       breakpoint. */
+    .date-display, .sim-date, .date-label {
+      white-space: nowrap;
+    }
+    .speed-control, .date-display {
+      flex-shrink: 0;
+    }
+
     /* Landscape phone only: vertical space is the scarce axis, so the bar must
-       stay one row. Its date is the piece that wraps first — it is the widest
-       single token and the last flex child — and a wrapped date both doubles the
-       bar's height and reads as broken. */
+       stay one row rather than wrapping to two. */
     @media (max-height: 500px) {
       .time-controls {
         flex-wrap: nowrap !important;
         gap: 10px !important;
         padding: 6px 12px !important;
         padding-bottom: max(6px, env(safe-area-inset-bottom, 0px)) !important;
-      }
-      .date-display, .sim-date, .date-label, .speed-control {
-        white-space: nowrap !important;
-        flex-shrink: 0 !important;
       }
     }
 

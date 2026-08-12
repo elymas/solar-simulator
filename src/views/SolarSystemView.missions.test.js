@@ -84,6 +84,9 @@ describe('SolarSystemView mission + play surfaces (SPEC-PLAY-001 M2/M5)', () => 
       camera: new THREE.PerspectiveCamera(),
       controls: { enabled: true, target: new THREE.Vector3(), update: () => {} },
       focusPlanet: vi.fn(),
+      // Journey framing: the view pulls the camera back to hold the whole
+      // rocket path before the flight starts (SPEC-PLAY-001 REQ-PLAY-201).
+      frameJourney: vi.fn(),
       resetCamera: vi.fn(),
       stepCamera: vi.fn(),
       setHoveredObject: vi.fn(),
@@ -114,6 +117,9 @@ describe('SolarSystemView mission + play surfaces (SPEC-PLAY-001 M2/M5)', () => 
       createRocket: () => ({
         launch: vi.fn(() => true),
         canLaunch: (key) => key === 'mars',
+        // Answered like the real RocketJourney: the view checks it before framing
+        // the journey, and a stub without it throws inside the launch path.
+        isFlying: vi.fn(() => true),
         cancel: vi.fn(),
         update: vi.fn(),
         dispose: vi.fn(),

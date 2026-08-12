@@ -40,6 +40,9 @@ function makeStubs({ qualityTier = 'full', longitudes = SCATTERED } = {}) {
     controls: { enabled: true, target: { copy: vi.fn() }, update: vi.fn() },
     renderer: { domElement: { addEventListener: vi.fn() } },
     focusPlanet: vi.fn(),
+    // Journey framing: the view pulls the camera back to hold the whole
+    // rocket path before the flight starts (SPEC-PLAY-001 REQ-PLAY-201).
+    frameJourney: vi.fn(),
     resetCamera: vi.fn(),
     stepCamera: vi.fn(),
     setHoveredObject: vi.fn(),

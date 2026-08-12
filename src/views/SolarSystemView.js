@@ -13,7 +13,7 @@ import { STR } from '../ui/strings.js';
 import { init as initTts, speak, speakBody, cancel as cancelSpeech } from '../audio/tts.js';
 import { init as initSfx, unlockAudio, playFanfare } from '../audio/sfx.js';
 import { Celebration, SPARKLE, TWINKLE } from '../effects/Celebration.js';
-import { RocketJourney } from '../play/RocketJourney.js';
+import { RocketJourney, controlPoint } from '../play/RocketJourney.js';
 import { SizeCompare } from '../play/SizeCompare.js';
 import { StickerBook } from '../play/StickerBook.js';
 import { createMissionEngine } from '../play/missions.js';
@@ -21,6 +21,9 @@ import { createStickerStore } from '../play/stickers.js';
 import { emitPlayEvent, onPlayEvent } from '../play/playEvents.js';
 
 const RAD_TO_DEG = 180 / Math.PI;
+
+/** Every rocket leaves from here (RocketJourney's own LAUNCH_SITE, restated). */
+const LAUNCH_SITE = 'earth';
 
 /**
  * SolarSystemView wraps the original solar-system app behind the frozen View
@@ -268,6 +271,9 @@ export class SolarSystemView {
    * @param {{type: string}} event
    */
   _onPlayEvent(event) {
+    // Before the mission gate below: the camera has to come back from the
+    // journey framing whether or not this arrival happened to tick a mission.
+    if (event.type === 'rocket-arrived') this._frameAfterArrival(event.body);
     const matched = this._missionEngine().handleEvent(event);
     // A re-completion still comes back matched, but nothing changed: the sticker
     // was already earned and the day already ticked. Praise MAY fire there
@@ -346,8 +352,33 @@ export class SolarSystemView {
    * @param {string} key
    * @returns {boolean}
    */
+  // @MX:NOTE: [AUTO] The camera move is the feature (SPEC-PLAY-201). Selecting a
+  // body focuses the camera ON that body, so a rocket launched from Earth
+  // afterwards crosses almost entirely off-screen — a real-device pass reported
+  // the button as doing nothing at all. Framing the whole path is what turns the
+  // flight into the "how far is it" answer it was written to be.
   launchRocket(key) {
-    return Boolean(this._rocket && this._rocket.launch(key));
+    if (!this._rocket || !this._rocket.launch(key)) return false;
+    const from = this._getBody(LAUNCH_SITE);
+    const to = this._getBody(key);
+    // Reduced motion skips the flight entirely (RocketJourney handles the
+    // arrival at once), so there is no path to frame — leave the camera alone.
+    if (from && to && this._rocket.isFlying()) {
+      this.sceneManager.frameJourney(from.position, to.position, controlPoint(from.position, to.position));
+    }
+    return true;
+  }
+
+  /**
+   * Settle the camera back onto the body the rocket just reached, so the trip
+   * ends looking at the destination rather than at empty space.
+   * @param {string} key
+   */
+  _frameAfterArrival(key) {
+    const planet = this.planetFactory.planets[key];
+    if (!planet) return;
+    this._focusedKey = key;
+    this.sceneManager.focusPlanet(planet.mesh.getWorldPosition(new THREE.Vector3()), planet.data.displayRadius);
   }
 
   /**

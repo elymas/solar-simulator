@@ -21,15 +21,41 @@ const MS_PER_SCENE_UNIT = 3;
 /** Arc height as a fraction of the trip length, so short hops still visibly arc. */
 export const ARC_HEIGHT_RATIO = 0.35;
 
+const LAUNCH_SITE = 'earth';
+const TRAIL_POINTS = 40;
+/** Samples along the previewed arc. Enough that the curve reads as a curve. */
+const PATH_PREVIEW_POINTS = 64;
+// Base silhouette. The uniform scale below is what makes it readable at any
+// trip length; these are the proportions, not the size.
+const ROCKET_RADIUS = 0.9;
+const ROCKET_LENGTH = 2.7;
+
+/**
+ * How large the rocket should read against the trip it is crossing.
+ *
+ * The camera now frames the WHOLE journey, so it sits roughly a trip-length away
+ * — and at that distance a fixed 2.7-unit cone is a couple of pixels. A real
+ * device pass found exactly that: the rocket was flying, and looked like nothing.
+ * Sizing it as a fraction of the trip keeps it equally readable to the Moon and
+ * out to Eris, at the cost of it not being to scale — which it never was.
+ */
+export const ROCKET_TRIP_FRACTION = 0.05;
+export const MIN_ROCKET_SCALE = 1;
+export const MAX_ROCKET_SCALE = 14;
+
+/**
+ * Uniform rocket scale for a trip of the given length, in scene units.
+ * @param {number} distance
+ * @returns {number}
+ */
+export function rocketScaleFor(distance) {
+  const wanted = (Math.max(0, distance) * ROCKET_TRIP_FRACTION) / ROCKET_LENGTH;
+  return Math.min(MAX_ROCKET_SCALE, Math.max(MIN_ROCKET_SCALE, wanted));
+}
+
 /** The scene's ecliptic is the y = 0 plane; the arc is lifted along +Y. */
 const UP = new THREE.Vector3(0, 1, 0);
 
-const LAUNCH_SITE = 'earth';
-const TRAIL_POINTS = 20;
-// ponytail: one fixed rocket size for the whole solar system. A distance-aware
-// size is the knob to reach for if it reads too small out at Neptune.
-const ROCKET_RADIUS = 0.9;
-const ROCKET_LENGTH = 2.7;
 
 /**
  * Quadratic bezier sample.
@@ -108,6 +134,7 @@ export class RocketJourney {
     this._group = null;
     this._rocket = null;
     this._trail = null;
+    this._path = null;
     this._trailPositions = null;
     this._p0 = new THREE.Vector3();
     this._p1 = new THREE.Vector3();
@@ -115,6 +142,7 @@ export class RocketJourney {
     this._ahead = new THREE.Vector3();
     this._startedAt = 0;
     this._durationMs = MIN_FLIGHT_MS;
+    this._scale = MIN_ROCKET_SCALE;
     this._disposed = false;
   }
 
@@ -167,7 +195,9 @@ export class RocketJourney {
     this._destination = key;
     this._p0.copy(launchPad.position);
     this._p1.copy(controlPoint(this._p0, destination.position));
-    this._durationMs = flightDurationMs(this._p0.distanceTo(destination.position));
+    const tripLength = this._p0.distanceTo(destination.position);
+    this._durationMs = flightDurationMs(tripLength);
+    this._scale = rocketScaleFor(tripLength);
     this._startedAt = this.now();
     this._build();
     return true;
@@ -215,8 +245,39 @@ export class RocketJourney {
   // set, which would let a cancelled flight still fire its arrival — a celebration
   // and a spoken fact for a body the child has already navigated away from.
   /** Cancel any flight in progress and dispose its objects. Idempotent. */
+  // @MX:NOTE: [AUTO] The whole path, drawn the instant the rocket leaves.
+  // Framing the journey is not enough on its own: at solar-system scale Earth and
+  // Mars are a few pixels each from a camera that holds both, so "how far is it"
+  // has nothing to read. This line IS the distance — it appears complete at
+  // launch, and the rocket then visibly crawls along it.
+  _buildPathPreview() {
+    const points = [];
+    const at = new THREE.Vector3();
+    const destination = this.getBody?.(this._destination);
+    if (!destination) return;
+    for (let i = 0; i <= PATH_PREVIEW_POINTS; i += 1) {
+      const t = i / PATH_PREVIEW_POINTS;
+      points.push(bezierPoint(this._p0, this._p1, destination.position, t, at).clone());
+    }
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    this._path = new THREE.Line(
+      geometry,
+      // Dashed would need computeLineDistances plus a per-frame update; a faint
+      // solid line reads the same at this scale for none of that upkeep.
+      new THREE.LineBasicMaterial({
+        color: 0x8fd6ff,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+      }),
+    );
+    this._path.frustumCulled = false;
+    this._group.add(this._path);
+  }
+
   cancel() {
     this._destination = null;
+    this._path = null;
     if (!this._group) return;
     this.scene?.remove(this._group);
     this._group.traverse((child) => {
@@ -245,12 +306,14 @@ export class RocketJourney {
 
   _build() {
     this._group = new THREE.Group();
+    this._buildPathPreview();
 
     this._rocket = new THREE.Mesh(
       new THREE.ConeGeometry(ROCKET_RADIUS, ROCKET_LENGTH, 6),
       new THREE.MeshBasicMaterial({ color: 0xfff1c9 }),
     );
     this._rocket.position.copy(this._p0);
+    this._rocket.scale.setScalar(this._scale);
     this._rocket.frustumCulled = false;
     this._group.add(this._rocket);
 
@@ -273,7 +336,7 @@ export class RocketJourney {
     this._trail = new THREE.Points(
       geometry,
       new THREE.PointsMaterial({
-        size: 2.5,
+        size: 4,
         sizeAttenuation: false,
         vertexColors: true,
         transparent: true,

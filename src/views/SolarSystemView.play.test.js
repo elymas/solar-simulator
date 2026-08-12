@@ -81,6 +81,9 @@ describe('SolarSystemView play wiring (SPEC-PLAY-001 M3/M4)', () => {
       scene: new THREE.Scene(),
       controls: { enabled: true, target: new THREE.Vector3(), update: () => {} },
       focusPlanet: vi.fn(),
+      // Journey framing: the view pulls the camera back to hold the whole
+      // rocket path before the flight starts (SPEC-PLAY-001 REQ-PLAY-201).
+      frameJourney: vi.fn(),
       resetCamera: vi.fn(),
       stepCamera: vi.fn(),
       setHoveredObject: vi.fn(),
@@ -102,6 +105,10 @@ describe('SolarSystemView play wiring (SPEC-PLAY-001 M3/M4)', () => {
     rocket = {
       launch: vi.fn(() => true),
       canLaunch: vi.fn(() => true),
+      // The view asks whether a flight is actually in the air before framing the
+      // journey (a reduced-motion launch arrives instantly and has no path to
+      // frame), so the stub has to answer it like the real RocketJourney does.
+      isFlying: vi.fn(() => true),
       cancel: vi.fn(),
       update: vi.fn(),
       dispose: vi.fn(),

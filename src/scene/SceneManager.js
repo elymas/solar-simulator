@@ -9,6 +9,9 @@ import { COLOR_PALETTE, CAMERA_DEFAULTS, CONTROLS_DEFAULTS, BLOOM_DEFAULTS, LIGH
 import { shouldDegrade, FrameBudgetDegrader } from '../utils/performance.js';
 import { decideQualityTier } from '../utils/quality.js';
 
+/** The scene's ecliptic is y = 0, so "up" is +Y for every framing decision here. */
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+
 /**
  * SceneManager handles the Three.js scene, renderer, camera, controls,
  * lighting, and post-processing (bloom effect for Sun glow).
@@ -352,6 +355,59 @@ export class SceneManager {
    * @param {THREE.Vector3} targetPosition - The planet's current world position.
    * @param {number} displayRadius - The planet's display radius for calculating view distance.
    */
+  // @MX:NOTE: [AUTO] Frames a WHOLE JOURNEY rather than a body (SPEC-PLAY-001
+  // REQ-PLAY-201). focusPlanet pulls the camera onto the destination, which is
+  // exactly wrong while a rocket is crossing: the launch pad and most of the
+  // flight then happen off-screen, and the child reports "the button does
+  // nothing" — which is what a real-device pass found. This reuses the same
+  // eased focus animation, only with a target and distance derived from the
+  // path's bounds instead of one body's radius.
+  /**
+   * Pull the camera back until the launch point, the arc apex and the
+   * destination all sit inside the frustum, viewed from beside and above the
+   * path so the arc reads as an arc.
+   * @param {THREE.Vector3} from - launch point
+   * @param {THREE.Vector3} to - destination
+   * @param {THREE.Vector3} apex - highest point of the arc
+   * @returns {number} the framing radius, in scene units
+   */
+  frameJourney(from, to, apex) {
+    const center = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
+    center.y = (center.y + apex.y) / 2;
+    const radius = Math.max(
+      from.distanceTo(center),
+      to.distanceTo(center),
+      apex.distanceTo(center),
+      1,
+    );
+
+    // Fit the bounding sphere to the NARROWER of the two frustum angles, so a
+    // portrait phone frames the trip as fully as a desktop does.
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+    const distance = (radius / Math.sin(Math.min(vFov, hFov) / 2)) * 1.15;
+
+    // Beside the path and above it. A camera on the path's own axis would
+    // collapse the arc into a dot; straight overhead would flatten it into a
+    // line. The degenerate case (a vertical path) cannot occur in this scene —
+    // every body orbits the y=0 plane — but fall back to +Z rather than NaN.
+    const along = new THREE.Vector3().subVectors(to, from);
+    const side = new THREE.Vector3().crossVectors(along, UP_AXIS);
+    if (side.lengthSq() < 1e-6) side.set(0, 0, 1);
+    const dir = side.normalize().multiplyScalar(0.75).addScaledVector(UP_AXIS, 0.66).normalize();
+
+    this._focusTarget = center;
+    this._focusCameraPos = center.clone().addScaledVector(dir, distance);
+    this._isFocusing = true;
+    this._isResetting = false;
+    this._focusProgress = 0;
+
+    // The trip is the subject now, so let the child orbit the whole of it.
+    this.controls.minDistance = Math.max(5, radius * 0.4);
+    this.controls.maxDistance = distance * 4;
+    return radius;
+  }
+
   focusPlanet(targetPosition, displayRadius) {
     this._focusTarget = targetPosition.clone();
     const offset = new THREE.Vector3(displayRadius * 3, displayRadius * 2, displayRadius * 3);
