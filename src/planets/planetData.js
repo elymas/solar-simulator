@@ -353,6 +353,12 @@ export const PLANET_DATA = {
     name: "Halley's Comet",
     nameKo: '핼리 혜성',
     emoji: '☄️',
+    factsKo: [
+      '76년에 한 번 지구 곁으로 찾아와요.',
+      '태양에 가까워지면 긴 꼬리가 자라나요.',
+      '꼬리는 언제나 태양 반대쪽으로 뻗어요.',
+    ],
+    sizeComparisonKo: '핼리 혜성의 얼음덩어리는 커다란 산만 해요!',
     category: 'comet',
     radius: 5.5,
     displayRadius: 2,
@@ -372,6 +378,49 @@ export const PLANET_DATA = {
     // body is eccentric enough to need it.
     orbitSegments: 512,
     color: 0xcfe6f0,
+  },
+};
+
+// @MX:NOTE: [AUTO] The belts get their own map rather than joining PLANET_DATA or
+// STAR_DATA because both of those are mesh registries: PlanetFactory builds a
+// sphere for every entry in each, and every sphere it builds lands in
+// `planetFactory.planets`, which is exactly the set InteractionManager raycasts.
+// A belt entry in either map would therefore grow a phantom sphere AND re-open
+// the picking path that REQ-EVT-203 closes. BELT_DATA is info-only: the geometry
+// lives in Belts.js as one InstancedMesh, and only the list, the strip and the
+// InfoPanel read this.
+// @MX:SPEC: [AUTO] SPEC-EVENTS-001 REQ-EVT-203, REQ-EVT-205
+export const BELT_DATA = {
+  asteroidBelt: {
+    name: 'Asteroid Belt',
+    nameKo: '소행성대',
+    emoji: '🪨',
+    factsKo: [
+      '화성과 목성 사이에 있는 돌멩이 밭이에요.',
+      '작은 바위들이 아주 많이 모여 돌고 있어요.',
+      '가장 큰 세레스는 왜소행성이 되었어요.',
+    ],
+    sizeComparisonKo: '가장 큰 돌은 우리나라만 하고, 작은 건 자갈만 해요!',
+    category: 'belt',
+    // Real main-belt span in AU, shown as a range because a band has no single
+    // distance. The display-unit band (320-430) lives in Belts.js, which owns
+    // the geometry; this is the number the InfoPanel reads out to a child.
+    distance: '2.2 ~ 3.2',
+    color: 0x8b7d6b,
+  },
+  kuiperBelt: {
+    name: 'Kuiper Belt',
+    nameKo: '카이퍼 벨트',
+    emoji: '🧊',
+    factsKo: [
+      '해왕성보다 더 먼 바깥쪽 얼음 나라예요.',
+      '명왕성도 카이퍼 벨트에 살고 있어요.',
+      '혜성들이 태어나는 고향이기도 해요.',
+    ],
+    sizeComparisonKo: '소행성대보다 훨씬 넓고, 얼음덩어리로 가득해요!',
+    category: 'belt',
+    distance: '30 ~ 50',
+    color: 0x9fb8c8,
   },
 };
 

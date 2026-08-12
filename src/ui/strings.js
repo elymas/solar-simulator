@@ -18,6 +18,10 @@ export const STR = {
   // Planet list sidebar
   listTitle: '태양계',
   listDividerDwarf: '왜소행성',
+  listDividerComet: '혜성',
+  // The category both belts share. Korean has no short kid-word for "belt" as a
+  // class, and 소행성대 / 카이퍼 벨트 already say which band each row is.
+  listDividerBelt: '띠',
   listDividerStars: '별',
   listToggleTitle: '행성 목록 열고 닫기',
   listMoonToggleTitle: '위성 보기',
@@ -96,6 +100,7 @@ export const STR = {
   infoDetailsToggle: '자세히 보기',
   infoReplay: '다시 듣기',
   infoValueDwarfPlanet: '왜소행성',
+  infoValueBelt: '작은 돌과 얼음 띠',
   infoValueRetrograde: '거꾸로 돌아요',
   infoValueNone: '몰라요',
   infoRetrogradeSuffix: ' (거꾸로)',

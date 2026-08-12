@@ -1,12 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { PLANET_DATA, MOON_DATA, STAR_DATA } from './planetData.js';
+import { PLANET_DATA, MOON_DATA, STAR_DATA, BELT_DATA } from './planetData.js';
 
 // REQ-KIDS-301 required set, spelled out explicitly so the test fails loudly if
 // a body ever loses its kid-facts fields (AC-KIDS-305).
+//
+// SPEC-EVENTS-001 adds three selectable bodies to the checklist — the comet
+// (REQ-EVT-103) and the two belts (REQ-EVT-205). Listing them here rather than
+// deriving the set from the maps is the point: a new entry that forgets its
+// facts must fail, and a derived set would simply not notice.
 const REQUIRED_PLANET_KEYS = [
   'sun', 'mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune',
   'ceres', 'pluto', 'haumea', 'makemake', 'eris',
+  'halley',
 ];
+const REQUIRED_BELT_KEYS = ['asteroidBelt', 'kuiperBelt'];
 const REQUIRED_MOON_KEYS = [
   'moon', 'io', 'europa', 'ganymede', 'callisto', 'titan', 'enceladus',
   'phobos', 'deimos', 'triton', 'charon',
@@ -21,6 +28,7 @@ const REQUIRED_BODIES = [
   ...REQUIRED_PLANET_KEYS.map((key) => [key, PLANET_DATA[key]]),
   ...REQUIRED_MOON_KEYS.map((key) => [key, MOON_BY_KEY[key]]),
   ...REQUIRED_STAR_KEYS.map((key) => [key, STAR_DATA[key]]),
+  ...REQUIRED_BELT_KEYS.map((key) => [key, BELT_DATA[key]]),
 ];
 
 const MAX_FACT_CHARS = 45; // spec.md 8.1 rule 1
@@ -61,6 +69,11 @@ describe('kid-facts completeness (REQ-KIDS-301, REQ-KIDS-305)', () => {
       expect(body, `missing body: ${key}`).toBeDefined();
     }
     expect(Object.keys(STAR_DATA).sort()).toEqual([...REQUIRED_STAR_KEYS].sort());
+    expect(Object.keys(BELT_DATA).sort()).toEqual([...REQUIRED_BELT_KEYS].sort());
+  });
+
+  it('gives the comet the emoji REQ-EVT-103 names', () => {
+    expect(PLANET_DATA.halley.emoji).toBe('☄️');
   });
 
   it('gives every required body exactly 3 non-empty Korean facts', () => {

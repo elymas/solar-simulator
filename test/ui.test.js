@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { PLANET_DATA } from '../src/planets/planetData.js';
+import { PLANET_DATA, BELT_DATA } from '../src/planets/planetData.js';
 import { PlanetList } from '../src/ui/PlanetList.js';
 import { InfoPanel } from '../src/ui/InfoPanel.js';
 import { LoadingScreen } from '../src/ui/LoadingScreen.js';
@@ -28,6 +28,49 @@ describe('PlanetList dwarf section (REQ-010 UI, TASK-004)', () => {
     for (const key of DWARF_KEYS) {
       expect(list._buttons[key], key).toBeDefined();
     }
+  });
+});
+
+// SPEC-EVENTS-001 M6. The comet and the belts are only reachable from a list
+// entry — the belts on purpose (REQ-EVT-203 keeps them out of the picking path).
+describe('PlanetList comet and belt sections (REQ-EVT-103, REQ-EVT-205)', () => {
+  let list;
+  beforeEach(() => {
+    list = new PlanetList();
+  });
+
+  const dividers = () => [...document.querySelectorAll('.planet-list-divider')].map((d) => d.textContent);
+
+  it('renders the Korean comet divider with the Halley entry under it', () => {
+    expect(dividers()).toContain(STR.listDividerComet);
+    expect(list._buttons.halley).toBeDefined();
+    expect(list._buttons.halley.textContent).toContain(PLANET_DATA.halley.nameKo);
+  });
+
+  it('renders both belt entries under their own divider', () => {
+    expect(dividers()).toContain(STR.listDividerBelt);
+    for (const key of Object.keys(BELT_DATA)) {
+      expect(list._buttons[key], key).toBeDefined();
+      expect(list._buttons[key].textContent).toContain(BELT_DATA[key].nameKo);
+    }
+  });
+
+  it('reports the comet and belt keys through onSelect like any other row', () => {
+    const picked = [];
+    list.onSelect = (key) => picked.push(key);
+    list._buttons.halley.click();
+    list._buttons.asteroidBelt.click();
+    list._buttons.kuiperBelt.click();
+    expect(picked).toEqual(['halley', 'asteroidBelt', 'kuiperBelt']);
+  });
+
+  it('keeps the comet out of the dwarf-planet section', () => {
+    const order = [...document.querySelectorAll('.planet-list-divider, .planet-list-item')];
+    const cometDivider = order.findIndex((n) => n.textContent === STR.listDividerComet);
+    const halley = order.indexOf(list._buttons.halley);
+    const stars = order.findIndex((n) => n.textContent === STR.listDividerStars);
+    expect(cometDivider).toBeLessThan(halley);
+    expect(halley).toBeLessThan(stars);
   });
 });
 
@@ -222,5 +265,32 @@ describe('InfoPanel dwarf branch (REQ-030, TASK-004)', () => {
     panel.show('mars', PLANET_DATA.mars);
     const grid = panel.el.querySelector('.info-grid').textContent;
     expect(grid).not.toContain(STR.infoValueDwarfPlanet);
+  });
+});
+
+describe('InfoPanel belt branch (REQ-EVT-205)', () => {
+  let panel;
+  beforeEach(() => {
+    panel = new InfoPanel();
+  });
+
+  it('reads a belt out as a band rather than as a sphere', () => {
+    panel.show('asteroidBelt', BELT_DATA.asteroidBelt);
+    const grid = panel.el.querySelector('.info-grid').textContent;
+    expect(panel.el.querySelector('.planet-name-ko').textContent).toBe('소행성대');
+    expect(grid).toContain(STR.infoValueBelt);
+    expect(grid).toContain('2.2 ~ 3.2 AU');
+    // A band has no diameter, no spin and no tilt — the generic branch would
+    // print NaN km for all three.
+    expect(grid).not.toContain('NaN');
+    expect(grid).not.toContain(STR.infoDiameter);
+  });
+
+  it('shows the kid facts a belt selection speaks', () => {
+    const data = panel.show('kuiperBelt', BELT_DATA.kuiperBelt);
+    expect(data).toBe(BELT_DATA.kuiperBelt);
+    const facts = [...panel.el.querySelectorAll('.kid-fact')].map((li) => li.textContent);
+    expect(facts).toEqual(BELT_DATA.kuiperBelt.factsKo);
+    expect(panel.el.querySelector('.kid-emoji').textContent).toBe(BELT_DATA.kuiperBelt.emoji);
   });
 });

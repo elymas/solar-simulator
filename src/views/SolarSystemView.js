@@ -8,6 +8,7 @@ import { InteractionManager } from '../controls/InteractionManager.js';
 import { EventBanner } from '../ui/EventBanner.js';
 import { createSolarBelts } from '../effects/Belts.js';
 import { AlignmentTracker, ALIGNMENT_PLANET_KEYS } from '../utils/alignment.js';
+import { BELT_DATA } from '../planets/planetData.js';
 import { STR } from '../ui/strings.js';
 import { init as initTts, speakBody, cancel as cancelSpeech } from '../audio/tts.js';
 
@@ -203,6 +204,11 @@ export class SolarSystemView {
       this._onEarthSelect();
       return;
     }
+    const belt = this.belts.find((b) => b.config.name === key);
+    if (belt) {
+      this._selectBelt(key, belt);
+      return;
+    }
     const planet = this.planetFactory.planets[key];
     if (!planet) return;
     // Both callers of _select are tap handlers, so this is a user-gesture call
@@ -215,6 +221,29 @@ export class SolarSystemView {
     this._focusedKey = key;
     this.sceneManager.focusPlanet(planet.mesh.position, planet.data.displayRadius);
     this.planetFactory.onFocus(key);
+  }
+
+  /**
+   * Select a belt (REQ-EVT-205). Reached only from the sidebar or the strip —
+   * the instanced rocks are never in the raycast set — so this is the whole
+   * selection path for a band.
+   * @param {string} key - Belt key, matching its Belts.js config name.
+   * @param {Object} belt - The Belt instance, which owns the band radii.
+   */
+  _selectBelt(key, belt) {
+    const { innerRadius, outerRadius } = belt.config;
+    speakBody(this._ui.infoPanel.show(key, BELT_DATA[key]));
+    this._ui.planetList.setActive(key);
+    this._ui.planetStrip.setActive(key);
+    this._ui.interaction.selectedPlanet = key;
+    // Nothing to follow: a band does not orbit, and leaving the previous focus
+    // in place would let that planet drag the camera off the ring we just framed.
+    this._focusedKey = null;
+    this.planetFactory.onDefocus();
+    // Aim at the middle of the band and pull back by its half-width, so the
+    // frame holds the ring rather than a point on it.
+    const midRadius = (innerRadius + outerRadius) / 2;
+    this.sceneManager.focusPlanet(new THREE.Vector3(midRadius, 0, 0), (outerRadius - innerRadius) / 2);
   }
 
   /**

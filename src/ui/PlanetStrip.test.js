@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PLANET_DATA, STAR_DATA } from '../planets/planetData.js';
+import { PLANET_DATA, STAR_DATA, BELT_DATA } from '../planets/planetData.js';
 import { PlanetStrip } from './PlanetStrip.js';
 import { PlanetList } from './PlanetList.js';
 import { STR } from './strings.js';
@@ -179,7 +179,24 @@ describe('PlanetStrip is registry-driven (REQ-MOB-305, AC-MOB-305)', () => {
   it('renders exactly the top-level registry bodies, in registry order', () => {
     const strip = new PlanetStrip();
     const rendered = [...strip.el.querySelectorAll('.planet-strip-item')].map((b) => b.dataset.key);
-    expect(rendered).toEqual([...Object.keys(PLANET_DATA), ...Object.keys(STAR_DATA)]);
+    expect(rendered).toEqual([
+      ...Object.keys(PLANET_DATA), ...Object.keys(BELT_DATA), ...Object.keys(STAR_DATA),
+    ]);
+  });
+
+  // SPEC-EVENTS-001 M6, a user-approved scope addition beyond REQ-EVT-103/205.
+  // On a phone the sidebar auto-hides and the strip IS the selector, so a body
+  // that reaches only the sidebar is a body a child on a phone cannot reach.
+  // The belts especially: they are deliberately not raycast-selectable, so the
+  // strip is their only route on a phone.
+  it('carries the comet and both belts, the three bodies with no other phone route', () => {
+    const strip = new PlanetStrip();
+    for (const [key, data] of [['halley', PLANET_DATA.halley], ...Object.entries(BELT_DATA)]) {
+      const btn = strip._buttons[key];
+      expect(btn, key).toBeDefined();
+      expect(btn.querySelector('.planet-strip-token').textContent).toBe(data.emoji);
+      expect(btn.querySelector('.planet-strip-name').textContent).toBe(data.nameKo);
+    }
   });
 
   it('excludes moons — the strip lists top-level bodies only (spec.md §6)', () => {
