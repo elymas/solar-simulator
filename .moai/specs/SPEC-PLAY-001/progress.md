@@ -310,13 +310,24 @@ no English, and the spoken count within ±10% of the true ratio.
 
 ### M6 — Independent evaluation fixes (2026-08-12)
 
-**Verdict: FAIL — gate-blocking, sync blocked.** The evaluation scored four
-dimensions (Functionality / Security / Craft / Consistency); the per-dimension
-numbers were NOT handed to the fix run, only the verdict and the finding list.
-They are deliberately not reproduced here rather than reconstructed from memory —
-sync should pull the scores from the evaluation report itself if it needs to cite
-them. Two findings were MUST-FIX, one was a quality-gate string defect, four were
-SHOULD-FIX and are deferred (below).
+**Verdict at evaluation time: FAIL — gate-blocking, sync blocked.** Two findings
+were MUST-FIX, one was a quality-gate string defect, four were SHOULD-FIX and are
+deferred (below). Scores as returned by the independent evaluator (backfilled by
+the orchestrator from the evaluation report; the fix run was given only the
+verdict and the finding list, which is why the entry below originally omitted
+them):
+
+| Dimension | Score | Verdict | Basis |
+|-----------|-------|---------|-------|
+| Functionality (40%) | 0.70 | FAIL | 19 of 20 ACs implemented and tested; AC-PLAY-404 broken on the real selection path, reproduced with a failing probe |
+| Security (25%) | 0.95 | PASS | No external input; defensive parse at `stickers.js:68-96`; dynamic data via `textContent`; one static-string `innerHTML` (`StickerBook.js:126`); no network, no secrets |
+| Craft (20%) | 0.82 | PASS | New-module coverage 93.5% stmt / 94.28% line against an 85% bar. Deducted for width assertions applied only to favourable bodies and praise tested only via synthetic events |
+| Consistency (15%) | 0.86 | PASS | Honors the tts.js injection style, InfoPanel-local `<style>`, the single rAF, the frozen View interface, and the MX tag convention. Deducted for the duplicated `_prefersReducedMotion` and for `playRocketLabel` breaking its own module's particle-free rule |
+
+The two MUST-FIX findings and the string defect are fixed in this milestone
+(`b9fa3f4`), so the FAIL verdict above is the pre-fix state, not the state of the
+branch at sync. The four SHOULD-FIX findings remain open and are carried forward
+below as known follow-ups.
 
 Methodology: TDD, reproduction-first. Every fix is preceded by a test that was run
 and confirmed failing for the stated reason; each was then re-confirmed by
