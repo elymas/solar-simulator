@@ -308,6 +308,123 @@ no English, and the spoken count within ±10% of the true ratio.
 | SPEC-KIDS-001 §8.1 rule 6 | Native-Korean read-aloud pass on the two derived comparison forms and the praise line; emoji rendering of the sticker grid on iOS |
 | AC-PLAY-403 localStorage on real Safari | Private browsing / ITP eviction of `solar.play` (the in-memory fallback is unit-tested; the real eviction is not) |
 
+### M6 — Independent evaluation fixes (2026-08-12)
+
+**Verdict: FAIL — gate-blocking, sync blocked.** The evaluation scored four
+dimensions (Functionality / Security / Craft / Consistency); the per-dimension
+numbers were NOT handed to the fix run, only the verdict and the finding list.
+They are deliberately not reproduced here rather than reconstructed from memory —
+sync should pull the scores from the evaluation report itself if it needs to cite
+them. Two findings were MUST-FIX, one was a quality-gate string defect, four were
+SHOULD-FIX and are deferred (below).
+
+Methodology: TDD, reproduction-first. Every fix is preceded by a test that was run
+and confirmed failing for the stated reason; each was then re-confirmed by
+restoring the pre-fix behaviour and watching the new tests go red again.
+
+**MUST-FIX 1 — the praise celebration fired at the wrong position, or not at all
+(REQ-PLAY-404 / AC-PLAY-404, acceptance §2 Scenario 3)**
+
+Root cause: `emitPlayEvent('select', …)` is synchronous, and `_select` assigned
+`this._focusedKey = key` four statements AFTER the emit. `_celebratePraise` read
+`_focusedKey`, so it always saw the PREVIOUS selection: the first tap of a session
+awarded the sticker and spoke the praise with no sparkle at all (`_praise
+.activeCount === 0`), and Mars→Jupiter put Jupiter's reward burst on Mars. The
+earth branch was worse — it emits and returns before any focus bookkeeping, so it
+never had a `_focusedKey` of its own.
+
+Fix: the completing body now travels IN the event
+(`_celebratePraise(event.body)`), with `_focusedKey` kept only as the fallback for
+bodyless completions (`view-enter`). This covers `select`, `rocket-arrived` and
+`size-compare` uniformly, and the earth branch for free, without moving a single
+statement of the audio ordering.
+
+Ordering note: M5 deviation 7 put the emit AFTER `speakBody` because the TTS
+channel keeps only the newest utterance. That ordering was undefended — a mutation
+moving the emit ahead of `speakBody` passed all 568 baseline tests. It now has a
+lock ("narrates the body before the praise…"), which fails on exactly that
+mutation with Saturn's fact as the last utterance.
+
+Why the suite missed the defect: `SolarSystemView.missions.test.js` pre-selected a
+body ("gives the burst somewhere to land") before firing synthetic events, which
+propped up every burst assertion; the real-selection test asserted the sticker but
+never the burst. Both pre-selects are gone; the burst assertions now stand on
+their own and six tests in that file fail if the defect is reintroduced.
+
+**MUST-FIX 2 — the travel-fact table taught inverted distance (honesty NFR,
+REQ-PLAY-202 / REQ-PLAY-203 / AC-PLAY-203)**
+
+Root cause: two incompatible trajectory classes in one table. Ceres was sourced
+from Dawn — a low-thrust ion-propulsion rendezvous that spirals out to arrive
+slowly enough to enter orbit (4 years) — while Jupiter used Voyager 1, a
+high-speed flyby (1.5 years). Ceres is 2.77 AU and Jupiter 5.203 AU, so a child
+hearing both learned that Ceres is farther away than Jupiter.
+
+Fix: Ceres is re-derived on the table's shared fast-cruise basis — a chemical
+Hohmann transfer, a = 1.885 AU, T/2 = 1.29 y — and now reads "세레스까지는 한 해
+조금 넘게 날아가야 해요!". The basis itself is stated in the module header
+(fast-cruise, direct chemical trajectories; low-thrust ion rendezvous explicitly
+excluded), so the table cannot silently drift apart again.
+
+Regression assertion: spoken durations are parsed back out of the Korean the child
+hears — not kept in a parallel numeric table, which is exactly how numbers and
+words drift — and asserted to rise with `distance` for every body beyond Earth's
+orbit. Sunward of Earth the ordering is not asserted, with a documented reason:
+travel time there is set by delta-v, not radial distance (Mercury is closer to the
+Sun than Venus and takes longer). 해왕성(30.07 AU, 12 y) vs 명왕성(39.48 AU, 10 y)
+is a genuine real-mission inversion — Voyager 2's grand tour vs New Horizons'
+direct flyby — and is encoded as a one-entry exception list, with a second test
+asserting each listed pair really still inverts so a stale exception cannot mask a
+future defect. The old test only checked that a `참고:` comment existed.
+
+**Quality gate — Korean particle error in rocket aria-labels (SPEC-KIDS-001 §8.1,
+acceptance §4)**
+
+`playRocketLabel` interpolated `${name}으로`, and 으로/로 selection depends on the
+final consonant (ㄹ excepted), so VoiceOver/TalkBack read five of the thirteen
+destinations ungrammatically: 달으로, 세레스으로, 하우메아으로, 마케마케으로,
+에리스으로. It is now particle-free (`${name} 로켓 발사하기`), matching the rule the
+module already states for its comparison forms; no particle-selection logic was
+added, since avoiding it is the module's whole convention.
+
+Coverage hole closed: acceptance §4 puts ALL Korean strings under the §8.1
+checklist, but the machine checks covered only mission `promptKo`,
+`TRAVEL_FACTS_KO` and the derived comparison sentences. Every `STR.play*` chrome
+and aria string is now checked for length, English, 해요체 (spoken strings only —
+해요체 would be wrong for a button label like 닫기), and for any
+final-consonant-sensitive particle glued onto an interpolated body name.
+
+**Deferred SHOULD-FIX — recorded, code deliberately untouched**
+
+These are not gate blockers, and fixing them here would have widened the diff past
+what the gate requires. They are carried into sync as known follow-ups.
+
+| Id | Finding | Measured evidence | What a fix would touch |
+|----|---------|-------------------|------------------------|
+| S1 | The count strip can overflow the lane its own comment says it spans | `SizeCompare.js:9-12` states that laying `count` unit discs side by side spans the big disc, which is only true before `count` is rounded to the nearest half at `:62`. Earth/Mars ratio is 1.878 and rounds to 2, so the row draws 2 discs of 260/1.878 = 138.4px = **276.9px inside a 260px lane** (~6.5% overflow) | Either size the discs from `count` (`LANE_WIDTH_PX / count`) so the row is true to the spoken number, or scale the lane; then correct the header comment. Needs the visual check below, since the overlay is `max-width: 340px` with 24px padding |
+| S3 | Bodies whose ratio leaves the countability budget get an overlay with no lineup at all | `MAX_COUNT = 120` drops 베텔게우스 (886 suns) and 스티븐슨 2-18 (2146 suns); the ±10% nearest-half tolerance separately drops 시리우스 A (1.71 suns). Three of the four stars therefore produce **0 comparison rows**, while the 크기 비교 entry point still opens | A non-count representation for ratios outside the countable band (a single scaled pair plus the authored 배 fact), or hiding the entry point when `comparisonRows()` is empty. The drop itself is correct — the rows would be lies — so this is a presentation gap, not a data fix |
+| S4 | Reduced-motion is read once at boot, not live | `_buildPlayLayer()` calls `_prefersReducedMotion()` once and passes the boolean into both `Celebration` pools, `RocketJourney` and `SizeCompare`. No `matchMedia` change listener exists, so toggling the OS setting mid-session changes nothing until reload | A `change` subscription on the media query fanning out to the four holders, each needing a setter. Cost is four new mutable seams; the boot-time read is correct for the overwhelmingly common case |
+| S5 | A second, silent `Celebration` pool exists solely for praise | `this._praise = new Celebration({ scene, reducedMotion, sounds: {} })` — a second `THREE.Points` with the full `POOL_SIZE = 160` buffers. M3/M4 measured an idle pool at 0.000014 ms/frame and it stays `visible = false` at rest | Merging the pools requires per-burst sound selection instead of per-pool (`burst(position, variant, radius, { silent: true })`). Deliberate per M5 deviation 6: the praise must be heard via `playFanfare()` even with no body on screen, and stacking the arrival chime under the fanfare was rejected |
+
+**Residual manual / device checks — expanded by the evaluation**
+
+These join the M5 residual table above; none are assertable in vitest.
+
+| Check | Why it needs a human or a device |
+|-------|----------------------------------|
+| S1 Mars strip overflow, visual | Whether 276.9px of discs inside a 260px lane actually clips, wraps or merely crowds depends on the overlay's real CSS box at 320–340px width — a screenshot question, not a unit-test one |
+| Celebration cost on the GPU side | The pool arithmetic is measured, but the draw-call and fill cost of two `THREE.Points` objects during an overlapping arrival + praise burst has only been reasoned about, never profiled on a phone GPU |
+| Native-Korean read-aloud pass on the five fixed aria-labels | 달 / 세레스 / 하우메아 / 마케마케 / 에리스 with `playRocketLabel` under a real VoiceOver and TalkBack voice — the particle rule is now enforced mechanically, but §8.1 rule 6 asks for an ear, and "달 로켓 발사하기" should be confirmed to read naturally without the particle |
+
+**Verification**
+
+| Gate | Result |
+|------|--------|
+| `npm test` | 42 files / **580 tests passed** — baseline was 42 files / 568, so +12 tests and zero regressions |
+| `npm run build` | succeeds (`✓ built in 755ms`; the >500 kB chunk warning is pre-existing) |
+| Files touched | `SolarSystemView.js`, `travelFacts.js`, `strings.js` and their three test files — S1/S3/S4/S5 code (`SizeCompare.js`, `Celebration.js`, `_buildPlayLayer`, `PlanetStrip.js`) untouched |
+| Commit | `b9fa3f4` fix(SPEC-PLAY-001): celebrate at the completing body and correct the Ceres travel fact |
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_
