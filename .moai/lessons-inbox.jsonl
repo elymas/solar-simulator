@@ -1,1 +1,0 @@
-{"timestamp":"2026-08-12T08:07:13Z","event_key":"tool_failure:Bash:UnknownFailure","summary":"Exit code 1\n---PKG---\n{\n  \"name\": \"solar-simulator\",\n  \"private\": true,\n  \"version\": \"0.1.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite prev…","source":"tool:Bash"}
