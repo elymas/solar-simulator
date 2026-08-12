@@ -17,10 +17,13 @@ function makeStubs() {
     stepCamera: vi.fn(),
     setHoveredObject: vi.fn(),
   };
+  // getWorldPosition on every body: the mission praise burst (SPEC-PLAY-001 M5)
+  // reads the focused body's world position, and WHICH body that is depends on
+  // the real calendar date's mission rotation — so no stub may lack it.
   const planetFactory = {
     planets: {
-      earth: { mesh: { position: {} }, data: { displayRadius: 8 } },
-      mars: { mesh: { position: { x: 1 } }, data: { displayRadius: 5 } },
+      earth: { mesh: { position: {}, getWorldPosition: vi.fn((v) => v) }, data: { displayRadius: 8 } },
+      mars: { mesh: { position: { x: 1 }, getWorldPosition: vi.fn((v) => v) }, data: { displayRadius: 5 } },
       moon: { mesh: { position: {}, getWorldPosition: vi.fn((v) => v) }, pivot: {}, data: { displayRadius: 3 } },
     },
     update: vi.fn(),

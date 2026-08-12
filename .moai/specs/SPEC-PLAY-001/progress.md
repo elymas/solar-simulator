@@ -184,6 +184,130 @@ is the M1 `TRAVEL_FACTS_KO` table, already machine-checked against SPEC-KIDS-001
 subscription to `onPlayEvent`, and mission praise. `SolarSystemView.launchRocket(key)`
 / `canLaunchRocket(key)` are the public API M5's button calls.
 
+### M2 + M5 — Size comparison, entry points, sticker book, mission HUD, praise flow (2026-08-12)
+
+Methodology: TDD (RED-GREEN-REFACTOR). Every test file was written and confirmed
+failing before its implementation existed (`SizeCompare.test.js` and
+`StickerBook.test.js` failed to resolve their module; `InfoPanel.test.js` failed
+8 of 8 new cases; `SolarSystemView.missions.test.js` failed 13 of 14).
+
+**Files added**
+
+| File | Purpose |
+|------|---------|
+| `src/play/SizeCompare.js` | 2D DOM count-representation lineup + the pure ratio math |
+| `src/play/SizeCompare.test.js` | Ratio math, lineup composition, eligibility, widths, fact, close, reduced motion, a11y |
+| `src/play/StickerBook.js` | Sticker-book overlay AND the mission HUD (one surface, one file) |
+| `src/play/StickerBook.test.js` | Access, earned/locked grid, round-trip, HUD, badge, hostile storage |
+| `src/views/SolarSystemView.missions.test.js` | Entry-point wiring, praise flow, rollover, chrome lifecycle |
+
+**Files modified (surgical, additive)**
+
+| File | Change |
+|------|--------|
+| `src/ui/InfoPanel.js` | `.kid-actions` row with `.kid-compare` / `.kid-rocket`; `bodyKey`; `onCompare` / `onRocket` / `canLaunch` fields; per-body visibility in `_renderKidView`; local `<style>` additions |
+| `src/ui/strings.js` | Append-only play-layer block (14 keys) |
+| `src/views/SolarSystemView.js` | `_praise` pool, `SizeCompare`, `StickerBook`, sticker store, `_missionEngine`, `_onPlayEvent`, `_celebratePraise`, `getDate` option, entry-point wiring, `_setUiVisible`/`update`/`dispose` extensions, `_select` emit ordering |
+| `test/solarSystemView.test.js` | Stub meshes gained `getWorldPosition` (fixture only — no assertion changed; the praise burst reads the focused body and WHICH body that is depends on the day's rotation) |
+
+`index.html` was NOT touched: the InfoPanel-local `<style>` pattern hosted every
+new rule, and the sticker toggle sits beside the planet-list toggle
+(`left: 70px` = 16 + 44 + 10), which has no mobile override to fight.
+
+**REQ / AC covered**
+
+| REQ | AC | Evidence |
+|-----|----|----------|
+| REQ-PLAY-101 | AC-PLAY-101 | Lineup renders the selected body beside Earth and beside the Sun where countable; the fact is asserted ≥24px AND strictly larger than every other text node in the overlay; `speak` called exactly once per open, twice across open→close→open |
+| REQ-PLAY-102 | AC-PLAY-102 | Ratios read `radius` only — a fixture with a mangled `displayRadius` yields the identical ratio. Rendered widths: big disc = 260px, unit disc = 260/ratio, so the width ratio error is 0%. Jupiter/Earth (11.21) and Sun/Earth (109.18) asserted within 5% of the AC's 10.97 / 109 |
+| REQ-PLAY-103 | AC-PLAY-103 | Snapshot of `_focusedKey`, `focusPlanet` call count, `resetCamera` call count, scene child count and `infoPanel.isOpen` is identical across open→close. Source-level assertion: no `three` import, no `camera`/`renderer`/`sceneManager` identifier in code |
+| REQ-PLAY-104 | AC-PLAY-104 | Reduced motion drops `sizecompare--animated`; `textContent` and disc count asserted identical to the animated build |
+| REQ-PLAY-201 | AC-PLAY-201 | The 로켓 button reads `SolarSystemView.canLaunchRocket` — the M3/M4 rule derived from `travelFacts.eligibleDestinations()`. InfoPanel's own default is `() => false`, so no second eligibility list exists to drift |
+| REQ-PLAY-401 | AC-PLAY-401 | HUD lists today's three `promptKo` from `missionsForDate`, marks done without hiding, shows "내일 또 만나요!" only when all three are done |
+| REQ-PLAY-402 | AC-PLAY-402 | The view subscribes to `onPlayEvent`; a real `_select` completes its mission end to end |
+| REQ-PLAY-403 | AC-PLAY-403 | Grid renders one tile per catalog sticker, earned vivid (opacity 1) vs locked silhouette (opacity 0.3 + grayscale), counts asserted. Round-trip: award → `solar.play` written → a fresh store + engine + book over the same storage still shows it earned |
+| REQ-PLAY-404 | AC-PLAY-404 | Completion → one `playFanfare`, one `speak(STR.playPraise)`, one sparkle burst. Re-completing twice leaves `store.stickers()` byte-identical and speaks nothing further. Scenario 4: muted → zero oscillators, zero utterances, while the burst still emits and the sticker is still awarded |
+| — | acceptance §3 | Earth compares to the Sun only; a star is allowed where the data supports it; the button is hidden where it does not; midnight rollover replaces the engine and yesterday's award stands |
+
+**Test counts** — `npm test`: 42 files passed (39 pre-existing + 3 new), 568
+tests passed (500 pre-existing + 68 new: 28 SizeCompare, 18 StickerBook, 14
+SolarSystemView missions, 8 appended to InfoPanel). Zero regressions.
+`npm run build` succeeds (the >500 kB chunk warning is pre-existing).
+M2 was also verified in isolation before its commit: 40 files / 536 tests.
+
+**Korean strings** — 14 keys appended to `STR`. The two comparison forms are
+deliberately particle-free: the count form reuses the wording already authored
+for jupiter/saturn/uranus/neptune in planetData ("… 나란히 놓으면 … 폭이에요!"),
+and the near-equal form ends both nouns with "크기", so no 은/는 이/가 와/과
+selection is ever needed for a body name the code cannot inspect. The object
+particle rides inside the count phrase because 개 and 반 take different ones
+("109개를" vs "2개 반을"). Every derived fact is machine-checked in
+`SizeCompare.test.js` against SPEC-KIDS-001 §8.1: ≤45 characters, 해요체 ending,
+no English, and the spoken count within ±10% of the true ratio.
+
+**Deviations from plan.md / spec.md**
+
+1. **The count fact is DERIVED, not `sizeComparisonKo`.** The authored field
+   compares each body to whichever reference reads best (가니메데 → 수성, 포보스
+   → 달) and sometimes carries no count at all, so rendering it beside an
+   Earth/Sun lineup would have contradicted the picture. REQ-PLAY-101's own
+   example ("태양에는 지구가 109개 들어가요!") is a template, so the lineup
+   generates its own sentence from the same real diameters. The authored field
+   still shows in the InfoPanel, unchanged.
+2. **Counts round to the nearest HALF, and a row that cannot be stated honestly
+   is dropped.** Whole-body rounding puts Earth/Mercury 15% off, past §8.1's
+   ±10% window; "2개 반" is 4% off and is the wording planetData already uses for
+   Mercury. A half disc is drawn at half width with a half border-radius, so the
+   strip still spans the big disc. Sirius A (1.71 suns) can be stated by no half
+   within ±10%, so it renders no lineup and its 크기 비교 button is hidden.
+3. **`MAX_COUNT = 120` bounds the strip.** Beyond it the discs go sub-pixel at
+   the 260px lane, so Betelgeuse (886 suns), Stephenson 2-18 (2146 suns), Phobos
+   and Deimos get no lineup. This extends acceptance §3's "hidden for bodies
+   without the data" from "no diameter" to "no countable comparison" — the same
+   data-driven rule, one predicate (`canCompareSize` = "has at least one row").
+4. **The mission HUD lives inside `StickerBook.js`, in the same overlay as the
+   grid.** A second always-on overlay would cost a phone its sky for information
+   the child only wants between attempts. The toggle carries a `done/total`
+   badge so the button still advertises that there is something inside.
+5. **Praise fires only on `firstToday`.** AC-PLAY-404 makes praise on
+   re-completion optional ("MAY fire"); firing a fanfare every later tap of the
+   same planet would turn the reward into wallpaper. The award-once invariant is
+   asserted directly, and a mission re-entering the rotation on a later day still
+   praises without a duplicate award.
+6. **A second, SILENT `Celebration` pool carries the praise burst.** M3/M4
+   deviation 5 reserved `playFanfare` for this moment and refused to stack two
+   sounds. Reusing the arrival pool would have played the chime under the
+   fanfare; giving the praise pool `sounds: {}` and calling `playFanfare()`
+   explicitly keeps one sound AND lets the reward be heard when there is no body
+   on screen to sparkle at. Cost: one extra `THREE.Points`, `visible = false`
+   whenever at rest (M3/M4 measured an idle pool at 0.000014 ms/frame).
+7. **`emitPlayEvent('select')` now runs AFTER `speakBody` in `_select`.** The TTS
+   channel keeps only the newest utterance, so emitting first meant the body's
+   fact talked over the praise it had just triggered. Nothing else in the
+   ordering moved; `unlockAudio()` is still the first statement.
+8. **The SizeCompare fact is spoken BEFORE the event is emitted**, for the mirror
+   reason: on the one body where opening also completes a mission (`compare-sun`)
+   the praise should be what the child hears, and the fact stays on screen in
+   display type.
+9. **`SizeCompare` and `StickerBook` are constructed directly, not through
+   factory options.** Both were briefly injectable; no test needed the seam, so
+   the options were deleted in the self-review pass rather than kept as
+   speculative generality. `getDate` remains injectable because the midnight
+   rollover test needs it.
+10. **`index.html` untouched** — see above.
+
+**Residual — owned by M6 (manual / device pass)**
+
+| Check | Why it cannot be asserted in vitest |
+|-------|-------------------------------------|
+| AC-PLAY-303 audio unlock on real Safari/iOS | `unlockAudio()` now also fires from the 크기 비교 and 로켓 발사 taps; only a real gesture stack proves Safari accepts them |
+| AC-PLAY-404 celebration feel | Whether fanfare + praise + burst reads as a reward rather than noise, and whether the praise lands cleanly after the body narration it now supersedes |
+| AC-PLAY-403 sticker-book touch UX | Grid tap targets at 320px width, overlay scroll on a short phone, and the toggle sitting beside the planet-list toggle at the smallest viewport |
+| AC-PLAY-104 / 205 / 304 reduced-motion sweep | The full sweep across comparison, rocket, celebration and praise on a device with the OS setting on |
+| AC-PLAY-101 lineup readability | 109 discs at ~2.4px each on a real phone — the assertion is that the widths are true, not that the dots are legible |
+| SPEC-KIDS-001 §8.1 rule 6 | Native-Korean read-aloud pass on the two derived comparison forms and the praise line; emoji rendering of the sticker grid on iOS |
+| AC-PLAY-403 localStorage on real Safari | Private browsing / ITP eviction of `solar.play` (the in-memory fallback is unit-tested; the real eviction is not) |
+
 ## §E.3 Run-phase Audit-Ready Signal
 
 _<pending run-phase>_

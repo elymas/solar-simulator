@@ -5,11 +5,16 @@ import { TimeControls } from '../ui/TimeControls.js';
 import { PlanetList } from '../ui/PlanetList.js';
 import { PlanetStrip } from '../ui/PlanetStrip.js';
 import { InteractionManager } from '../controls/InteractionManager.js';
-import { init as initTts, speakBody, cancel as cancelSpeech } from '../audio/tts.js';
-import { init as initSfx, unlockAudio } from '../audio/sfx.js';
+import { init as initTts, speak, speakBody, cancel as cancelSpeech } from '../audio/tts.js';
+import { init as initSfx, unlockAudio, playFanfare } from '../audio/sfx.js';
 import { Celebration, SPARKLE, TWINKLE } from '../effects/Celebration.js';
 import { RocketJourney } from '../play/RocketJourney.js';
-import { emitPlayEvent } from '../play/playEvents.js';
+import { SizeCompare } from '../play/SizeCompare.js';
+import { StickerBook } from '../play/StickerBook.js';
+import { createMissionEngine } from '../play/missions.js';
+import { createStickerStore } from '../play/stickers.js';
+import { emitPlayEvent, onPlayEvent } from '../play/playEvents.js';
+import { STR } from '../ui/strings.js';
 
 /**
  * SolarSystemView wraps the original solar-system app behind the frozen View
@@ -31,6 +36,7 @@ export class SolarSystemView {
    * @param {Function} [opts.createPlanetStrip]
    * @param {Function} [opts.createTimeControls]
    * @param {Function} [opts.createInteraction]
+   * @param {Function} [opts.getDate] - Real calendar clock for the daily missions (A-505).
    * @param {Window} [opts.win]
    */
   constructor({
@@ -43,6 +49,7 @@ export class SolarSystemView {
     createInteraction = (sm, pf) => new InteractionManager(sm.camera, sm.scene, sm.renderer, pf),
     createCelebration = (opts) => new Celebration(opts),
     createRocket = (opts) => new RocketJourney(opts),
+    getDate = () => new Date(),
     win = typeof window !== 'undefined' ? window : undefined,
   } = {}) {
     this.sceneManager = sceneManager;
@@ -54,11 +61,19 @@ export class SolarSystemView {
     this._createInteraction = createInteraction;
     this._createCelebration = createCelebration;
     this._createRocket = createRocket;
+    this._getDate = getDate;
     this._win = win;
 
-    // Play layer (SPEC-PLAY-001 M3/M4), built with the UI in buildUI().
+    // Play layer (SPEC-PLAY-001 M3/M4/M5), built with the UI in buildUI().
     this._celebration = null;
+    this._praise = null;
     this._rocket = null;
+    this._sizeCompare = null;
+    this._stickerBook = null;
+    this._store = null;
+    this._missions = null;
+    this._missionDate = null;
+    this._unsubscribePlay = null;
 
     this._simTime = 0;
     this._timeSpeed = 1;
@@ -132,6 +147,19 @@ export class SolarSystemView {
 
     this._ui = { infoPanel, planetList, planetStrip, timeControls, interaction };
     this._buildPlayLayer();
+
+    // Both entry points run inside a real tap, so unlocking here is what lets
+    // iOS start the comparison's narration and the rocket's arrival sound.
+    infoPanel.onCompare = (key, data) => {
+      unlockAudio();
+      this._sizeCompare.open(key, data);
+    };
+    infoPanel.onRocket = (key) => {
+      unlockAudio();
+      this.launchRocket(key);
+    };
+    infoPanel.canLaunch = (key) => this.canLaunchRocket(key);
+
     this._bindKeys();
     if (!this._active) {
       // A #/earth deep-link builds this UI (textures finish loading) while
@@ -152,14 +180,71 @@ export class SolarSystemView {
    */
   _buildPlayLayer() {
     const reducedMotion = this._prefersReducedMotion();
-    this._celebration = this._createCelebration({ scene: this.sceneManager.scene, reducedMotion });
+    const scene = this.sceneManager.scene;
+    this._celebration = this._createCelebration({ scene, reducedMotion });
+    // The praise pool is deliberately SILENT: its sound is playFanfare(), fired
+    // from _celebratePraise so the reward is heard even when there is no body on
+    // screen to sparkle at. Letting the burst own it (as the arrival celebration
+    // does) would mean a mission completed from the Earth view made no sound.
+    this._praise = new Celebration({ scene, reducedMotion, sounds: {} });
     this._rocket = this._createRocket({
-      scene: this.sceneManager.scene,
+      scene,
       getBody: (key) => this._getBody(key),
       celebration: this._celebration,
       reducedMotion,
     });
     this.sceneManager.onFocusArrive = () => this._onFocusArrive();
+
+    this._sizeCompare = new SizeCompare({ reducedMotion });
+    this._store = createStickerStore();
+    this._stickerBook = new StickerBook({
+      getEngine: () => this._missionEngine(),
+      store: this._store,
+    });
+    this._unsubscribePlay = onPlayEvent((event) => this._onPlayEvent(event));
+  }
+
+  // @MX:NOTE: [AUTO] The mission engine freezes its date at construction, so the
+  // rollover is handled by REPLACING it, not by mutating it. Resolving lazily per
+  // event is also what makes acceptance §3 true for free: an event fired at
+  // 23:59:59 is judged by yesterday's mission set, one at 00:00:00 by today's.
+  /**
+   * The engine for the child's current real calendar day (A-505).
+   * @returns {Object}
+   */
+  _missionEngine() {
+    const date = localDateString(this._getDate());
+    if (!this._missions || this._missionDate !== date) {
+      this._missionDate = date;
+      this._missions = createMissionEngine({ store: this._store, date });
+    }
+    return this._missions;
+  }
+
+  /**
+   * Feed one normalized play event to the day's missions (REQ-PLAY-402).
+   * @param {{type: string}} event
+   */
+  _onPlayEvent(event) {
+    const matched = this._missionEngine().handleEvent(event);
+    // A re-completion still comes back matched, but nothing changed: the sticker
+    // was already earned and the day already ticked. Praise MAY fire there
+    // (AC-PLAY-404); firing it on every later tap of the same planet would turn
+    // the reward into wallpaper, so the completion moment stays the once-a-day one.
+    if (!matched.some((mission) => mission.firstToday)) return;
+    this._stickerBook.refresh();
+    this._celebratePraise();
+  }
+
+  /**
+   * The reward: one fanfare, one spoken praise, one sparkle burst (REQ-PLAY-404).
+   * Fires once per completion moment however many missions matched the event.
+   */
+  _celebratePraise() {
+    playFanfare();
+    speak(STR.playPraise);
+    const target = this._focusedKey ? this._getBody(this._focusedKey) : null;
+    if (target) this._praise.burst(target.position, SPARKLE, target.radius);
   }
 
   /**
@@ -257,11 +342,14 @@ export class SolarSystemView {
     }
     const planet = this.planetFactory.planets[key];
     if (!planet) return;
-    emitPlayEvent('select', { body: key });
     // Both callers of _select are tap handlers, so this is a user-gesture call
     // stack — which is what lets iOS start speech at all (spec A-104). Narrate
     // the body the panel resolved, so moons/stars read their own facts.
     speakBody(this._ui.infoPanel.show(key, planet.data));
+    // Strictly after the narration: a selection that also completes a mission
+    // must end with the praise, not with the body's fact talking over it — the
+    // TTS channel keeps only the newest utterance (tts.js speak()).
+    emitPlayEvent('select', { body: key });
     this._ui.planetList.setActive(key);
     this._ui.planetStrip.setActive(key);
     this._ui.interaction.selectedPlanet = key;
@@ -299,6 +387,10 @@ export class SolarSystemView {
     if (planetList._toggleBtn) planetList._toggleBtn.style.display = d;
     if (planetStrip.el) planetStrip.el.style.display = d;
     if (timeControls.el) timeControls.el.style.display = d;
+    // The play overlays are solar-view chrome too: neither may survive a switch
+    // to the Earth view sitting on top of a scene it does not describe.
+    if (this._stickerBook) this._stickerBook.setVisible(visible);
+    if (!visible && this._sizeCompare) this._sizeCompare.close();
   }
 
   // --- frozen View interface (ANCHOR: SPEC-EARTH-002 depends on this shape) ---
@@ -360,6 +452,7 @@ export class SolarSystemView {
     // Play layer rides the app's one rAF: the rocket reads the wall clock itself
     // (its flight must not follow the simulation speed), the pool returns to rest.
     if (this._celebration) this._celebration.update(delta);
+    if (this._praise) this._praise.update(delta);
     if (this._rocket) this._rocket.update();
     if (this._ui && this._ui.timeControls) this._ui.timeControls.updateDate(this._simTime);
   }
@@ -385,8 +478,19 @@ export class SolarSystemView {
 
   dispose() {
     if (this._ui && this._ui.interaction) this._ui.interaction.dispose();
+    if (this._unsubscribePlay) this._unsubscribePlay();
+    if (this._stickerBook) this._stickerBook.dispose();
+    if (this._sizeCompare) this._sizeCompare.dispose();
     if (this._rocket) this._rocket.dispose();
+    if (this._praise) this._praise.dispose();
     if (this._celebration) this._celebration.dispose();
     this.sceneManager.dispose();
   }
+}
+
+// Local calendar date, not UTC: "daily" means the child's real day (A-505), and
+// a UTC key would roll over mid-evening for anyone east of Greenwich.
+function localDateString(date) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
