@@ -8,20 +8,27 @@ import { AURORA_DEFAULTS } from '../src/utils/constants.js';
 // of import.meta.url's scheme (which vitest's module transform can rewrite).
 const AURORA_SOURCE = readFileSync('src/effects/AuroraEffect.js', 'utf-8');
 
-describe('selectAuroraTier — exactly two tiers (REQ-630/645)', () => {
-  it('uses the custom shader on capable desktop', () => {
-    expect(selectAuroraTier({ isMobile: false, isLowEnd: false })).toBe('shader');
+// SPEC-MOBILE-001 REQ-MOB-201/202 retired the user-agent render gate: a phone is
+// no longer assumed slow, and quality comes from measured signals via
+// decideQualityTier. The aurora was the one effect left behind on the old gate,
+// so every iPhone — including a flagship that boots the 'full' tier — was handed
+// the billboard fallback. Found on a real device, where the fallback did not read
+// as an aurora at all.
+describe('selectAuroraTier — capability, never user agent (REQ-MOB-201/202)', () => {
+  it('gives a phone the same shader curtain a desktop gets', () => {
+    expect(selectAuroraTier({ isLowEnd: false })).toBe('shader');
   });
 
-  it('falls back to a billboard sprite on mobile OR low-end (no intermediate tier)', () => {
-    expect(selectAuroraTier({ isMobile: true, isLowEnd: false })).toBe('billboard');
-    expect(selectAuroraTier({ isMobile: false, isLowEnd: true })).toBe('billboard');
-    expect(selectAuroraTier({ isMobile: true, isLowEnd: true })).toBe('billboard');
+  it('sheds the aurora entirely on a constrained device rather than faking it', () => {
+    // 'none', not a static sprite: the sprite was a square billboard the size of
+    // the globe, so it occluded Earth instead of decorating it. The frame-budget
+    // ladder already sheds 'aurora' first under load (EARTH_DEGRADE_STEPS), which
+    // is the real safety net — a broken stand-in is worse than no aurora.
+    expect(selectAuroraTier({ isLowEnd: true })).toBe('none');
   });
 
-  it('only ever returns one of the two tiers', () => {
-    const t = selectAuroraTier({ isMobile: false, isLowEnd: false });
-    expect(['shader', 'billboard']).toContain(t);
+  it('ignores the user agent even when one is passed', () => {
+    expect(selectAuroraTier({ isMobile: true, isLowEnd: false })).toBe('shader');
   });
 });
 

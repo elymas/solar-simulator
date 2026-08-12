@@ -120,6 +120,13 @@ export const FLIGHT_DEFAULTS = {
   backoffMaxMs: 300000,
   maxInstances: 500,
   altitudeScale: 0.0001, // baro-ft -> earth-local units above the surface (~3-4.5 units at 30-45k ft cruise)
+  // Calibration knob. The marker geometry is authored with a 6-unit wingspan so
+  // it reads as an airplane rather than a dot; at earthRadius 100 that is ~380 km
+  // of real wingspan, which turns a 250 nm point query (~7.3 units across) into a
+  // single blob. This scales the whole marker down to roughly a sixth so several
+  // aircraft inside one query circle stay individually readable. Tune by eye on a
+  // real phone — too small and a child cannot find them at all.
+  markerScale: 0.2,
 };
 
 // F7 aurora tuning. Budget knobs: curtain count / segments / noise octaves.

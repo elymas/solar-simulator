@@ -3,14 +3,21 @@ import { AURORA_DEFAULTS } from '../utils/constants.js';
 
 // --- pure helpers (unit-tested; no WebGL) ---
 
+// @MX:ANCHOR: [AUTO] Capability, never user agent. SPEC-MOBILE-001 REQ-MOB-201/202
+// retired the user-agent render gate everywhere else (decideQualityTier reads real
+// device signals); this function was the last holdout, so every phone — flagship
+// included — got the fallback. The old fallback was a camera-facing sprite scaled
+// to 0.9x earthRadius and parked INSIDE the globe, which occluded Earth rather
+// than decorating it, so it is gone rather than repaired: the frame-budget ladder
+// already sheds 'aurora' as its first step under load, which is the real safety net.
+// @MX:REASON: [AUTO] Re-introducing a user-agent branch here silently downgrades
+// every phone again, and that regression is invisible in jsdom.
 /**
- * Two tiers only (REQ-630/645): the custom vertex-noise shader for capable desktop,
- * a static billboard sprite for mobile or low-end. No intermediate "reduced curtain".
- * @param {{isMobile:boolean, isLowEnd:boolean}} caps
- * @returns {'shader'|'billboard'}
+ * @param {{isLowEnd?:boolean}} caps - isLowEnd is decideQualityTier's 'constrained' verdict.
+ * @returns {'shader'|'none'}
  */
-export function selectAuroraTier({ isMobile, isLowEnd }) {
-  return isMobile || isLowEnd ? 'billboard' : 'shader';
+export function selectAuroraTier({ isLowEnd = false } = {}) {
+  return isLowEnd ? 'none' : 'shader';
 }
 
 /**
@@ -109,11 +116,12 @@ export class AuroraEffect {
   }
 
   _build() {
+    if (this.tier === 'none') return; // constrained device: no aurora at all.
     const colatitudeDeg = 90 - AURORA_DEFAULTS.polarLatitudeDeg; // ring sits this far from the pole
     const colatRad = THREE.MathUtils.degToRad(colatitudeDeg);
     for (const north of [true, false]) {
-      const mesh = this.tier === 'shader' ? this._buildCurtain(colatRad) : this._buildBillboard();
-      this._orient(mesh, north, colatitudeDeg);
+      const mesh = this._buildCurtain(colatRad);
+      this._orient(mesh, north);
       this.group.add(mesh);
     }
   }
@@ -191,51 +199,13 @@ export class AuroraEffect {
     return new THREE.Mesh(geo, mat);
   }
 
-  _buildBillboard() {
-    // Static additive sprite: no per-vertex noise, cheap enough for mobile/low-end.
-    const mat = new THREE.SpriteMaterial({
-      map: this._billboardTexture(),
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      opacity: 0.7,
-    });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.setScalar(this._earthRadius * 0.9);
-    return sprite;
-  }
-
-  _billboardTexture() {
-    // ponytail: paint one small gradient once; reused by both poles.
-    if (AuroraEffect._billboardTex) return AuroraEffect._billboardTex;
-    const c = document.createElement('canvas');
-    c.width = 16; c.height = 64;
-    const ctx = c.getContext('2d');
-    if (ctx) {
-      const g = ctx.createLinearGradient(0, 64, 0, 0);
-      g.addColorStop(0, 'rgba(30,255,110,0.9)');
-      g.addColorStop(1, 'rgba(180,60,255,0.0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, 16, 64);
-    }
-    const tex = new THREE.CanvasTexture(c);
-    AuroraEffect._billboardTex = tex;
-    return tex;
-  }
-
-  _orient(mesh, north, colatitudeDeg) {
+  _orient(mesh, north) {
     const axis = poleAxis(AURORA_DEFAULTS.axialTiltDeg, north);
-    if (mesh.isMesh) {
-      // Curtain vertices already encode their full position relative to
-      // Earth's center (see _buildCurtain), since this.group sits at Earth's
-      // own center. Only the rotation aligning local +Y (the untilted pole
-      // axis the geometry was built in) to the real tilted axis is needed.
-      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
-    } else {
-      // Billboard sprite: flat, always camera-facing, offset above the pole cap.
-      const centerDist = this._earthRadius * Math.cos(THREE.MathUtils.degToRad(colatitudeDeg));
-      mesh.position.copy(axis.multiplyScalar(centerDist));
-    }
+    // Curtain vertices already encode their full position relative to Earth's
+    // center (see _buildCurtain), since this.group sits at Earth's own center.
+    // Only the rotation aligning local +Y (the untilted pole axis the geometry
+    // was built in) to the real tilted axis is needed.
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
   }
 
   /**

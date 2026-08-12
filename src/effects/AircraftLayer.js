@@ -20,6 +20,16 @@ function buildAircraftGeometry() {
   return mergeGeometries([fuselage, wings, tail]);
 }
 
+// @MX:ANCHOR: [AUTO] The globe these markers land on is a THREE.SphereGeometry
+// wearing an equirectangular texture, so THAT geometry's uv->position convention
+// is the contract — not a textbook spherical formula. Three.js winds its sphere
+// as z = +sin(phi) with phi = u * 2PI, and equirectangular u=0.5 is the prime
+// meridian, which puts EAST longitude on -Z. Getting this sign wrong mirrors the
+// whole world about the Greenwich/dateline axis, and the mirror is invisible at
+// lon=0 and at either pole — the only places the original tests sampled.
+// @MX:REASON: [AUTO] Any layer positioning by lat/lon (aircraft today, ground
+// markers later) must share this convention or it silently draws on the wrong
+// continent. Verified against the real geometry in test/aircraftGeo.test.js.
 /**
  * Map geographic lat/lon (degrees) + altitude offset to an earth-local position on a
  * sphere of the given radius (y-up). Pure — unit-tested without WebGL.
@@ -36,7 +46,7 @@ export function geoToLocal(latDeg, lonDeg, radius, altOffset = 0) {
   return new THREE.Vector3(
     r * Math.cos(la) * Math.cos(lo),
     r * Math.sin(la),
-    r * Math.cos(la) * Math.sin(lo)
+    -r * Math.cos(la) * Math.sin(lo)
   );
 }
 
@@ -52,8 +62,9 @@ export class AircraftLayer {
    * @param {number} [opts.maxInstances]
    * @param {number} [opts.earthRadius]
    * @param {number} [opts.altitudeScale] - baro-ft -> earth-local units.
+   * @param {number} [opts.markerScale] - Uniform marker size multiplier (FLIGHT_DEFAULTS.markerScale).
    */
-  constructor({ maxInstances = 500, earthRadius = 100, altitudeScale = 0.02 } = {}) {
+  constructor({ maxInstances = 500, earthRadius = 100, altitudeScale = 0.02, markerScale = 1 } = {}) {
     this._max = maxInstances;
     this._earthRadius = earthRadius;
     this._altScale = altitudeScale;
@@ -68,7 +79,7 @@ export class AircraftLayer {
     this._m = new THREE.Matrix4();
     this._q = new THREE.Quaternion();
     this._up = new THREE.Vector3(0, 1, 0);
-    this._scale = new THREE.Vector3(1, 1, 1);
+    this._scale = new THREE.Vector3(markerScale, markerScale, markerScale);
   }
 
   /** @returns {THREE.InstancedMesh} */

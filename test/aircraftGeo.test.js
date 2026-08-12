@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as THREE from 'three';
 import { geoToLocal } from '../src/effects/AircraftLayer.js';
 import { FLIGHT_DEFAULTS, EARTH_VIEW_DEFAULTS } from '../src/utils/constants.js';
 
@@ -25,6 +26,74 @@ describe('geoToLocal — lat/lon/alt -> earth-local position', () => {
     const r = 100;
     const p = geoToLocal(37.5, -122.3, r, 2);
     expect(p.length()).toBeCloseTo(r + 2, 4);
+  });
+});
+
+// The globe a marker must land ON is a THREE.SphereGeometry carrying an
+// equirectangular texture (EarthRig._buildEarth). So the only definition of
+// "correct" here is that geoToLocal agrees with THAT geometry's own uv->position
+// convention — not with any hand-derived spherical formula. These tests read the
+// convention straight out of the geometry rather than restating it, which is why
+// they catch a sign error the surrounding suite missed: every pre-existing case
+// sampled either lon=0 or a pole, and both are fixed points of a longitude flip.
+describe('geoToLocal agrees with the Earth sphere it draws onto (REQ-420)', () => {
+  const R = 100;
+  const geo = new THREE.SphereGeometry(R, 96, 96);
+  const pos = geo.getAttribute('position');
+  const uv = geo.getAttribute('uv');
+
+  /** Equirectangular lat/lon for a vertex's uv, in degrees. */
+  const lonOf = (i) => (uv.getX(i) - 0.5) * 360;
+  const latOf = (i) => (uv.getY(i) - 0.5) * 180;
+
+  it('places a vertex where that vertex\'s own uv says it should be', () => {
+    // Stride across the whole buffer so both hemispheres and all four
+    // longitude quadrants are covered, not just one lucky band.
+    for (let i = 0; i < pos.count; i += 331) {
+      const lat = latOf(i);
+      const lon = lonOf(i);
+      // Skip the poles: every longitude collapses to the same point there, so
+      // they cannot witness a longitude error.
+      if (Math.abs(lat) > 89) continue;
+      const p = geoToLocal(lat, lon, R, 0);
+      expect(p.x, `lat=${lat.toFixed(1)} lon=${lon.toFixed(1)} x`).toBeCloseTo(pos.getX(i), 3);
+      expect(p.y, `lat=${lat.toFixed(1)} lon=${lon.toFixed(1)} y`).toBeCloseTo(pos.getY(i), 3);
+      expect(p.z, `lat=${lat.toFixed(1)} lon=${lon.toFixed(1)} z`).toBeCloseTo(pos.getZ(i), 3);
+    }
+  });
+
+  it('puts Seoul in the eastern hemisphere, not its mirror image in the Pacific', () => {
+    // The regression this file exists for: FLIGHT_DEFAULTS queries 126.9°E, and
+    // a flipped longitude drew that traffic at 126.9°W — off Baja California,
+    // which is where the first real-device screenshot found it.
+    const seoul = geoToLocal(FLIGHT_DEFAULTS.lat, FLIGHT_DEFAULTS.lon, R, 0);
+    const mirror = geoToLocal(FLIGHT_DEFAULTS.lat, -FLIGHT_DEFAULTS.lon, R, 0);
+    expect(seoul.z).not.toBeCloseTo(mirror.z, 1);
+
+    // Nearest sphere vertex must carry an EASTERN longitude in its uv.
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < pos.count; i++) {
+      const d = seoul.distanceToSquared(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)));
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    // Eastern hemisphere is the claim under test; the exact value can only land
+    // within one longitude segment (360/96 = 3.75 deg) of the query point.
+    expect(lonOf(best)).toBeGreaterThan(0);
+    expect(Math.abs(lonOf(best) - FLIGHT_DEFAULTS.lon)).toBeLessThan(360 / 96);
+  });
+});
+
+describe('FLIGHT_DEFAULTS.markerScale — aircraft read as aircraft, not as continents', () => {
+  it('keeps a marker small against the query radius it must resolve inside', () => {
+    // 250 nm ≈ 463 km ≈ 7.3 units at this earthRadius, and the whole point of a
+    // point query is that its traffic lands inside that circle. A marker whose
+    // wingspan fills the circle turns the entire result set into one blob — the
+    // second half of the real-device "aircraft all in one spot" report.
+    const WINGSPAN_UNITS = 6 * FLIGHT_DEFAULTS.markerScale;
+    const queryRadiusUnits = (FLIGHT_DEFAULTS.radiusNm * 1.852) / 6371 * EARTH_VIEW_DEFAULTS.earthRadius;
+    expect(WINGSPAN_UNITS).toBeLessThan(queryRadiusUnits / 4);
+    expect(WINGSPAN_UNITS).toBeGreaterThan(0.2); // still visible to a child
   });
 });
 

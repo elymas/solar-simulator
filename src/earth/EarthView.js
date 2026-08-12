@@ -71,7 +71,7 @@ export class EarthView {
       || (() => new EclipseRig({ earthRadius: EARTH_VIEW_DEFAULTS.earthRadius }));
     this._auroraFactory = auroraFactory
       || (() => new AuroraEffect({
-        tier: selectAuroraTier({ isMobile, isLowEnd }),
+        tier: selectAuroraTier({ isLowEnd }),
         earthRadius: EARTH_VIEW_DEFAULTS.earthRadius,
         sunDirection: SUN_DIRECTION,
       }));
@@ -206,6 +206,7 @@ export class EarthView {
       earthRadius: EARTH_VIEW_DEFAULTS.earthRadius,
       maxInstances: FLIGHT_DEFAULTS.maxInstances,
       altitudeScale: FLIGHT_DEFAULTS.altitudeScale,
+      markerScale: FLIGHT_DEFAULTS.markerScale,
     });
     this.aircraftLayer.add(this._aircraftLayer.object3d);
     this._flightService = this._flightServiceFactory();
