@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 
+// How far a finger may travel between touchstart and touchend and still count as
+// a tap (REQ-MOB-102). Deliberately wider than the mouse path's 5px: a small
+// finger wobbles on contact far more than a mouse does, and 8px is still an order
+// of magnitude below any intentional orbit drag.
+export const TOUCH_TAP_MAX_DRAG_PX = 8;
+
 /**
  * InteractionManager handles raycasting, hover effects, and click/touch events
  * for selecting celestial bodies in the scene.
@@ -40,17 +46,25 @@ export class InteractionManager {
     // deselect that snaps the camera back to the default Sun-facing view.
     this._pointerDownPos = null;
 
+    // Touch mirrors that guard (REQ-MOB-101..104): where the finger went down, or
+    // null once the gesture is disqualified (second finger, cancel, tap consumed).
+    this._touchStartPos = null;
+
     // Bind event handlers
     this._onMouseMove = this._onMouseMove.bind(this);
     this._onPointerDown = this._onPointerDown.bind(this);
     this._onClick = this._onClick.bind(this);
     this._onTouchStart = this._onTouchStart.bind(this);
+    this._onTouchEnd = this._onTouchEnd.bind(this);
+    this._onTouchCancel = this._onTouchCancel.bind(this);
 
     const canvas = this.renderer.domElement;
     canvas.addEventListener('mousemove', this._onMouseMove);
     canvas.addEventListener('pointerdown', this._onPointerDown);
     canvas.addEventListener('click', this._onClick);
     canvas.addEventListener('touchstart', this._onTouchStart, { passive: false });
+    canvas.addEventListener('touchend', this._onTouchEnd);
+    canvas.addEventListener('touchcancel', this._onTouchCancel);
   }
 
   /**
@@ -292,15 +306,47 @@ export class InteractionManager {
   }
 
   /**
-   * Handle touch events for mobile planet selection.
+   * Record where a single finger went down. Selection deliberately does NOT happen
+   * here (REQ-MOB-101) — deciding on touchstart made every orbit drag that began
+   * on a body select and fly to it.
    * @param {TouchEvent} event
    */
   _onTouchStart(event) {
+    // A second finger (pinch/two-finger orbit) disqualifies the whole gesture,
+    // including the tap the first finger had already started.
+    if (event.touches.length !== 1) {
+      this._touchStartPos = null;
+      return;
+    }
     if (!this.enabled) return;
     if (event.target !== this.renderer.domElement) return;
-    if (event.touches.length !== 1) return;
 
     const touch = event.touches[0];
+    this._touchStartPos = { x: touch.clientX, y: touch.clientY };
+  }
+
+  /**
+   * Select (or deselect) on finger-lift, when the gesture was a tap rather than an
+   * orbit drag — the touch counterpart of _onClick's drag guard.
+   * @param {TouchEvent} event
+   */
+  _onTouchEnd(event) {
+    const start = this._touchStartPos;
+    this._touchStartPos = null;
+
+    if (!this.enabled) return;
+    if (!start) return; // gesture was disqualified, or never started on the canvas
+    if (event.touches.length > 0) return; // other fingers still down: not a tap
+
+    const touch = event.changedTouches?.[0];
+    if (!touch) return;
+
+    // Displacement is measured start->end, not along the path, so a finger that
+    // wanders off a body and comes back still counts as a tap (acceptance.md §3).
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.hypot(dx, dy) > TOUCH_TAP_MAX_DRAG_PX) return;
+
     this._normalizeCoords(touch.clientX, touch.clientY);
     const key = this._raycastPlanet();
 
@@ -309,7 +355,22 @@ export class InteractionManager {
       if (this.onSelect) {
         this.onSelect(key);
       }
+    } else if (this.selectedPlanet) {
+      // Empty-space tap clears the selection, matching the mouse path — without
+      // this the touch path stranded kids inside a focused body.
+      this.selectedPlanet = null;
+      if (this.onDeselect) {
+        this.onDeselect();
+      }
     }
+  }
+
+  /**
+   * Drop the pending tap when the system takes the gesture away (notification,
+   * edge swipe, orientation change) so the next touch starts clean.
+   */
+  _onTouchCancel() {
+    this._touchStartPos = null;
   }
 
   /**
@@ -321,5 +382,7 @@ export class InteractionManager {
     canvas.removeEventListener('pointerdown', this._onPointerDown);
     canvas.removeEventListener('click', this._onClick);
     canvas.removeEventListener('touchstart', this._onTouchStart);
+    canvas.removeEventListener('touchend', this._onTouchEnd);
+    canvas.removeEventListener('touchcancel', this._onTouchCancel);
   }
 }

@@ -104,6 +104,128 @@ describe('InteractionManager touch selection (SPEC-MOBILE-001)', () => {
     expect(selected).toEqual([]);
     expect(interaction.selectedPlanet).toBeNull();
   });
+
+  // AC-MOB-102: the threshold is a boundary, so both sides of it are pinned.
+  it('selects on lift when the finger stayed within the tap threshold (8px)', () => {
+    const { interaction, start, end } = touchSetup();
+    interaction._raycastPlanet = () => 'mars';
+    const selected = [];
+    interaction.onSelect = (key) => { selected.push(key); };
+
+    interaction._onTouchStart(start([100, 100]));
+    interaction._onTouchEnd(end(108, 100)); // exactly TOUCH_TAP_MAX_DRAG_PX
+
+    expect(selected).toEqual(['mars']);
+    expect(interaction.selectedPlanet).toBe('mars');
+  });
+
+  it('does not select when the finger travelled one pixel past the threshold (9px)', () => {
+    const { interaction, start, end } = touchSetup();
+    interaction._raycastPlanet = () => 'mars';
+    const selected = [];
+    interaction.onSelect = (key) => { selected.push(key); };
+
+    interaction._onTouchStart(start([100, 100]));
+    interaction._onTouchEnd(end(109, 100));
+
+    expect(selected).toEqual([]);
+    expect(interaction.selectedPlanet).toBeNull();
+  });
+
+  // AC-MOB-104: mouse parity — an empty tap clears the selection instead of
+  // stranding a child inside a focused body with no way back out.
+  it('deselects when a qualifying tap misses every body', () => {
+    const { interaction, start, end } = touchSetup();
+    interaction._raycastPlanet = () => null;
+    let deselected = false;
+    interaction.onDeselect = () => { deselected = true; };
+    interaction.selectedPlanet = 'earth';
+
+    interaction._onTouchStart(start([100, 100]));
+    interaction._onTouchEnd(end(102, 101));
+
+    expect(deselected).toBe(true);
+    expect(interaction.selectedPlanet).toBeNull();
+  });
+
+  it('does not deselect when a drag ends on empty space', () => {
+    const { interaction, start, end } = touchSetup();
+    interaction._raycastPlanet = () => null;
+    let deselected = false;
+    interaction.onDeselect = () => { deselected = true; };
+    interaction.selectedPlanet = 'earth';
+
+    interaction._onTouchStart(start([100, 100]));
+    interaction._onTouchEnd(end(160, 100));
+
+    expect(deselected).toBe(false);
+    expect(interaction.selectedPlanet).toBe('earth');
+  });
+
+  // AC-MOB-103: a second finger anywhere in the gesture disqualifies it, even
+  // though the first finger's touchstart looked like the start of a tap.
+  it('never selects when a second finger joins the gesture', () => {
+    const { interaction, start, end } = touchSetup();
+    interaction._raycastPlanet = () => 'mars';
+    const selected = [];
+    interaction.onSelect = (key) => { selected.push(key); };
+
+    interaction._onTouchStart(start([100, 100]));
+    interaction._onTouchStart(start([100, 100], [200, 200])); // pinch begins
+    interaction._onTouchEnd(end(200, 200, [[100, 100]])); // one finger lifts
+    interaction._onTouchEnd(end(100, 100)); // the other lifts, back at its origin
+
+    expect(selected).toEqual([]);
+    expect(interaction.selectedPlanet).toBeNull();
+  });
+
+  it('clears the pending tap on touchcancel and starts the next touch clean', () => {
+    const { interaction, start, end } = touchSetup();
+    interaction._raycastPlanet = () => 'mars';
+    const selected = [];
+    interaction.onSelect = (key) => { selected.push(key); };
+
+    interaction._onTouchStart(start([100, 100]));
+    interaction._onTouchCancel();
+    interaction._onTouchEnd(end(100, 100));
+    expect(selected).toEqual([]);
+
+    interaction._onTouchStart(start([300, 300]));
+    interaction._onTouchEnd(end(300, 300));
+    expect(selected).toEqual(['mars']);
+  });
+
+  it('ignores touches while picking is disabled (the Earth view owns the canvas)', () => {
+    const { interaction, start, end } = touchSetup();
+    interaction._raycastPlanet = () => 'mars';
+    const selected = [];
+    interaction.onSelect = (key) => { selected.push(key); };
+    interaction.enabled = false;
+
+    interaction._onTouchStart(start([100, 100]));
+    interaction._onTouchEnd(end(100, 100));
+
+    expect(selected).toEqual([]);
+  });
+
+  it('registers and disposes the touchend/touchcancel listeners symmetrically', () => {
+    const added = [];
+    const removed = [];
+    const factory = new PlanetFactory(new THREE.Scene(), stubSceneManager());
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100000);
+    const renderer = {
+      domElement: {
+        addEventListener: (type) => added.push(type),
+        removeEventListener: (type) => removed.push(type),
+      },
+    };
+
+    new InteractionManager(camera, factory.scene, renderer, factory).dispose();
+
+    expect(added).toContain('touchend');
+    expect(added).toContain('touchcancel');
+    expect(removed.sort()).toEqual(added.sort());
+  });
 });
 
 describe('InteractionManager tooltip is Korean-first (REQ-KIDS-101, AC-KIDS-101)', () => {
