@@ -197,8 +197,16 @@ export const MISSION_CATALOG = [
   },
   {
     id: 'compare-earth',
-    promptKo: '지구가 얼마나 큰지 비교해 보세요!',
-    predicate: { type: 'action', action: 'size-compare', body: 'earth' },
+    // Earth's own lineup is unreachable AND redundant: selecting Earth enters the
+    // Earth view instead of the info panel (SolarSystemView._select), so its 크기
+    // 비교 button never renders — and Earth's only reference body is the Sun, so
+    // that lineup would be the exact row compare-sun already shows. Every moon's
+    // lineup, by contrast, measures Earth: "달 3개 반을 나란히 놓으면 지구 폭이에요!".
+    // So the mission keeps its subject (how big Earth is) and moves to the body a
+    // child can actually open, and the prompt names that body — a five-year-old
+    // cannot infer "tap the Moon" from "compare Earth".
+    promptKo: '달을 눌러 지구와 크기를 비교해 보세요!',
+    predicate: { type: 'action', action: 'size-compare', body: 'moon' },
     sticker: 'earth-size',
     emoji: '📏',
   },
