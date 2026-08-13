@@ -146,6 +146,16 @@ export const STR = {
   playCompareCount: (small, countPhrase, big) => `${small} ${countPhrase} 나란히 놓으면 ${big} 폭이에요!`,
   playCompareSame: (big, small) => `${big} 크기는 ${small} 크기와 거의 같아요!`,
 
+  // Rocket trip. The overlay draws a DISTANCE, so the distance line is the only
+  // number it states; how long the trip takes is quoted from travelFacts, which
+  // owns the real mission durations. "가장 가까울 때" is not decoration: the gap
+  // between two orbits swings by hundreds of millions of km, and the near number
+  // is the honest one to say to a child who is about to watch a rocket cross it.
+  playTripTitle: '로켓 여행',
+  playTripDistanceNear: (distance) => `지구에서 가장 가까울 때 약 ${distance}`,
+  playTripDistanceFixed: (distance) => `지구에서 약 ${distance}`,
+  playTripKm: '킬로미터',
+
   // Sticker book + mission HUD
   playStickerBookOpen: '스티커 책 열기',
   playStickerBookTitle: '내 스티커',

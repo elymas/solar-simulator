@@ -254,9 +254,12 @@ describe('SolarSystemView play wiring (SPEC-PLAY-001 M3/M4)', () => {
       expect(rocket.cancel).toHaveBeenCalledTimes(1);
     });
 
-    it('is driven by the frame loop', () => {
+    it('is NOT driven by the frame loop — the trip animates inside its overlay', () => {
       view.update(0.016);
-      expect(rocket.update).toHaveBeenCalledTimes(1);
+      // The in-scene journey rode this loop. The overlay owns its own rAF, so a
+      // view frame must not reach into it; if this ever calls back, the trip has
+      // crept back into the shared scene the phone panel covers.
+      expect(rocket.update).not.toHaveBeenCalled();
     });
 
     it('is disposed with the view', () => {

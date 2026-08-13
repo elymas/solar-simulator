@@ -251,7 +251,10 @@ describe('single WebGL context static guard (REQ-385)', () => {
   // builds its own renderer and disposes it on close is a different thing, and the
   // guard now says which files are allowed to be that — by name, so a new one has
   // to be argued for here rather than appearing quietly.
-  const OVERLAY_RENDERERS = ['src/play/SizeCompareScene.js'];
+  // RocketTripScene joins the list for the same reason SizeCompareScene is on it,
+  // and because of what it replaced: the rocket journey used to draw into the
+  // shared scene, which is exactly why a phone's full-screen info panel hid it.
+  const OVERLAY_RENDERERS = ['src/play/SizeCompareScene.js', 'src/play/RocketTripScene.js'];
 
   it('constructs exactly one WebGLRenderer among the view/render-core files', () => {
     const count = srcFiles

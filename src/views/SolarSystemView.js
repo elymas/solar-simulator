@@ -13,7 +13,7 @@ import { STR } from '../ui/strings.js';
 import { init as initTts, speak, speakBody, cancel as cancelSpeech } from '../audio/tts.js';
 import { init as initSfx, unlockAudio, playFanfare } from '../audio/sfx.js';
 import { Celebration, SPARKLE, TWINKLE } from '../effects/Celebration.js';
-import { RocketJourney, controlPoint } from '../play/RocketJourney.js';
+import { RocketTrip } from '../play/RocketTrip.js';
 import { SizeCompare } from '../play/SizeCompare.js';
 import { StickerBook } from '../play/StickerBook.js';
 import { createMissionEngine } from '../play/missions.js';
@@ -22,8 +22,6 @@ import { emitPlayEvent, onPlayEvent } from '../play/playEvents.js';
 
 const RAD_TO_DEG = 180 / Math.PI;
 
-/** Every rocket leaves from here (RocketJourney's own LAUNCH_SITE, restated). */
-const LAUNCH_SITE = 'earth';
 
 /**
  * SolarSystemView wraps the original solar-system app behind the frozen View
@@ -61,7 +59,7 @@ export class SolarSystemView {
     createBelts = () => createSolarBelts(),
     createEventBanner = () => new EventBanner(),
     createCelebration = (opts) => new Celebration(opts),
-    createRocket = (opts) => new RocketJourney(opts),
+    createRocket = (opts) => new RocketTrip(opts),
     getDate = () => new Date(),
     win = typeof window !== 'undefined' ? window : undefined,
   } = {}) {
@@ -232,12 +230,10 @@ export class SolarSystemView {
     // screen to sparkle at. Letting the burst own it (as the arrival celebration
     // does) would mean a mission completed from the Earth view made no sound.
     this._praise = new Celebration({ scene, reducedMotion, sounds: {} });
-    this._rocket = this._createRocket({
-      scene,
-      getBody: (key) => this._getBody(key),
-      celebration: this._celebration,
-      reducedMotion,
-    });
+    // The trip is an overlay now, so it needs no scene, no body lookup and no
+    // celebration pool: arrival sparkle still fires, through the camera-arrival
+    // subscription below, when _frameAfterArrival settles on the destination.
+    this._rocket = this._createRocket({ reducedMotion });
     this.sceneManager.onFocusArrive = () => this._onFocusArrive();
 
     this._sizeCompare = new SizeCompare({ reducedMotion });
@@ -352,21 +348,12 @@ export class SolarSystemView {
    * @param {string} key
    * @returns {boolean}
    */
-  // @MX:NOTE: [AUTO] The camera move is the feature (SPEC-PLAY-201). Selecting a
-  // body focuses the camera ON that body, so a rocket launched from Earth
-  // afterwards crosses almost entirely off-screen — a real-device pass reported
-  // the button as doing nothing at all. Framing the whole path is what turns the
-  // flight into the "how far is it" answer it was written to be.
+  // @MX:NOTE: [AUTO] No camera move here any more. The journey used to be drawn
+  // into this scene and framed with this camera, which a phone's full-screen info
+  // panel hid completely — the button read as doing nothing. The trip now opens
+  // its own overlay, so the view's only job is to hand the destination over.
   launchRocket(key) {
-    if (!this._rocket || !this._rocket.launch(key)) return false;
-    const from = this._getBody(LAUNCH_SITE);
-    const to = this._getBody(key);
-    // Reduced motion skips the flight entirely (RocketJourney handles the
-    // arrival at once), so there is no path to frame — leave the camera alone.
-    if (from && to && this._rocket.isFlying()) {
-      this.sceneManager.frameJourney(from.position, to.position, controlPoint(from.position, to.position));
-    }
-    return true;
+    return Boolean(this._rocket && this._rocket.launch(key));
   }
 
   /**
@@ -592,11 +579,10 @@ export class SolarSystemView {
 
     this.sceneManager.stepCamera(delta);
     this.sceneManager.controls.update();
-    // Play layer rides the app's one rAF: the rocket reads the wall clock itself
-    // (its flight must not follow the simulation speed), the pool returns to rest.
+    // Play layer rides the app's one rAF: the pools return to rest. The rocket
+    // trip is not here — it animates inside its own overlay, on its own clock.
     if (this._celebration) this._celebration.update(delta);
     if (this._praise) this._praise.update(delta);
-    if (this._rocket) this._rocket.update();
     if (this._ui && this._ui.timeControls) this._ui.timeControls.updateDate(this._simTime);
   }
 
