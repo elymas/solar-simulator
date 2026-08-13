@@ -25,7 +25,8 @@ An interactive 3D simulation of the solar system built with Three.js, featuring 
 - **Touch-Optimized Selection** — Tap-to-select behind a drag guard, so starting an orbit drag on a body never triggers an accidental selection
 - **Mobile Planet Strip** — A bottom, scrollable strip of tappable body icons is the primary selector on screens ≤768px, synced with the 3D scene and the sidebar
 - **Size Comparison** — A "크기 비교" lineup that answers "how big IS it?" by counting: the body is drawn one lane wide and the reference body as that many little discs beside it. Ratios come from real diameters, and a comparison that cannot be stated honestly is not shown at all
-- **Rocket Journey** — Launch a rocket from Earth to any planet, dwarf planet, or the Moon along a curved schematic path; arrival plays a celebration and speaks a real approximate travel time in Korean
+- **Rocket Trip** — Launch a rocket from Earth to any planet, dwarf planet, or the Moon. It opens as its own overlay — two worlds, a dashed road, a rocket driving it — so a phone's full-screen info panel cannot hide it, and speaks both a real approximate travel time and the distance in Korean
+- **Live Aircraft** — The Earth view can overlay real aircraft positions worldwide, published as a snapshot by a scheduled GitHub Action (OpenSky Network data) because no keyless ADS-B feed is callable from a browser. The HUD dates the data from the snapshot itself and never claims to be live
 - **Celebrations & Sound** — Sparkle bursts and chimes on arrival, a distinct twinkle for stars, all from a pooled particle effect and a small Web Audio module that shares the one "소리" toggle with the speech narration
 - **Daily Missions & Stickers** — Three Korean play prompts per real calendar day; completing one plays praise and awards a sticker that persists in the browser and fills in a sticker book
 - **Keyboard Shortcuts** — Space, R, and Escape for quick control
@@ -122,9 +123,15 @@ solar-simulator/
 │   │   ├── stickers.js        # Sticker inventory persisted to localStorage
 │   │   ├── StickerBook.js     # Sticker grid + today's mission list overlay
 │   │   ├── SizeCompare.js     # "크기 비교" count lineup and its ratio math
-│   │   ├── RocketJourney.js   # Schematic Earth-to-body flight (not a transfer orbit)
+│   │   ├── RocketTrip.js      # "로켓 발사" overlay: distance, spoken fact, replay
+│   │   ├── RocketTripScene.js # Its 3D diagram (own renderer, disposed on close)
 │   │   ├── travelFacts.js     # Korean travel-time facts per destination
 │   │   └── playEvents.js      # Event seam the mission engine subscribes to
+│   ├── data/
+│   │   └── FlightDataService.js  # Aircraft snapshot polling, state machine, dead reckoning
+│   ├── earth/
+│   │   ├── EarthView.js       # Globe view: aircraft, ISS, eclipses, aurora, meteors
+│   │   └── EarthHUD.js        # Its Korean control panel and status lines
 │   ├── audio/
 │   │   ├── tts.js             # Korean speech narration wrapper
 │   │   └── sfx.js             # Synthesized chime / twinkle / fanfare (shares the mute toggle)
@@ -136,6 +143,10 @@ solar-simulator/
 │   └── utils/
 │       ├── constants.js       # Camera defaults, bloom settings, texture paths
 │       └── quality.js         # Boot-time render quality tier from device signals
+├── .github/workflows/
+│   └── flights.yml        # Scheduled worldwide aircraft snapshot -> flight-data branch
+├── scripts/
+│   └── build-tts.mjs      # Bakes the Korean narration to public/tts (npm run tts)
 ├── index.html
 ├── vite.config.js
 └── package.json

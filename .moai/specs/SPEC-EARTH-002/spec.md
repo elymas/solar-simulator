@@ -177,6 +177,8 @@ Three.js r175 유지. 신규: 로컬 일식 리그(DirectionalLight + `PCFSoftSh
 - **라이브 우주기상 API 없음**: 오로라는 장식용이며 실시간 태양활동/지자기 데이터에 묶지 않는다(F5와 별개의 두 번째 외부 의존 회피, REQ-620/A-405).
 - **유료/키 필요 항공기 API 없음**: 클라이언트에 시크릿을 임베드하지 않는다. OpenSky(OAuth2)는 반려. 키리스 공개 API만(REQ-460).
 - **서버 프록시 없음**: CORS 회피용 백엔드 프록시를 두지 않는다(정적/백엔드리스 아키텍처 유지). CORS 미해결 시 F5 드롭(REQ-450).
+
+> **[SUPERSEDED 2026-08-13]** 위 두 항목의 전제가 실측으로 무너졌다. `api.airplanes.live` 키리스 엔드포인트는 403으로 폐지되었고, 남은 키리스 후보(adsb.fi / adsb.lol)는 **어느 것도 CORS 헤더를 보내지 않아** 브라우저 직접 호출이 불가능하다. Cloudflare Worker 프록시도 해법이 아니다 — adsb.fi와 OpenSky 모두 Cloudflare 뒤에 있어 Worker 서브리퀘스트가 403(WAF) / 522로 차단된다(실측). 현재 구현은 **프록시가 아니라 스케줄 스냅샷**이다: GitHub Actions 러너가 OpenSky 전역 질의를 받아 트림한 뒤 orphan `flight-data` 브랜치로 force-push하고, raw.githubusercontent.com이 `access-control-allow-origin: *`로 서빙한다. 시크릿은 여전히 클라이언트에 없고(REQ-460의 의도는 유지), 백엔드도 없다(서버 프로세스 0). 대가는 신선도로, 스냅샷은 수십 분 지난 것일 수 있으며 HUD가 그 나이를 그대로 표시한다. 세부: `.github/workflows/flights.yml`, CHANGELOG [Unreleased].
 - **조작된 일식 없음**: 진짜 기하학적 정렬에 대응하지 않는 일식을 렌더하지 않는다(REQ-550).
 - **기하학적 정밀 umbra 수학 없음(태양계 뷰)**: 비 스케일 좌표계에서 물리 umbra 원뿔을 계산하지 않는다. F6는 EarthView 로컬 리그로 예시 렌더.
 - **볼류메트릭 레이마칭 오로라 없음**: 저사양/모바일 GPU를 침몰시키는 per-pixel 프래그먼트 레이마칭 대신 커튼 지오메트리 사용.
