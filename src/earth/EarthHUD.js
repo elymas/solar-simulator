@@ -53,6 +53,16 @@ export class EarthHUD {
         color: #e0e0e0;
         min-width: 240px;
         max-width: 320px;
+        /* The panel is taller than a phone screen once every section is in it,
+           and it is anchored from the TOP — so without a ceiling the last child
+           (the back button) simply falls off the bottom of the viewport with no
+           way to reach it. 80px = the 64px top offset + 16px breathing room.
+           dvh repeats the same rule for mobile browsers whose URL bar steals
+           height from vh; browsers without dvh keep the vh line. */
+        max-height: calc(100vh - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100dvh - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+        overflow-y: auto;
+        overscroll-behavior: contain;
         transition: opacity 0.3s, transform 0.3s;
       }
       .earth-hud.collapsed {
@@ -104,7 +114,14 @@ export class EarthHUD {
       .earth-hud-back {
         margin-top: 14px;
         width: 100%;
-        background: rgba(22, 199, 255, 0.15);
+        /* Sticky, so the way out stays on screen while the panel scrolls: a
+           five-year-old should never have to scroll a settings list to find
+           "back". Opaque #19344d is the old rgba(22,199,255,0.15) already
+           composited over the panel — translucent here would let the scrolling
+           sections show through the button. */
+        position: sticky;
+        bottom: 0;
+        background: #19344d;
         border: 1px solid rgba(22, 199, 255, 0.3);
         color: #16c7ff;
         border-radius: 8px;
@@ -114,7 +131,7 @@ export class EarthHUD {
         cursor: pointer;
         transition: background 0.2s;
       }
-      .earth-hud-back:hover { background: rgba(22, 199, 255, 0.28); }
+      .earth-hud-back:hover { background: #1b4a69; }
       .earth-hud-section {
         margin-top: 14px;
         padding-top: 12px;
