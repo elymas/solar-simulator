@@ -4,9 +4,15 @@ description: >
   Canonical Claude Code authoring kit covering Skills, sub-agents, plugins, slash commands,
   hooks, memory, settings, sandboxing, headless mode, and advanced agent patterns.
   Use when creating Claude Code extensions or configuring Claude Code features.
+
+when_to_use: >
+  Use for Claude Code authoring and extension: Skills, sub-agents,
+  plugins, slash commands, hooks, memory, settings, sandboxing, headless
+  mode, orchestration, and delegation/agent-pattern authoring.
+
 license: Apache-2.0
 compatibility: Designed for Claude Code
-allowed-tools: Read, Write, Edit, Grep, Glob, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
+allowed-tools: Read, Write, Edit, Grep, Glob
 user-invocable: false
 metadata:
   version: "5.0.0"
@@ -22,18 +28,6 @@ progressive_disclosure:
   enabled: true
   level1_tokens: 100
   level2_tokens: 5000
-
-# MoAI Extension: Triggers
-triggers:
-  keywords: ["skill", "agent", "plugin", "slash command", "hook", "sandbox", "headless", "memory", "settings", "claude code", "sub-agent", "agent pattern", "orchestration", "delegation"]
-  agents:
-    - "builder-agent"
-    - "builder-skill"
-    - "builder-plugin"
-  phases:
-    - "plan"
-    - "run"
-    - "sync"
 ---
 
 # Claude Code Authoring Kit
@@ -69,7 +63,7 @@ Advanced Features:
 
 Skills: Model-invoked extensions in ~/.claude/skills/ (personal) or .claude/skills/ (project). Three-level progressive disclosure. Max 500 lines.
 
-Sub-agents: Specialized assistants via Agent(subagent_type="..."). Own 200K context. Cannot spawn sub-agents. Use /agents command.
+Sub-agents: Specialized assistants via Agent(subagent_type="..."). Context window follows the session model (Sonnet 5 = 1M native on the Anthropic API; Haiku / gateway / older models = 200K — CC 2.1.197). Nesting: a subagent can spawn nested subagents only when its `tools` list includes `Agent` (CC 2.1.172); MoAI retained agents omit `Agent`, so they do not nest. To create or manage subagents, ask Claude or edit `.claude/agents/` directly — the `/agents` wizard was removed in CC 2.1.198 (the official sub-agents doc still documented a `/agents` tabbed interface as of 2026-07-03; doc lag — verify in a live 2.1.198 session).
 
 Plugins: Reusable bundles in .claude-plugin/plugin.json. Include commands, agents, skills, hooks, MCP servers.
 
@@ -111,6 +105,8 @@ Create a SKILL.md file with YAML frontmatter containing name in kebab-case and d
 
 ### Using /agents Command
 
+> **CC 2.1.198 CHANGELOG delta**: The `/agents` wizard was **removed** — per the CHANGELOG, "ask Claude to create or manage subagents, or edit `.claude/agents/` directly." The official sub-agents doc still documented a `/agents` tabbed interface as of 2026-07-03 (doc lag, or the removal covers only the creation wizard); verify in a live 2.1.198 session before relying on the flow below.
+
 Type /agents, select Create New Agent, define purpose and tools, press e to edit prompt.
 
 ### File Format
@@ -119,10 +115,10 @@ Create a markdown file with YAML frontmatter containing name, description explai
 
 ### Critical Rules
 
-- Cannot spawn other sub-agents
+- Cannot spawn other sub-agents by default (CC 2.1.172: a subagent CAN spawn nested subagents when its `tools` list includes `Agent`; MoAI retained agents omit `Agent`, so they do not nest)
 - Cannot use AskUserQuestion effectively
 - All user interaction before delegation
-- Each gets own 200K context
+- Context window follows the session model (Sonnet 5 = 1M native on the Anthropic API; Haiku / gateway / older models = 200K — CC 2.1.197)
 
 ## Plugin Creation
 
@@ -211,11 +207,11 @@ Phase 4 Commit: Descriptive messages, logical groupings, clean history
 
 ### Essential Sub-agents
 
-- spec-builder: EARS specifications
-- manager-ddd: DDD execution
-- expert-security: Security analysis
-- expert-backend: API development
-- expert-frontend: UI implementation
+- manager-spec: EARS specifications
+- manager-develop: DDD execution
+- Agent(general-purpose) with security instructions: Security analysis
+- Agent(general-purpose) with backend instructions: API development
+- Agent(general-purpose) with frontend instructions: UI implementation
 
 ## Security Features
 

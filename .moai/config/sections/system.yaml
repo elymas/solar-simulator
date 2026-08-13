@@ -26,10 +26,16 @@ github:
     auto_delete_branches: true
     enable_trust_5: true
     spec_git_workflow: main_direct
+hook:
+    observability_events: []
+    opt_in:
+        enabled: false
+    strict_mode: false
 moai:
-    template_version: 2.14.0
+    model_policy: high
+    template_version: 3.0.1
     update_check_frequency: daily
-    version: 2.14.0
+    version: 3.0.1
     version_check:
         cache_ttl_hours: 24
         enabled: true

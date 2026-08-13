@@ -21,6 +21,7 @@ git_strategy:
             commit_msg: warn
             pre_commit: enforce
             pre_push: warn
+        merge_method: squash
         push_to_remote: false
         workflow: github-flow
     mode: personal
@@ -44,6 +45,7 @@ git_strategy:
             pre_commit: enforce
             pre_push: warn
         main_branch: main
+        merge_method: squash
         push_to_remote: true
         workflow: github-flow
     provider: github
@@ -69,6 +71,7 @@ git_strategy:
             pre_commit: enforce
             pre_push: warn
         main_branch: main
+        merge_method: squash
         push_to_remote: true
         required_reviews: 1
         workflow: github-flow

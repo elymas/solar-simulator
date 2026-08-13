@@ -76,10 +76,12 @@ describe('earthMeteorNotice (SPEC-EARTH-003 REQ-E3-104)', () => {
   });
 });
 
-describe('Seoul flight reference point copy (SPEC-EARTH-003 REQ-E3-302)', () => {
-  it('names the Seoul sky in the loading/live/offline lines', () => {
-    expect(STR.earthFlightLoading).toContain('서울');
-    expect(STR.earthFlightLive(1, 1)).toContain('서울');
+describe('worldwide flight copy', () => {
+  it('promises the planet, not one city, now that the snapshot is global', () => {
+    for (const line of [STR.earthFlightLoading, STR.earthFlightLive(1, 1), STR.earthFlightLiveEmpty, STR.earthFlightOffline]) {
+      expect(line).not.toContain('서울');
+    }
+    expect(STR.earthFlightLive(1, 1)).toContain('지구');
 
     // The feed is a scheduled snapshot, not a live stream — the copy must not
     // claim otherwise, and an age past a minute reads in minutes.
@@ -87,11 +89,9 @@ describe('Seoul flight reference point copy (SPEC-EARTH-003 REQ-E3-302)', () => 
     expect(STR.earthFlightLiveEmpty).not.toContain('실시간');
     expect(STR.earthFlightLive(3, 12)).toContain('12초 전');
     expect(STR.earthFlightLive(3, 2070)).toContain('35분 전');
-    expect(STR.earthFlightLiveEmpty).toContain('서울');
-    expect(STR.earthFlightOffline).toContain('서울');
   });
 
-  it('keeps the empty-sky and error lines distinct after the Seoul reword (REQ-480/490)', () => {
+  it('keeps the empty-sky and error lines distinct (REQ-480/490)', () => {
     expect(STR.earthFlightLiveEmpty).not.toBe(STR.earthFlightOffline);
   });
 });

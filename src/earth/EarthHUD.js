@@ -197,7 +197,7 @@ export class EarthHUD {
       <div class="earth-hud-section">
         <button class="earth-hud-toggle" type="button" data-toggle="aircraft">${STR.earthAircraftOff}</button>
         <div class="earth-hud-flight-status" data-field="flight-status" role="status" aria-live="polite" data-state="OFF">${STR.earthFlightOff}</div>
-        <a class="earth-hud-credit" data-field="flight-credit" href="https://adsb.fi/" target="_blank" rel="noopener noreferrer">${STR.earthFlightCredit}</a>
+        <a class="earth-hud-credit" data-field="flight-credit" href="https://opensky-network.org/" target="_blank" rel="noopener noreferrer">${STR.earthFlightCredit}</a>
       </div>
       <div class="earth-hud-section">
         <select class="earth-hud-eclipse-select" data-field="eclipse-preset" aria-label="${STR.earthEclipseSelectLabel}">

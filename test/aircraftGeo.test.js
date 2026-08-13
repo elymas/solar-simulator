@@ -63,11 +63,14 @@ describe('geoToLocal agrees with the Earth sphere it draws onto (REQ-420)', () =
   });
 
   it('puts Seoul in the eastern hemisphere, not its mirror image in the Pacific', () => {
-    // The regression this file exists for: FLIGHT_DEFAULTS queries 126.9°E, and
-    // a flipped longitude drew that traffic at 126.9°W — off Baja California,
-    // which is where the first real-device screenshot found it.
-    const seoul = geoToLocal(FLIGHT_DEFAULTS.lat, FLIGHT_DEFAULTS.lon, R, 0);
-    const mirror = geoToLocal(FLIGHT_DEFAULTS.lat, -FLIGHT_DEFAULTS.lon, R, 0);
+    // The regression this file exists for: a flipped longitude drew Seoul's
+    // traffic at 126.9°W — off Baja California, which is where the first
+    // real-device screenshot found it. The snapshot is worldwide now, so the
+    // coordinates are a sample point rather than the query centre; the mirror
+    // bug they catch is the same one.
+    const SEOUL = { lat: 37.5, lon: 126.9 };
+    const seoul = geoToLocal(SEOUL.lat, SEOUL.lon, R, 0);
+    const mirror = geoToLocal(SEOUL.lat, -SEOUL.lon, R, 0);
     expect(seoul.z).not.toBeCloseTo(mirror.z, 1);
 
     // Nearest sphere vertex must carry an EASTERN longitude in its uv.
@@ -80,18 +83,20 @@ describe('geoToLocal agrees with the Earth sphere it draws onto (REQ-420)', () =
     // Eastern hemisphere is the claim under test; the exact value can only land
     // within one longitude segment (360/96 = 3.75 deg) of the query point.
     expect(lonOf(best)).toBeGreaterThan(0);
-    expect(Math.abs(lonOf(best) - FLIGHT_DEFAULTS.lon)).toBeLessThan(360 / 96);
+    expect(Math.abs(lonOf(best) - SEOUL.lon)).toBeLessThan(360 / 96);
   });
 });
 
 describe('FLIGHT_DEFAULTS.markerScale — aircraft read as aircraft, not as continents', () => {
-  it('keeps a marker small against the query radius it must resolve inside', () => {
-    // 250 nm ≈ 463 km ≈ 7.3 units at this earthRadius, and the whole point of a
-    // point query is that its traffic lands inside that circle. A marker whose
-    // wingspan fills the circle turns the entire result set into one blob — the
-    // second half of the real-device "aircraft all in one spot" report.
+  it('keeps a marker small against the airspace it must resolve inside', () => {
+    // A busy metro area's traffic sits inside roughly a 250 nm circle (~463 km,
+    // ~7.3 units at this earthRadius). A marker whose wingspan fills that circle
+    // turns a whole city's arrivals into one blob — the second half of the
+    // real-device "aircraft all in one spot" report. The snapshot went worldwide
+    // but the readability floor is unchanged, so the yardstick stays local.
+    const METRO_RADIUS_NM = 250;
     const WINGSPAN_UNITS = 6 * FLIGHT_DEFAULTS.markerScale;
-    const queryRadiusUnits = (FLIGHT_DEFAULTS.radiusNm * 1.852) / 6371 * EARTH_VIEW_DEFAULTS.earthRadius;
+    const queryRadiusUnits = (METRO_RADIUS_NM * 1.852) / 6371 * EARTH_VIEW_DEFAULTS.earthRadius;
     expect(WINGSPAN_UNITS).toBeLessThan(queryRadiusUnits / 4);
     expect(WINGSPAN_UNITS).toBeGreaterThan(0.2); // still visible to a child
   });

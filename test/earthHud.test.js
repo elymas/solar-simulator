@@ -116,10 +116,11 @@ describe('EarthHUD meteor-shower notice (SPEC-EARTH-003 REQ-E3-104)', () => {
   });
 });
 
-describe('FLIGHT_DEFAULTS Seoul reference point (SPEC-EARTH-003 REQ-E3-301)', () => {
-  it('points at Seoul/Incheon, not London', () => {
-    expect(FLIGHT_DEFAULTS.lat).toBe(37.5);
-    expect(FLIGHT_DEFAULTS.lon).toBe(126.9);
+describe('FLIGHT_DEFAULTS worldwide snapshot feed', () => {
+  it('carries no query centre — the snapshot covers the whole planet', () => {
+    expect(FLIGHT_DEFAULTS.lat).toBeUndefined();
+    expect(FLIGHT_DEFAULTS.lon).toBeUndefined();
+    expect(FLIGHT_DEFAULTS.radiusNm).toBeUndefined();
   });
 
   it('leaves every other tuning field byte-identical to the pre-Seoul baseline', () => {
@@ -129,7 +130,6 @@ describe('FLIGHT_DEFAULTS Seoul reference point (SPEC-EARTH-003 REQ-E3-301)', ()
     expect(FLIGHT_DEFAULTS.snapshotUrl).toMatch(
       /^https:\/\/raw\.githubusercontent\.com\/.+\/flight-data\/flights\.json$/
     );
-    expect(FLIGHT_DEFAULTS.radiusNm).toBe(250);
     expect(FLIGHT_DEFAULTS.pollIntervalMs).toBe(60000);
     expect(FLIGHT_DEFAULTS.backoffStartMs).toBe(30000);
     expect(FLIGHT_DEFAULTS.backoffMaxMs).toBe(300000);
@@ -138,8 +138,8 @@ describe('FLIGHT_DEFAULTS Seoul reference point (SPEC-EARTH-003 REQ-E3-301)', ()
   });
 });
 
-describe('EarthHUD flight status Seoul wording (SPEC-EARTH-003 REQ-E3-302)', () => {
-  it('names the Seoul sky in the LOADING/LIVE/LIVE-empty/OFFLINE lines', () => {
+describe('EarthHUD flight status worldwide wording', () => {
+  it('never names one city, now that the snapshot covers the planet', () => {
     const hud = new EarthHUD();
     const statusEl = hud.el.querySelector('[data-field="flight-status"]');
     const textFor = (state, info) => {
@@ -147,10 +147,11 @@ describe('EarthHUD flight status Seoul wording (SPEC-EARTH-003 REQ-E3-302)', () 
       return statusEl.textContent;
     };
 
-    expect(textFor('LOADING')).toContain('서울');
-    expect(textFor('LIVE', { count: 3, updatedAgoSec: 12 })).toContain('서울');
-    expect(textFor('LIVE', { count: 0 })).toContain('서울');
-    expect(textFor('OFFLINE')).toContain('서울');
+    expect(textFor('LOADING')).not.toContain('서울');
+    expect(textFor('LIVE', { count: 3, updatedAgoSec: 12 })).not.toContain('서울');
+    expect(textFor('LIVE', { count: 0 })).not.toContain('서울');
+    expect(textFor('OFFLINE')).not.toContain('서울');
+    expect(textFor('LIVE', { count: 3, updatedAgoSec: 12 })).toContain('지구');
   });
 
   it('still keeps the empty sky worded apart from the OFFLINE error (REQ-480/490)', () => {

@@ -112,9 +112,11 @@ export const SIM_EPOCH_MS = Date.parse(SIM_EPOCH_ISO);
 // Cloudflare Worker proxy) is a dead end because adsb.fi and OpenSky both sit
 // behind Cloudflare, which answers a Worker's subrequest with 403 or 522. The
 // previous provider, airplanes.live, separately retired its keyless endpoint
-// (403). So a scheduled GitHub Action fetches adsb.fi and force-pushes a trimmed
-// snapshot to the `flight-data` branch, which raw.githubusercontent.com serves
-// with `access-control-allow-origin: *`. See .github/workflows/flights.yml.
+// (403). So a scheduled GitHub Action fetches OpenSky's whole-planet query and
+// force-pushes a trimmed snapshot to the `flight-data` branch, which
+// raw.githubusercontent.com serves with `access-control-allow-origin: *`.
+// See .github/workflows/flights.yml. There is no query centre any more: the
+// snapshot covers the world, so the globe has aircraft wherever it is turned.
 //
 // The trade this buys: positions are several minutes old (GitHub cron is
 // best-effort), so the client renders the snapshot's own timestamp rather than
@@ -122,9 +124,6 @@ export const SIM_EPOCH_MS = Date.parse(SIM_EPOCH_ISO);
 export const FLIGHT_DEFAULTS = {
   snapshotUrl:
     'https://raw.githubusercontent.com/elymas/solar-simulator/flight-data/flights.json',
-  lat: 37.5, // Seoul/Incheon — the primary user's home sky; ICN/GMP corridor is among Asia's densest
-  lon: 126.9, // lat/lon/radiusNm are mirrored in flights.yml; change both together
-  radiusNm: 250,
   // raw.githubusercontent caches for 300 s and the producing cron runs every
   // 5 min, so polling faster than this only re-reads an identical file.
   pollIntervalMs: 60000,

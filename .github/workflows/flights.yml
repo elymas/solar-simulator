@@ -1,14 +1,18 @@
 name: Flight snapshot
 
-# Publishes a small aircraft snapshot for the Earth view.
+# Publishes a worldwide aircraft snapshot for the Earth view.
 #
 # Why a scheduled snapshot instead of the browser calling an ADS-B API directly:
-# every keyless community feed sends no CORS header, so a static Pages build
-# cannot fetch one. The obvious fix (a Cloudflare Worker proxy) turned out to be
-# a dead end too — adsb.fi and OpenSky both sit behind Cloudflare, and a Worker's
-# subrequest into another Cloudflare zone is answered 403 (WAF) or 522. A GitHub
-# runner has none of those problems, and raw.githubusercontent.com serves the
-# result with `access-control-allow-origin: *`.
+# every keyless feed sends no CORS header, so a static Pages build cannot fetch
+# one. The obvious fix (a Cloudflare Worker proxy) turned out to be a dead end
+# too — adsb.fi and OpenSky both sit behind Cloudflare, and a Worker's subrequest
+# into another Cloudflare zone is answered 403 (WAF) or 522. A GitHub runner has
+# none of those problems, and raw.githubusercontent.com serves the result with
+# `access-control-allow-origin: *`.
+#
+# Why OpenSky rather than adsb.fi, which this started on: the globe wants
+# aircraft everywhere, and adsb.fi's geo search is capped at a 250 nm radius —
+# one query cannot fill a planet. OpenSky answers the whole world in one call.
 #
 # Cost of this choice: the data is as old as the last successful run. GitHub cron
 # fires on a best-effort basis, so treat the freshness as "several minutes", not
@@ -31,35 +35,46 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch and trim the ADS-B snapshot
+      - name: Fetch and trim the worldwide snapshot
         run: |
           set -euo pipefail
-          curl -fsS --retry 3 --retry-delay 5 --max-time 30 \
+          # OpenSky's whole-planet query, not a 250 nm circle: adsb.fi caps a geo
+          # search at 250 nm, which cannot fill a globe. Anonymous tier, 4 credits
+          # per global query against 400/day — the cron fires far below that.
+          curl -fsS --retry 3 --retry-delay 5 --max-time 60 \
             -A "solar-simulator/0.1 (+https://github.com/${GITHUB_REPOSITORY})" \
-            "https://opendata.adsb.fi/api/v3/lat/37.5/lon/126.9/dist/250" \
+            "https://opensky-network.org/api/states/all" \
             -o raw.json
-          # Keep only the six fields the client reads. The full payload is ~40 KB
-          # for ~60 aircraft and every byte of it crosses a phone's mobile data.
+          # OpenSky answers with ~9,200 positional arrays (~1.2 MB). Trim to the
+          # six fields the client reads, convert metres/(m/s) to the feet/knots the
+          # client's altitude scale and HUD already speak, and sample down: the
+          # renderer caps at 500 markers anyway, and every byte here crosses a
+          # phone's mobile data. Even sampling keeps the spread worldwide.
           node -e '
             const raw = require("./raw.json");
-            const src = Array.isArray(raw.ac) ? raw.ac : [];
-            const ac = src
-              .filter((a) => Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lon)))
-              .map((a) => ({
-                hex: String(a.hex ?? ""),
-                flight: String(a.flight ?? "").trim(),
-                lat: Number(a.lat),
-                lon: Number(a.lon),
-                alt_baro: Number(a.alt_baro) || 0,
-                track: Number(a.track) || 0,
-                gs: Number(a.gs) || 0,
+            const states = Array.isArray(raw.states) ? raw.states : [];
+            const positioned = states.filter(
+              (s) => Number.isFinite(Number(s[6])) && Number.isFinite(Number(s[5]))
+            );
+            const CAP = 800;
+            const step = Math.max(1, Math.floor(positioned.length / CAP));
+            const ac = positioned
+              .filter((_, i) => i % step === 0)
+              .slice(0, CAP)
+              .map((s) => ({
+                hex: String(s[0] ?? ""),
+                lat: Math.round(Number(s[6]) * 100) / 100,
+                lon: Math.round(Number(s[5]) * 100) / 100,
+                alt_baro: Math.round((Number(s[7]) || 0) * 3.28084),
+                track: Math.round(Number(s[10]) || 0),
+                gs: Math.round((Number(s[9]) || 0) * 1.94384),
               }));
             if (!ac.length) throw new Error("snapshot has no positioned aircraft");
             require("fs").writeFileSync(
               "flights.json",
-              JSON.stringify({ ac, now: Number(raw.now) || Date.now(), source: "adsb.fi" })
+              JSON.stringify({ ac, now: (Number(raw.time) || 0) * 1000 || Date.now(), source: "OpenSky Network" })
             );
-            console.log("aircraft:", ac.length);
+            console.log("aircraft:", ac.length, "of", positioned.length);
           '
 
       - name: Publish to the flight-data branch
