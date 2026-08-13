@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { RocketTrip, bodyEntry, tripDistanceKm, formatDistanceKo } from './RocketTrip.js';
+import { RocketTrip, bodyEntry, tripDistanceKm, formatDistanceKo, tripSpeechKo, tripDistanceLineKo } from './RocketTrip.js';
 import { rocketX, LANE_HALF, BODY_RADIUS } from './RocketTripScene.js';
 import { eligibleDestinations, travelFactKo } from './travelFacts.js';
 import { PLANET_DATA } from '../planets/planetData.js';
@@ -131,7 +131,12 @@ describe('RocketTrip overlay', () => {
       .toBe(STR.playTripDistanceNear(formatDistanceKo(tripDistanceKm('mars'))));
     const names = [...panel.querySelectorAll('.rockettrip-name')].map((el) => el.textContent);
     expect(names).toEqual([PLANET_DATA.earth.nameKo, PLANET_DATA.mars.nameKo]);
-    expect(speak).toHaveBeenCalledWith(travelFactKo('mars'));
+    // The distance is spoken with the fact, in ONE utterance: tts.speak cancels
+    // whatever is talking, so two calls would cut the fact off mid-word.
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect(speak).toHaveBeenCalledWith(tripSpeechKo('mars'));
+    expect(tripSpeechKo('mars')).toContain(travelFactKo('mars'));
+    expect(tripSpeechKo('mars')).toContain(tripDistanceLineKo('mars'));
   });
 
   it('words the Moon distance as fixed, not as a closest approach', () => {
@@ -178,6 +183,14 @@ describe('RocketTrip overlay', () => {
     expect(trip.launch('mars')).toBe(true);
     expect(document.querySelector('.rockettrip-fact').textContent).toBe(travelFactKo('mars'));
     expect(emit.mock.calls.some(([type]) => type === 'rocket-arrived')).toBe(true);
+  });
+
+  it('says it again on the replay button, for the word the child missed', () => {
+    const { trip, speak } = makeTrip();
+    trip.launch('mars');
+    speak.mockClear();
+    document.querySelector('.rockettrip-replay').click();
+    expect(speak).toHaveBeenCalledWith(tripSpeechKo('mars'));
   });
 
   it('cancel closes it — the seam the view already calls on a new pick', () => {

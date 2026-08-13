@@ -151,9 +151,12 @@ export const STR = {
   // owns the real mission durations. "가장 가까울 때" is not decoration: the gap
   // between two orbits swings by hundreds of millions of km, and the near number
   // is the honest one to say to a child who is about to watch a rocket cross it.
+  // Both forms end in 해요체 because they are SPOKEN as well as shown: a child
+  // who cannot read "7,839만 킬로미터" still hears it, and a bare noun phrase
+  // read aloud lands as a label rather than a sentence.
   playTripTitle: '로켓 여행',
-  playTripDistanceNear: (distance) => `지구에서 가장 가까울 때 약 ${distance}`,
-  playTripDistanceFixed: (distance) => `지구에서 약 ${distance}`,
+  playTripDistanceNear: (distance) => `지구에서 가장 가까울 때 약 ${distance}예요.`,
+  playTripDistanceFixed: (distance) => `지구에서 약 ${distance}예요.`,
   playTripKm: '킬로미터',
 
   // Sticker book + mission HUD

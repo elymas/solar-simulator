@@ -85,6 +85,38 @@ export function formatDistanceKo(km) {
   return `${Math.round(km / 1e4).toLocaleString('ko-KR')}만 ${STR.playTripKm}`;
 }
 
+/**
+ * The one sentence this overlay speaks: the duration fact, then the distance.
+ *
+ * Spoken as ONE string rather than two speak() calls because tts.speak cancels
+ * whatever is already talking — a second call would cut the first off mid-word.
+ * Exported so scripts/tts-phrases.mjs can bake a recorded take of it; a phrase
+ * the collector cannot see silently degrades to the device voice.
+ * @param {string} key
+ * @returns {string}
+ */
+export function tripSpeechKo(key) {
+  const factKo = travelFactKo(key);
+  const line = tripDistanceLineKo(key);
+  if (!factKo) return line || '';
+  return line ? `${factKo} ${line}` : factKo;
+}
+
+/**
+ * The distance sentence, worded for how the number was derived: a moon states a
+ * fixed orbit radius, a planet the closest the two orbits ever come.
+ * @param {string} key
+ * @returns {string}
+ */
+export function tripDistanceLineKo(key) {
+  const entry = bodyEntry(key);
+  const distance = formatDistanceKo(tripDistanceKm(key));
+  if (!entry || !distance) return '';
+  return entry.distanceKm != null
+    ? STR.playTripDistanceFixed(distance)
+    : STR.playTripDistanceNear(distance);
+}
+
 // @MX:ANCHOR: [AUTO] The "로켓 발사" surface. InfoPanel's button opens it through
 // SolarSystemView; the mission engine learns of the arrival through the event.
 // @MX:SPEC: [AUTO] SPEC-PLAY-001 REQ-PLAY-201/203/205
@@ -117,6 +149,7 @@ export class RocketTrip {
     this._win = win;
     this._open = false;
     this._scene = null;
+    this._spokenKo = '';
 
     injectStyles(doc);
     this._build();
@@ -155,17 +188,10 @@ export class RocketTrip {
     if (!from || !to) return false;
 
     const factKo = travelFactKo(key);
-    const km = tripDistanceKm(key);
-    const distanceKo = formatDistanceKo(km);
+    this._spokenKo = tripSpeechKo(key);
 
     this._factEl.textContent = factKo || '';
-    this._distanceEl.textContent = distanceKo
-      // A moon's distance is a fixed orbit radius; a planet's is the closest the
-      // two orbits ever come, and the wording has to say which it is.
-      ? (to.distanceKm != null
-        ? STR.playTripDistanceFixed(distanceKo)
-        : STR.playTripDistanceNear(distanceKo))
-      : '';
+    this._distanceEl.textContent = tripDistanceLineKo(key);
     this._fromNameEl.textContent = from.nameKo;
     this._toNameEl.textContent = to.nameKo;
 
@@ -175,7 +201,9 @@ export class RocketTrip {
     // to the canvas's laid-out box, which is 0x0 until then.
     this._startScene({ from, to, key });
 
-    if (factKo) this.speak(factKo);
+    // The distance rides along with the fact: a five-year-old cannot read
+    // "7,839만 킬로미터" off the screen, so the number only exists if it is said.
+    if (this._spokenKo) this.speak(this._spokenKo);
     this.emit('rocket-launch', { body: key });
     return true;
   }
@@ -264,11 +292,21 @@ export class RocketTrip {
     this._distanceEl = doc.createElement('p');
     this._distanceEl.className = 'rockettrip-distance';
 
+    // Same idiom as the info panel's replay button: one tap hears it again,
+    // which is how a child who missed a word gets it back.
+    this._replayBtn = doc.createElement('button');
+    this._replayBtn.className = 'rockettrip-replay';
+    this._replayBtn.setAttribute('aria-label', STR.infoReplay);
+    this._replayBtn.textContent = '\u{1F50A}';
+    this._replayBtn.addEventListener('click', () => {
+      if (this._spokenKo) this.speak(this._spokenKo);
+    });
+
     const note = doc.createElement('p');
     note.className = 'rockettrip-note';
     note.textContent = ECLIPSE_SCALE_NOTE;
 
-    panel.append(closeBtn, this._factEl, this._canvas, legend, this._distanceEl, note);
+    panel.append(closeBtn, this._factEl, this._canvas, legend, this._distanceEl, this._replayBtn, note);
     this.el.appendChild(panel);
   }
 }
@@ -355,6 +393,18 @@ function injectStyles(doc) {
       margin: 16px 0 0 0;
       font-size: 17px;
       color: #e0e0e0;
+    }
+    .rockettrip-replay {
+      margin-top: 12px;
+      font-size: 24px;
+      background: none;
+      border: 1px solid rgba(22, 199, 255, 0.4);
+      border-radius: 12px;
+      color: #16c7ff;
+      cursor: pointer;
+      /* Kid-sized hit area, Apple HIG 44pt floor (SPEC-MOBILE-001 REQ-MOB-105). */
+      min-width: 56px;
+      min-height: 48px;
     }
     .rockettrip-note {
       margin: 6px 0 0 0;

@@ -14,7 +14,8 @@ import { PLANET_DATA, MOON_DATA, STAR_DATA, BELT_DATA } from '../src/planets/pla
 import { STR } from '../src/ui/strings.js';
 import { ISS_FACTS } from '../src/earth/ISSMarker.js';
 import { SHOWER_TABLE } from '../src/utils/meteorData.js';
-import { TRAVEL_FACTS_KO } from '../src/play/travelFacts.js';
+import { TRAVEL_FACTS_KO, eligibleDestinations } from '../src/play/travelFacts.js';
+import { tripSpeechKo } from '../src/play/RocketTrip.js';
 import { comparisonRows } from '../src/play/SizeCompare.js';
 import { MISSION_CATALOG } from '../src/play/missions.js';
 
@@ -62,6 +63,13 @@ export function collectPhrases() {
 
   // Rocket arrivals.
   for (const fact of Object.values(TRAVEL_FACTS_KO)) add(fact, 'travel');
+
+  // What the rocket overlay actually says: the duration fact AND the distance,
+  // as one utterance. tts.speak cancels whatever is talking, so the overlay
+  // cannot say them separately — and the bare fact above would therefore never
+  // be the string it looks up. Missing these is what silently drops the trip
+  // narration back to the device voice.
+  for (const key of eligibleDestinations()) add(tripSpeechKo(key), 'travel');
 
   // Size comparison: the spoken row is the FIRST row for each body that has one.
   for (const [key, data] of allBodies()) {

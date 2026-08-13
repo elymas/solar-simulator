@@ -67,6 +67,13 @@
       .info-panel {
         width: 100% !important;
         right: -100% !important;
+        /* The ☰ list toggle and the 🏆 sticker toggle float above this panel at
+           top:16px in a 44px box. On a phone the panel IS the whole screen, so
+           its content started underneath that pair and the planet thumbnail was
+           sliced in half by them. Start the content below the toggles instead of
+           hiding them — a child reaching for the sticker book should not have to
+           close the planet first. 16 + 44 + 12 of gutter. */
+        padding-top: calc(72px + env(safe-area-inset-top, 0px)) !important;
       }
       .info-panel.open {
         right: 0 !important;
